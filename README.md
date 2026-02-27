@@ -1,3 +1,3 @@
 # Petix
 
-Новый проект Petix.
+Petix project repository.
