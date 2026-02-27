@@ -1,2 +1,4 @@
 .tools/
 .DS_Store
+.vercel
+.npm-cache/

@@ -1,0 +1,6 @@
+.git
+.gitignore
+.vercel
+.npm-cache
+.tools
+node_modules
