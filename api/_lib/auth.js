@@ -4,8 +4,10 @@ const nacl = require("tweetnacl");
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const CHARACTER_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const CHALLENGE_COOKIE = "petix_challenge";
 const SESSION_COOKIE = "petix_session";
+const CHARACTER_COOKIE = "petix_character";
 
 function getSecret() {
   const secret = process.env.SOLANA_AUTH_SECRET;
@@ -215,15 +217,39 @@ function createSession(wallet, walletType) {
   };
 }
 
+function createToken(payload, ttlMs) {
+  const now = Date.now();
+  return signToken({
+    ...payload,
+    iat: now,
+    exp: now + ttlMs,
+  });
+}
+
+function getSessionFromRequest(req) {
+  const cookies = parseCookies(req);
+  const sessionToken = cookies[SESSION_COOKIE];
+  if (!sessionToken) return null;
+  const session = verifyToken(sessionToken);
+  if (!session || session.type !== "session" || session.exp < Date.now()) {
+    return null;
+  }
+  return session;
+}
+
 module.exports = {
   CHALLENGE_COOKIE,
   CHALLENGE_TTL_MS,
+  CHARACTER_COOKIE,
+  CHARACTER_TTL_MS,
   SESSION_COOKIE,
   SESSION_TTL_MS,
   clearCookie,
   buildChallengeMessage,
+  createToken,
   createChallenge,
   createSession,
+  getSessionFromRequest,
   isLikelySolanaAddress,
   json,
   parseCookies,

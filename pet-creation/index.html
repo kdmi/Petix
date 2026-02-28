@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Petix - Pet Creation</title>
+    <meta name="description" content="Create your Petix character" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="creation-page">
+      <header class="topbar">
+        <div class="brand">
+          <img src="/assets/petix-logo.svg" alt="Petix logo" width="118" height="40" />
+        </div>
+        <div class="topbar-actions">
+          <button class="connect-trigger" id="connectTrigger" type="button">Connect wallet</button>
+          <div class="wallet-menu hidden" id="walletMenu">
+            <button class="wallet-menu-item" id="walletMenuLogout" type="button">Log Out</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="progress-wrap">
+        <div class="progress-bars">
+          <div class="progress-bar" id="barType"></div>
+          <div class="progress-bar" id="barPowers"></div>
+          <div class="progress-bar" id="barAttrs"></div>
+        </div>
+        <div class="progress-labels">
+          <span id="labelType">Type</span>
+          <span id="labelPowers">Powers</span>
+          <span id="labelAttrs">Attributes</span>
+        </div>
+      </section>
+
+      <section class="screen" id="screenType">
+        <img class="hero-icon" src="/assets/cube-outline.svg" alt="" width="72" height="72" />
+        <h1>Create your Pet</h1>
+        <p>Choose your pet type</p>
+
+        <div class="types-grid" id="typesGrid">
+          <button class="type-chip" type="button" data-type="Dragon">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/dragon-default.svg"
+            /></span>
+            <span class="type-chip-label">Dragon</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Phoenix">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/phoenix-default.svg"
+            /></span>
+            <span class="type-chip-label">Phoenix</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Cat">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/cat-default.svg"
+            /></span>
+            <span class="type-chip-label">Cat</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Owl">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/owl-default.svg"
+            /></span>
+            <span class="type-chip-label">Owl</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Ape">
+            <span class="type-chip-icon">
+              <img alt="" class="type-chip-icon-primary" src="/assets/pet-types/ape-default.svg" />
+              <img alt="" class="type-chip-icon-secondary hidden" />
+            </span>
+            <span class="type-chip-label">Ape</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Panda">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/panda-default.svg"
+            /></span>
+            <span class="type-chip-label">Panda</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Undead">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/undead-default.svg"
+            /></span>
+            <span class="type-chip-label">Undead</span>
+          </button>
+          <button class="type-chip" type="button" data-type="Other">
+            <span class="type-chip-icon"
+              ><img alt="" class="type-chip-icon-primary" src="/assets/pet-types/other-default.svg"
+            /></span>
+            <span class="type-chip-label">Other</span>
+          </button>
+        </div>
+
+        <div class="other-input-wrap hidden" id="otherInputWrap">
+          <label class="visually-hidden" for="otherTypeInput">Pet type</label>
+          <input id="otherTypeInput" maxlength="32" placeholder="What type of pet do you want?" />
+        </div>
+
+        <button class="primary-btn type-continue-btn" id="typeContinueBtn" type="button" disabled>
+          Continue
+        </button>
+      </section>
+
+      <section class="screen hidden" id="screenProcess">
+        <div class="process-card">
+          <iframe
+            class="process-lottie"
+            src="https://cdn.lottielab.com/l/4MgWbT9s44YPvt.html"
+            width="280"
+            height="280"
+            frameborder="0"
+            title="Generation animation"
+          ></iframe>
+        </div>
+        <h1>Generation in process...</h1>
+        <p>Please wait, it could take a few seconds</p>
+      </section>
+
+      <section class="screen hidden powers-screen" id="screenPowers">
+        <div class="powers-screen-wrap">
+          <button class="back-btn powers-back-btn is-hidden" id="backToTypeBtn" type="button" aria-hidden="true" tabindex="-1">
+            ← Back
+          </button>
+
+          <div class="pet-result-card" aria-hidden="true">
+            <div class="pet-result-image-frame">
+                <img class="pet-result-image" src="/assets/character/current-pet.jpg" alt="" width="200" height="200" />
+            </div>
+            <div class="pet-rarity-badge">Legendary</div>
+          </div>
+
+          <h1 id="powersTitle">The Pet is now your Pet</h1>
+          <p class="powers-subtitle">
+            You can choose only one special power.
+            <br />
+            Choose smart, it will involve on the future battles.
+          </p>
+
+          <div class="powers-grid" id="powersGrid"></div>
+          <button class="primary-btn powers-continue-btn" id="powersContinueBtn" type="button" disabled>Continue</button>
+        </div>
+      </section>
+
+      <section class="screen hidden attrs-screen" id="screenAttrs">
+        <button class="back-btn hidden" id="backToPowersBtn" type="button">← Back</button>
+
+        <div class="attrs-layout">
+          <div class="attrs-main">
+            <h1>Distribute attributes</h1>
+            <p>Attributes increase your battle advantage.</p>
+            <div class="attrs-list" id="attrsList"></div>
+          </div>
+
+          <aside class="attrs-side">
+            <div class="attrs-pet-card" aria-hidden="true">
+              <div class="attrs-pet-image-wrap">
+                <img class="attrs-pet-image" src="/assets/character/current-pet.jpg" alt="" width="248" height="248" />
+              </div>
+              <span class="attrs-pet-level">Lvl. 1</span>
+              <span class="attrs-pet-rarity">Legendary</span>
+              <span class="attrs-exp-label">Experience</span>
+              <span class="attrs-exp-value">0/500</span>
+              <span class="attrs-exp-track"></span>
+              <span class="attrs-exp-progress"></span>
+            </div>
+
+            <div class="attrs-side-panel">
+              <div class="attrs-points-card">
+                <span>Points<br />to distribute</span>
+                <strong id="pointsLeft">15</strong>
+              </div>
+
+              <div class="attrs-hold-copy">
+                <p class="attrs-hold-title">Extra points for $PETIX hold</p>
+                <p class="attrs-hold-text">If your wallet holds $PETIX, you can get extra experience rewards</p>
+              </div>
+
+              <div class="attrs-rewards-wrap">
+                <button class="attrs-rewards-btn" id="claimRewardsBtn" type="button" disabled aria-disabled="true">
+                  <span class="attrs-rewards-icon" aria-hidden="true"></span>
+                  <span>Claim rewards</span>
+                </button>
+                <span class="attrs-rewards-tooltip" role="status">Coming soon...</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="attrs-divider" aria-hidden="true"></div>
+        <button class="primary-btn attrs-continue-btn" id="attrsContinueBtn" type="button" disabled>Continue</button>
+      </section>
+
+      <section class="screen hidden" id="screenSuccess">
+        <h1>Success</h1>
+        <p>Your character is created.</p>
+        <button class="primary-btn" id="openCabinetBtn" type="button">Open cabinet</button>
+      </section>
+
+      <section class="screen hidden" id="screenCabinet">
+        <h1>Temporary Cabinet</h1>
+        <div class="cabinet-card" id="cabinetCard"></div>
+      </section>
+    </main>
+
+    <div class="wallet-overlay hidden" id="walletOverlay" aria-hidden="true">
+      <section class="wallet-modal" role="dialog" aria-modal="true" aria-labelledby="walletModalTitle">
+        <button class="wallet-close" id="walletClose" type="button" aria-label="Close">x</button>
+
+        <div class="wallet-panel" id="walletAuthPanel">
+          <h2 class="wallet-title" id="walletModalTitle">Connect wallet to Sign In</h2>
+          <div class="wallet-list">
+            <button class="wallet-item" data-wallet="phantom" type="button">
+              <span class="wallet-name">Phantom</span>
+              <span class="wallet-detected hidden" data-detected-for="phantom">Detected</span>
+            </button>
+            <button class="wallet-item" data-wallet="solflare" type="button">
+              <span class="wallet-name">Solflare</span>
+              <span class="wallet-detected hidden" data-detected-for="solflare">Detected</span>
+            </button>
+            <button class="wallet-item" data-wallet="trust" type="button">
+              <span class="wallet-name">Trust Wallet</span>
+              <span class="wallet-detected hidden" data-detected-for="trust">Detected</span>
+            </button>
+          </div>
+          <p class="wallet-status" id="walletStatus" aria-live="polite"></p>
+        </div>
+
+        <div class="wallet-panel hidden" id="walletLoggedPanel">
+          <h2 class="wallet-title">You are logged in</h2>
+          <p class="logged-wallet" id="loggedWalletAddress"></p>
+          <button class="primary-btn modal-btn" id="continueBtn" type="button">Continue</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
