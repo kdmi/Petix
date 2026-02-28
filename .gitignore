@@ -1,4 +1,8 @@
 .tools/
 .DS_Store
 .vercel
+.vercel.bak
 .npm-cache/
+node_modules/
+.env
+.env.*

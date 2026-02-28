@@ -1,0 +1,14 @@
+{
+  "name": "petix",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Petix static site with Solana wallet auth API",
+  "scripts": {},
+  "dependencies": {
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "vercel": "^50.25.2"
+  }
+}

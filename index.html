@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:wght@600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
@@ -31,6 +31,13 @@
   </head>
   <body>
     <main class="page">
+      <button class="connect-trigger" id="connectTrigger" type="button">
+        Connect wallet
+      </button>
+      <div class="wallet-menu hidden" id="walletMenu">
+        <button class="wallet-menu-item" id="walletMenuLogout" type="button">Log Out</button>
+      </div>
+
       <img
         class="logo"
         src="https://static.tildacdn.com/tild3965-3062-4164-a637-343632663861/petix_logo_header.svg"
@@ -55,5 +62,86 @@
 
       <a class="twitter" href="https://x.com/petixfun">Follow us on X</a>
     </main>
+
+    <div class="wallet-overlay hidden" id="walletOverlay" aria-hidden="true">
+      <section
+        class="wallet-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="walletModalTitle"
+      >
+        <button class="wallet-close" id="walletClose" type="button" aria-label="Close">
+          ×
+        </button>
+
+        <div class="wallet-panel" id="walletAuthPanel">
+          <h2 class="wallet-title" id="walletModalTitle">Connect wallet to Sign In</h2>
+
+          <div class="wallet-list">
+            <button class="wallet-item" data-wallet="phantom" type="button">
+              <span class="wallet-icon">
+                <img
+                  class="wallet-icon-image"
+                  src="https://www.figma.com/api/mcp/asset/55b2fc77-9f76-4e85-8f13-69e844d3c7d1"
+                  alt="Phantom logo"
+                  width="24"
+                  height="24"
+                />
+              </span>
+              <span class="wallet-name">Phantom</span>
+              <span class="wallet-detected hidden" data-detected-for="phantom">Detected</span>
+              <span class="wallet-arrow">›</span>
+            </button>
+
+            <button class="wallet-item" data-wallet="solflare" type="button">
+              <span class="wallet-icon">
+                <img
+                  class="wallet-icon-image"
+                  src="https://www.figma.com/api/mcp/asset/4557a599-f7ea-45db-8c24-7c8400b883d7"
+                  alt="Solflare logo"
+                  width="24"
+                  height="24"
+                />
+              </span>
+              <span class="wallet-name">Solflare</span>
+              <span class="wallet-detected hidden" data-detected-for="solflare">Detected</span>
+              <span class="wallet-arrow">›</span>
+            </button>
+
+            <button class="wallet-item" data-wallet="trust" type="button">
+              <span class="wallet-icon">
+                <img
+                  class="wallet-icon-image"
+                  src="https://www.figma.com/api/mcp/asset/0a8afd36-e48d-43a7-a79b-21b80235f1f1"
+                  alt="Trust Wallet logo"
+                  width="24"
+                  height="24"
+                />
+              </span>
+              <span class="wallet-name">Trust Wallet</span>
+              <span class="wallet-detected hidden" data-detected-for="trust">Detected</span>
+              <span class="wallet-arrow">›</span>
+            </button>
+          </div>
+
+          <p class="wallet-status" id="walletStatus" aria-live="polite"></p>
+
+          <footer class="wallet-footer">
+            By connecting your wallet, you agree to our
+            <a href="#" aria-label="Terms of Use">Terms of Use</a>
+            and
+            <a href="#" aria-label="Privacy Policy">Privacy Policy</a>
+          </footer>
+        </div>
+
+        <div class="wallet-panel hidden" id="walletLoggedPanel">
+          <h2 class="wallet-title">You are logged in</h2>
+          <p class="logged-wallet" id="loggedWalletAddress"></p>
+          <button class="logout-btn" id="continueBtn" type="button">Continue</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
   </body>
 </html>
