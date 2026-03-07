@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="/pet-creation/styles.css" />
   </head>
   <body>
     <main class="creation-page">
@@ -119,8 +119,10 @@
             title="Generation animation"
           ></iframe>
         </div>
-        <h1>Generation in process...</h1>
-        <p>Please wait, it could take a few seconds</p>
+        <div class="process-copy">
+          <h1>Cooking up your pet...</h1>
+          <p>Please wait, it could take a few seconds</p>
+        </div>
       </section>
 
       <section class="screen hidden powers-screen" id="screenPowers">
@@ -197,10 +199,24 @@
         <button class="primary-btn attrs-continue-btn" id="attrsContinueBtn" type="button" disabled>Continue</button>
       </section>
 
-      <section class="screen hidden" id="screenSuccess">
-        <h1>Success</h1>
-        <p>Your character is created.</p>
-        <button class="primary-btn" id="openCabinetBtn" type="button">Open cabinet</button>
+      <section class="screen hidden success-screen" id="screenSuccess">
+        <div class="success-card" id="successCard" aria-hidden="true">
+          <div class="success-card-title" id="successPetName">Riche Lich</div>
+          <div class="success-card-image-wrap">
+            <img class="success-card-image" src="/assets/character/current-pet.jpg" alt="" width="248" height="248" />
+            <span class="success-card-level">Lvl. 1</span>
+            <span class="success-card-rarity">Legendary</span>
+            <span class="success-card-exp-label">Experience</span>
+            <span class="success-card-exp-value">0/500</span>
+            <span class="success-card-exp-track"></span>
+            <span class="success-card-exp-progress"></span>
+          </div>
+          <div class="success-card-stats" id="successStats"></div>
+        </div>
+
+        <h1>Your Pet successfully created!</h1>
+        <p>Track progress and upgrade skills on the dashboard. Get ready for adventures!</p>
+        <button class="primary-btn success-dashboard-btn enabled" id="openCabinetBtn" type="button">Go to dashboard</button>
       </section>
 
       <section class="screen hidden" id="screenCabinet">
@@ -240,6 +256,7 @@
       </section>
     </div>
 
-    <script src="./app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="/pet-creation/app.js"></script>
   </body>
 </html>

@@ -143,6 +143,8 @@ const powersTitle = document.getElementById("powersTitle");
 const attrsList = document.getElementById("attrsList");
 const pointsLeft = document.getElementById("pointsLeft");
 const attrsContinueBtn = document.getElementById("attrsContinueBtn");
+const successPetName = document.getElementById("successPetName");
+const successStats = document.getElementById("successStats");
 const cabinetCard = document.getElementById("cabinetCard");
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
@@ -155,8 +157,10 @@ const walletStatus = document.getElementById("walletStatus");
 const loggedWalletAddress = document.getElementById("loggedWalletAddress");
 const continueBtn = document.getElementById("continueBtn");
 const claimRewardsBtn = document.getElementById("claimRewardsBtn");
+const attrsSidePanel = document.querySelector(".attrs-side-panel");
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
+const progressWrap = document.querySelector(".progress-wrap");
 
 const barType = document.getElementById("barType");
 const barPowers = document.getElementById("barPowers");
@@ -323,13 +327,30 @@ async function logoutWallet() {
   showWalletAuthState();
 }
 
+function resetStepScroll() {
+  if (!window.matchMedia("(max-width: 900px)").matches) return;
+
+  window.requestAnimationFrame(() => {
+    const root = document.scrollingElement || document.documentElement;
+    if (root) root.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  });
+}
+
 function showScreen(targetId) {
   [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet].forEach((screen) => {
     screen.classList.toggle("hidden", screen.id !== targetId);
   });
+
+  document.body.classList.toggle("success-screen-active", targetId === "screenSuccess");
 }
 
 function setProgress(step) {
+  if (progressWrap) {
+    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet");
+  }
+
   barType.classList.toggle("active", ["type", "process"].includes(step));
   barPowers.classList.toggle("active", step === "powers");
   barAttrs.classList.toggle("active", ["attrs", "success", "cabinet"].includes(step));
@@ -471,6 +492,10 @@ function updateAttrsButtonState() {
   const ready = left === 0;
   attrsContinueBtn.disabled = !ready;
   attrsContinueBtn.classList.toggle("enabled", ready);
+  attrsContinueBtn.classList.toggle("mobile-hidden", !ready);
+  if (attrsSidePanel) {
+    attrsSidePanel.classList.toggle("is-ready", ready);
+  }
 }
 
 function renderAttrsStep() {
@@ -545,6 +570,68 @@ function renderCabinet() {
   `;
 }
 
+function renderSuccessStep() {
+  if (successPetName) {
+    successPetName.textContent = "Riche Lich";
+  }
+
+  if (successStats) {
+    successStats.innerHTML = ATTRS.map((attr) => {
+      const value = state.attrs[attr.key];
+      return `
+        <div class="success-card-stat">
+          <img src="${attr.icon}" alt="" width="20" height="20" />
+          <span>${value}</span>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+function fireSuccessConfetti() {
+  if (typeof window.confetti !== "function") return;
+
+  const count = 200;
+  const defaults = {
+    disableForReducedMotion: true,
+    origin: { y: 0.7 },
+    zIndex: 1000,
+  };
+
+  const fire = (particleRatio, options) => {
+    window.confetti({
+      ...defaults,
+      ...options,
+      particleCount: Math.floor(count * particleRatio),
+    });
+  };
+
+  window.requestAnimationFrame(() => {
+    fire(0.25, {
+      spread: 26,
+      startVelocity: 55,
+    });
+    fire(0.2, {
+      spread: 60,
+    });
+    fire(0.35, {
+      decay: 0.91,
+      scalar: 0.8,
+      spread: 100,
+    });
+    fire(0.1, {
+      decay: 0.92,
+      scalar: 1.2,
+      spread: 120,
+      startVelocity: 25,
+    });
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 45,
+    });
+  });
+}
+
 function moveTo(step) {
   state.step = step;
   setProgress(step);
@@ -566,14 +653,22 @@ function moveTo(step) {
   }
   if (step === "success") {
     showScreen("screenSuccess");
+    renderSuccessStep();
+    fireSuccessConfetti();
   }
   if (step === "cabinet") {
     showScreen("screenCabinet");
     renderCabinet();
   }
+
+  resetStepScroll();
 }
 
 function init() {
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+
   preloadTypeIcons();
   preloadPowersAssets();
   preloadAttrsAssets();
