@@ -1567,6 +1567,10 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   color: var(--gray-500);
 }
 
+.admin-rarity-text {
+  font-weight: 700;
+}
+
 .admin-character-thumb {
   background: #f2f4f7;
   border: 1px solid var(--gray-200);

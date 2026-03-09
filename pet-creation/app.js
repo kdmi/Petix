@@ -1204,10 +1204,10 @@ function toggleAdminCharacterExpanded(characterId) {
 function buildAdminInfoItems(items) {
   return items
     .map(
-      ({ label, value }) => `
+      ({ label, value, valueHtml }) => `
         <div class="admin-info-item">
           <span class="admin-info-label">${escapeHtml(label)}</span>
-          <span class="admin-info-value">${escapeHtml(value)}</span>
+          <span class="admin-info-value">${valueHtml || escapeHtml(value)}</span>
         </div>
       `
     )
@@ -1215,6 +1215,7 @@ function buildAdminInfoItems(items) {
 }
 
 function createAdminDetailsMarkup(record) {
+  const rarity = getRarityMeta(record?.rarity);
   const attributeItems = ATTRS.map((attr) => ({
     label: attr.label,
     value: record?.attributes?.[attr.key] ?? 0,
@@ -1226,7 +1227,10 @@ function createAdminDetailsMarkup(record) {
   const metaItems = [
     { label: "Name", value: record.name || record.displayName || record.creatureType || "Unknown" },
     { label: "Creature type", value: record.creatureType || "Unknown" },
-    { label: "Rarity", value: record.rarity || "Unknown" },
+    {
+      label: "Rarity",
+      valueHtml: `<span class="admin-rarity-text" style="color: ${escapeHtml(rarity.color)};">${escapeHtml(record.rarity || "Unknown")}</span>`,
+    },
     { label: "Selected power", value: getSelectedPowerDescription(record) },
     { label: "Attribute budget", value: record.attributePoints ?? 0 },
     { label: "Image provider", value: record.imageProvider || "Unknown" },
@@ -1355,6 +1359,8 @@ function renderAdminTable() {
 
     const meta = document.createElement("span");
     meta.textContent = record.rarity || "Unknown";
+    meta.className = "admin-rarity-text";
+    meta.style.color = getRarityMeta(record.rarity).color;
 
     summary.append(title, meta);
     characterCell.append(thumb, summary);
