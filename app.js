@@ -34,9 +34,9 @@ const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
 const walletClose = document.getElementById("walletClose");
 const walletMenu = document.getElementById("walletMenu");
-const walletMenuCreatePet = document.getElementById("walletMenuCreatePet");
-const walletMenuDashboard = document.getElementById("walletMenuDashboard");
-const walletMenuAdmin = document.getElementById("walletMenuAdmin");
+let walletMenuCreatePet = document.getElementById("walletMenuCreatePet");
+let walletMenuDashboard = document.getElementById("walletMenuDashboard");
+let walletMenuAdmin = document.getElementById("walletMenuAdmin");
 const walletMenuLogout = document.getElementById("walletMenuLogout");
 const walletAuthPanel = document.getElementById("walletAuthPanel");
 const walletLoggedPanel = document.getElementById("walletLoggedPanel");
@@ -47,6 +47,36 @@ const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 let isAuthenticated = false;
 let isAdmin = false;
+
+function ensureWalletMenuItem(id, label, hidden = false) {
+  if (!walletMenu) return null;
+
+  let button = document.getElementById(id);
+  if (button) return button;
+
+  button = document.createElement("button");
+  button.className = "wallet-menu-item";
+  if (hidden) {
+    button.classList.add("hidden");
+  }
+  button.id = id;
+  button.type = "button";
+  button.textContent = label;
+
+  if (walletMenuLogout) {
+    walletMenu.insertBefore(button, walletMenuLogout);
+  } else {
+    walletMenu.appendChild(button);
+  }
+
+  return button;
+}
+
+function ensureWalletMenuItems() {
+  walletMenuCreatePet = ensureWalletMenuItem("walletMenuCreatePet", "Create new pet");
+  walletMenuDashboard = ensureWalletMenuItem("walletMenuDashboard", "Dashboard");
+  walletMenuAdmin = ensureWalletMenuItem("walletMenuAdmin", "Admin panel", true);
+}
 
 function shortenAddress(address) {
   if (!address || address.length < 12) return address || "";
@@ -131,6 +161,8 @@ function openPetCreation(target = "type") {
 
   window.location.href = new URL("/pet-creation/", window.location.origin).toString();
 }
+
+ensureWalletMenuItems();
 
 function extractSignatureBytes(signatureResult) {
   if (signatureResult instanceof Uint8Array) return signatureResult;

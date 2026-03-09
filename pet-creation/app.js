@@ -509,6 +509,11 @@ function getRequestedScreen() {
 }
 
 function getPageMode() {
+  const explicitPage = String(document.body?.dataset?.page || "").trim().toLowerCase();
+  if (["creation", "dashboard", "admin"].includes(explicitPage)) {
+    return explicitPage;
+  }
+
   const requestedScreen = getRequestedScreen();
   if (requestedScreen === "cabinet") return "dashboard";
   if (requestedScreen === "admin") return "admin";
