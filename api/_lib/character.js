@@ -106,7 +106,7 @@ function normalizeCreatureType(input) {
   const creatureType = String(input || "")
     .trim()
     .replace(/\s+/g, " ")
-    .slice(0, 32);
+    .slice(0, 24);
 
   if (!creatureType) {
     throw new Error("Creature type is required.");
