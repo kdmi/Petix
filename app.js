@@ -46,6 +46,7 @@ const loggedWalletAddress = document.getElementById("loggedWalletAddress");
 const continueBtn = document.getElementById("continueBtn");
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
+const shouldOpenAuthModal = new URLSearchParams(window.location.search).get("auth") === "1";
 let isAuthenticated = false;
 let isAdmin = false;
 let characterCount = 0;
@@ -437,6 +438,11 @@ document.addEventListener("click", (event) => {
 window.addEventListener("load", async () => {
   refreshDetectedBadges();
   await restoreSession();
+  if (!isAuthenticated && shouldOpenAuthModal) {
+    setStatus("Connect wallet to continue.", "error");
+    openModal();
+    return;
+  }
   closeModal();
 });
 

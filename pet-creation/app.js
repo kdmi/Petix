@@ -658,6 +658,12 @@ function openAdminPanelFromMenu() {
   window.location.href = new URL(ADMIN_ROUTE, window.location.origin).toString();
 }
 
+function redirectToLandingAuthPrompt() {
+  const targetUrl = new URL("/", window.location.origin);
+  targetUrl.searchParams.set("auth", "1");
+  window.location.replace(targetUrl.toString());
+}
+
 function getRequestedScreen() {
   const screen = new URLSearchParams(window.location.search).get("screen");
   return ["type", "cabinet", "admin"].includes(screen) ? screen : "";
@@ -809,12 +815,19 @@ function refreshDetectedBadges() {
 
 async function restoreWalletSession() {
   try {
-    const data = await apiRequest("/api/auth/solana/me", {}, "GET");
-    if (!data?.authenticated || !data?.wallet) throw new Error("No active session");
+    const response = await fetch(toApiUrl("/api/auth/solana/me"), {
+      method: "GET",
+      credentials: "include",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.authenticated || !data?.wallet) {
+      throw new Error("No active session");
+    }
     showLoggedWalletState({ walletAddress: data.wallet, isAdmin: data.isAdmin });
     await restoreCharacterState();
   } catch {
     showWalletAuthState();
+    redirectToLandingAuthPrompt();
   }
 }
 
