@@ -1637,6 +1637,22 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   outline: none;
 }
 
+.wallet-icon {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 24px;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.wallet-icon-image {
+  display: block;
+  height: 24px;
+  object-fit: contain;
+  width: 24px;
+}
+
 .wallet-name {
   color: var(--gray-900);
   font-family: "Figtree", Arial, sans-serif;
