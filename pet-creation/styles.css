@@ -1590,6 +1590,32 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   word-break: break-all;
 }
 
+.admin-action-cell {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.admin-detail-btn {
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  color: var(--gray-900);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 38px;
+  min-width: 88px;
+  padding: 0 16px;
+}
+
+.admin-detail-btn:hover,
+.admin-detail-btn:focus-visible {
+  background: #f9fafb;
+  border-color: var(--gray-400);
+  outline: none;
+}
+
 .admin-delete-btn {
   background: #fef3f2;
   border: 1px solid #fecdca;
@@ -1619,6 +1645,68 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   font-size: 16px;
   line-height: 24px;
   margin: 0;
+}
+
+.admin-details-row td {
+  background: #f9fafb;
+}
+
+.admin-details-cell {
+  padding: 0 !important;
+}
+
+.admin-details-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 20px;
+}
+
+.admin-details-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  padding: 18px;
+}
+
+.admin-details-card h3 {
+  color: var(--gray-900);
+  font-size: 15px;
+  line-height: 22px;
+  margin: 0 0 14px;
+}
+
+.admin-details-card-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-info-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-info-item {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-info-label {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 18px;
+  text-transform: uppercase;
+}
+
+.admin-info-value {
+  color: var(--gray-900);
+  font-size: 14px;
+  line-height: 20px;
+  word-break: break-word;
 }
 
 .wallet-overlay {
@@ -2211,6 +2299,21 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
 
   .admin-table-wrap {
     border-radius: 20px;
+  }
+
+  .admin-action-cell {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-detail-btn,
+  .admin-delete-btn {
+    width: 100%;
+  }
+
+  .admin-details-grid,
+  .admin-info-grid {
+    grid-template-columns: 1fr;
   }
 
   .powers-screen {

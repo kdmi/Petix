@@ -203,6 +203,7 @@ const state = {
   characters: [],
   adminCharacters: [],
   adminWalletQuery: "",
+  expandedAdminCharacterIds: [],
   isAdminLoading: false,
   deletingAdminCharacterId: "",
   adminErrorMessage: "",
@@ -246,6 +247,21 @@ function formatDateTime(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatAdminFieldLabel(key) {
+  return String(key || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function setWalletStatus(message, type = "neutral") {
@@ -1085,6 +1101,77 @@ function getFilteredAdminCharacters() {
   );
 }
 
+function isAdminCharacterExpanded(characterId) {
+  return state.expandedAdminCharacterIds.includes(characterId);
+}
+
+function toggleAdminCharacterExpanded(characterId) {
+  if (!characterId) return;
+
+  if (isAdminCharacterExpanded(characterId)) {
+    state.expandedAdminCharacterIds = state.expandedAdminCharacterIds.filter((id) => id !== characterId);
+  } else {
+    state.expandedAdminCharacterIds = [...state.expandedAdminCharacterIds, characterId];
+  }
+
+  renderAdminTable();
+}
+
+function buildAdminInfoItems(items) {
+  return items
+    .map(
+      ({ label, value }) => `
+        <div class="admin-info-item">
+          <span class="admin-info-label">${escapeHtml(label)}</span>
+          <span class="admin-info-value">${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function createAdminDetailsMarkup(record) {
+  const attributeItems = ATTRS.map((attr) => ({
+    label: attr.label,
+    value: record?.attributes?.[attr.key] ?? 0,
+  }));
+  const variableItems = Object.entries(record?.variables || {}).map(([key, value]) => ({
+    label: formatAdminFieldLabel(key),
+    value: value || "—",
+  }));
+  const metaItems = [
+    { label: "Name", value: record.name || record.displayName || record.creatureType || "Unknown" },
+    { label: "Creature type", value: record.creatureType || "Unknown" },
+    { label: "Rarity", value: record.rarity || "Unknown" },
+    { label: "Selected power", value: getSelectedPowerDescription(record) },
+    { label: "Attribute budget", value: record.attributePoints ?? 0 },
+    { label: "Image provider", value: record.imageProvider || "Unknown" },
+  ];
+
+  return `
+    <div class="admin-details-grid">
+      <section class="admin-details-card">
+        <h3>Character</h3>
+        <div class="admin-info-grid">
+          ${buildAdminInfoItems(metaItems)}
+        </div>
+      </section>
+      <section class="admin-details-card">
+        <h3>Attributes</h3>
+        <div class="admin-info-grid">
+          ${buildAdminInfoItems(attributeItems)}
+        </div>
+      </section>
+      <section class="admin-details-card admin-details-card-wide">
+        <h3>Random variables</h3>
+        <div class="admin-info-grid">
+          ${buildAdminInfoItems(variableItems.length ? variableItems : [{ label: "Variables", value: "No data" }])}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function updateAdminCount(records) {
   if (!adminCount) return;
 
@@ -1147,6 +1234,7 @@ function renderAdminTable() {
 
   records.forEach((record) => {
     const row = document.createElement("tr");
+    row.className = "admin-row";
 
     const characterCell = document.createElement("td");
     characterCell.className = "admin-character-cell";
@@ -1185,6 +1273,17 @@ function renderAdminTable() {
     createdCell.textContent = formatDateTime(record.completedAt || record.createdAt);
 
     const actionCell = document.createElement("td");
+    actionCell.className = "admin-action-cell";
+    const isExpanded = isAdminCharacterExpanded(record.id);
+    const detailsBtn = document.createElement("button");
+    detailsBtn.type = "button";
+    detailsBtn.className = "admin-detail-btn";
+    detailsBtn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+    detailsBtn.textContent = isExpanded ? "Hide" : "Details";
+    detailsBtn.addEventListener("click", () => {
+      toggleAdminCharacterExpanded(record.id);
+    });
+
     const deleteBtn = document.createElement("button");
     const isDeleting = state.deletingAdminCharacterId === record.id;
     deleteBtn.type = "button";
@@ -1194,10 +1293,23 @@ function renderAdminTable() {
     deleteBtn.addEventListener("click", async () => {
       await deleteAdminCharacter(record);
     });
-    actionCell.appendChild(deleteBtn);
+    actionCell.append(detailsBtn, deleteBtn);
 
     row.append(characterCell, typeCell, powerCell, walletCell, createdCell, actionCell);
     adminTableBody.appendChild(row);
+
+    if (isExpanded) {
+      const detailsRow = document.createElement("tr");
+      detailsRow.className = "admin-details-row";
+
+      const detailsCell = document.createElement("td");
+      detailsCell.colSpan = 6;
+      detailsCell.className = "admin-details-cell";
+      detailsCell.innerHTML = createAdminDetailsMarkup(record);
+
+      detailsRow.appendChild(detailsCell);
+      adminTableBody.appendChild(detailsRow);
+    }
   });
 }
 
@@ -1218,8 +1330,13 @@ async function loadAdminCharacters({ force = false } = {}) {
     state.adminCharacters = Array.isArray(data.characters)
       ? data.characters.map(normalizeCharacterRecord)
       : [];
+    const visibleIds = new Set(state.adminCharacters.map((record) => record.id));
+    state.expandedAdminCharacterIds = state.expandedAdminCharacterIds.filter((id) =>
+      visibleIds.has(id)
+    );
   } catch (error) {
     state.adminCharacters = [];
+    state.expandedAdminCharacterIds = [];
     state.adminErrorMessage =
       typeof error?.message === "string" ? error.message : "Failed to load characters.";
   } finally {
@@ -1249,6 +1366,7 @@ async function deleteAdminCharacter(record) {
     });
 
     state.adminCharacters = state.adminCharacters.filter((item) => item.id !== record.id);
+    state.expandedAdminCharacterIds = state.expandedAdminCharacterIds.filter((id) => id !== record.id);
     syncDeletedCharacterLocally(data.creatorWallet, record.id);
     renderAdminTable();
   } catch (error) {
