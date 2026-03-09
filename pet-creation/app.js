@@ -1020,8 +1020,10 @@ function renderCabinet() {
   }
 
   if (createAnotherBtn) {
-    createAnotherBtn.disabled = !canCreateAnother;
+    createAnotherBtn.disabled = false;
+    createAnotherBtn.classList.toggle("disabled", !canCreateAnother);
     createAnotherBtn.classList.toggle("enabled", canCreateAnother);
+    createAnotherBtn.setAttribute("aria-disabled", canCreateAnother ? "false" : "true");
     createAnotherBtn.title = canCreateAnother
       ? ""
       : `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`;
@@ -1533,6 +1535,10 @@ function init() {
   });
 
   createAnotherBtn.addEventListener("click", () => {
+    if (!hasCharacterCreationCapacity()) {
+      showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+      return;
+    }
     window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
   });
 

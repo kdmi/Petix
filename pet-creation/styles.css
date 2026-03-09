@@ -1398,6 +1398,17 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   padding: 12px 20px;
 }
 
+.cabinet-create-btn.disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.cabinet-create-btn.disabled:hover,
+.cabinet-create-btn.disabled:focus-visible {
+  box-shadow: none;
+  transform: none;
+}
+
 .cabinet-grid {
   display: grid;
   gap: 24px;
