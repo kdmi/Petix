@@ -63,7 +63,7 @@ body {
   top: 68px;
   right: 24px;
   z-index: 6;
-  min-width: 140px;
+  min-width: 180px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;

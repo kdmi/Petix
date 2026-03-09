@@ -495,6 +495,11 @@ function openAdminPanelFromMenu() {
   moveTo("admin");
 }
 
+function getRequestedScreen() {
+  const screen = new URLSearchParams(window.location.search).get("screen");
+  return ["type", "cabinet", "admin"].includes(screen) ? screen : "";
+}
+
 function setProcessCopy(title, text) {
   processTitle.textContent = title;
   processText.textContent = text;
@@ -515,6 +520,7 @@ async function restoreCharacterState() {
 
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
+    const requestedScreen = getRequestedScreen();
 
     if (data?.hasDraft && data.draft) {
       syncStateWithPayload(data);
@@ -524,11 +530,21 @@ async function restoreCharacterState() {
 
     if (data?.hasCharacter && data.character) {
       syncStateWithPayload(data);
-      moveTo("cabinet");
+      moveTo(requestedScreen === "admin" ? "admin" : "cabinet");
       return true;
     }
 
     syncStateWithPayload(data);
+
+    if (requestedScreen === "admin" && state.isAdmin) {
+      moveTo("admin");
+      return true;
+    }
+
+    if (requestedScreen === "cabinet") {
+      moveTo("cabinet");
+      return true;
+    }
 
     return false;
   } catch {

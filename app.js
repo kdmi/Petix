@@ -33,6 +33,9 @@ const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
 const walletClose = document.getElementById("walletClose");
 const walletMenu = document.getElementById("walletMenu");
+const walletMenuCreatePet = document.getElementById("walletMenuCreatePet");
+const walletMenuDashboard = document.getElementById("walletMenuDashboard");
+const walletMenuAdmin = document.getElementById("walletMenuAdmin");
 const walletMenuLogout = document.getElementById("walletMenuLogout");
 const walletAuthPanel = document.getElementById("walletAuthPanel");
 const walletLoggedPanel = document.getElementById("walletLoggedPanel");
@@ -42,6 +45,7 @@ const continueBtn = document.getElementById("continueBtn");
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 let isAuthenticated = false;
+let isAdmin = false;
 
 function shortenAddress(address) {
   if (!address || address.length < 12) return address || "";
@@ -81,23 +85,39 @@ function closeModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
-function showLoggedState({ walletAddress, walletName }) {
+function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
   isAuthenticated = true;
+  isAdmin = Boolean(nextIsAdmin);
   walletAuthPanel.classList.add("hidden");
   walletLoggedPanel.classList.remove("hidden");
   walletClose.classList.add("hidden");
   loggedWalletAddress.textContent = walletAddress;
   connectTrigger.textContent = shortenAddress(walletAddress);
+  if (walletMenuAdmin) {
+    walletMenuAdmin.classList.toggle("hidden", !isAdmin);
+  }
 }
 
 function showAuthState() {
   isAuthenticated = false;
+  isAdmin = false;
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
   setStatus("");
   connectTrigger.textContent = "Connect wallet";
+  if (walletMenuAdmin) {
+    walletMenuAdmin.classList.add("hidden");
+  }
   hideWalletMenu();
+}
+
+function openPetCreation(target = "type") {
+  const nextUrl = new URL("/pet-creation/", window.location.origin);
+  if (target && target !== "type") {
+    nextUrl.searchParams.set("screen", target);
+  }
+  window.location.href = nextUrl.toString();
 }
 
 function extractSignatureBytes(signatureResult) {
@@ -161,7 +181,7 @@ async function connectWallet(walletKey) {
 
     showLoggedState({
       walletAddress: verified.wallet,
-      walletName: verified.walletName,
+      isAdmin: verified.isAdmin,
     });
     setStatus("Wallet connected successfully.", "success");
   } catch (error) {
@@ -202,9 +222,10 @@ async function restoreSession() {
     if (!response.ok) throw new Error("No active session");
     const data = await response.json();
     if (!data?.authenticated || !data?.wallet) throw new Error("No active session");
+    isAdmin = Boolean(data.isAdmin);
     showLoggedState({
       walletAddress: data.wallet,
-      walletName: data.walletName,
+      isAdmin: data.isAdmin,
     });
   } catch {
     showAuthState();
@@ -250,6 +271,25 @@ walletMenuLogout.addEventListener("click", async () => {
     showAuthState();
   }
 });
+
+if (walletMenuCreatePet) {
+  walletMenuCreatePet.addEventListener("click", () => {
+    openPetCreation("type");
+  });
+}
+
+if (walletMenuDashboard) {
+  walletMenuDashboard.addEventListener("click", () => {
+    openPetCreation("cabinet");
+  });
+}
+
+if (walletMenuAdmin) {
+  walletMenuAdmin.addEventListener("click", () => {
+    if (!isAdmin) return;
+    openPetCreation("admin");
+  });
+}
 
 document.addEventListener("click", (event) => {
   if (
