@@ -55,6 +55,14 @@ module.exports = async (req, res) => {
       record = resolveRecordById(profile, characterId);
     }
 
+    if (record?.image?.url) {
+      res.statusCode = 302;
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Location", record.image.url);
+      res.end();
+      return;
+    }
+
     const filePath = record?.image?.filePath || FALLBACK_IMAGE_PATH;
     const mimeType = record?.image?.mimeType || "image/jpeg";
     const buffer = await fs.readFile(filePath);

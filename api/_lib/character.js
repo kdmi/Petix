@@ -675,12 +675,12 @@ async function requestGeminiImage(prompt) {
 }
 
 async function buildFallbackImage(imageStore, characterId, prompt) {
-  const targetPath = await imageStore.copyFallbackImage(characterId, FALLBACK_IMAGE_PATH);
+  const storedImage = await imageStore.copyFallbackImage(characterId, FALLBACK_IMAGE_PATH);
   return {
     provider: "placeholder",
     prompt,
     mimeType: "image/jpeg",
-    filePath: targetPath,
+    ...storedImage,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -699,13 +699,18 @@ async function generateCharacterImage(prompt, characterId, imageStore) {
 
     const extension = getImageExtension(image.mimeType);
     const buffer = Buffer.from(image.base64, "base64");
-    const filePath = await imageStore.writeImageBuffer(characterId, extension, buffer);
+    const storedImage = await imageStore.writeImageBuffer(
+      characterId,
+      extension,
+      buffer,
+      image.mimeType
+    );
 
     return {
       provider: "gemini",
       prompt,
       mimeType: image.mimeType,
-      filePath,
+      ...storedImage,
       generatedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -856,6 +861,7 @@ function serializeCharacterRecord(record) {
   const selectedPower = record.powers.find((power) => power.id === record.selectedPowerId) || null;
   const version = encodeURIComponent(record.updatedAt || record.createdAt || Date.now());
   const characterId = encodeURIComponent(record.id);
+  const imageUrl = record.image?.url || `/api/character/image?id=${characterId}&v=${version}`;
 
   return {
     id: record.id,
@@ -868,7 +874,7 @@ function serializeCharacterRecord(record) {
     variables: record.variables,
     prompts: record.prompts,
     generation: record.generation,
-    imageUrl: `/api/character/image?id=${characterId}&v=${version}`,
+    imageUrl,
     imageProvider: record.image?.provider || "placeholder",
     powers: record.powers,
     selectedPowerId: record.selectedPowerId || "",

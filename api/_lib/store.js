@@ -1,10 +1,24 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
+const { del, get, put } = require("@vercel/blob");
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const IMAGES_DIR = path.join(DATA_DIR, "character-images");
 const DB_PATH = path.join(DATA_DIR, "characters.json");
+const BLOB_IMAGE_PREFIX = String(process.env.BLOB_CHARACTER_IMAGE_PREFIX || "characters").replace(
+  /^\/+|\/+$/g,
+  ""
+);
+const DB_BLOB_PATH =
+  process.env.CHARACTER_DB_BLOB_PATH ||
+  `system/${crypto
+    .createHash("sha256")
+    .update(
+      String(process.env.INTERNAL_API_SECRET || process.env.SOLANA_AUTH_SECRET || "petix-db")
+    )
+    .digest("hex")
+    .slice(0, 32)}.json`;
 
 const EMPTY_DB = {
   version: 2,
@@ -20,6 +34,10 @@ let writeQueue = Promise.resolve();
 
 async function ensureStorage() {
   await fs.mkdir(IMAGES_DIR, { recursive: true });
+}
+
+function isBlobDbEnabled() {
+  return process.env.NODE_ENV === "production" && Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 function cloneRecord(record) {
@@ -61,33 +79,101 @@ function normalizeWalletProfile(rawValue) {
   return cloneWalletProfile(EMPTY_WALLET_PROFILE);
 }
 
-async function readDb() {
+function normalizeDbShape(parsed) {
+  if (!parsed || typeof parsed !== "object" || typeof parsed.records !== "object") {
+    return { ...EMPTY_DB };
+  }
+
+  const normalizedRecords = Object.fromEntries(
+    Object.entries(parsed.records).map(([wallet, value]) => [wallet, normalizeWalletProfile(value)])
+  );
+
+  return {
+    version: EMPTY_DB.version,
+    records: normalizedRecords,
+  };
+}
+
+async function readBlobText(stream) {
+  if (!stream) return "";
+
+  const reader = stream.getReader();
+  const chunks = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value));
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function loadDbSnapshot() {
+  if (isBlobDbEnabled()) {
+    const blobResult = await get(DB_BLOB_PATH, {
+      access: "public",
+      useCache: false,
+    }).catch((error) => {
+      if (error?.name === "BlobNotFoundError") {
+        return null;
+      }
+      throw error;
+    });
+
+    if (!blobResult || blobResult.statusCode !== 200) {
+      return {
+        db: { ...EMPTY_DB },
+        etag: null,
+      };
+    }
+
+    const raw = await readBlobText(blobResult.stream);
+    const parsed = raw ? JSON.parse(raw) : EMPTY_DB;
+
+    return {
+      db: normalizeDbShape(parsed),
+      etag: blobResult.blob.etag || null,
+    };
+  }
+
   await ensureStorage();
 
   try {
     const raw = await fs.readFile(DB_PATH, "utf8");
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || typeof parsed.records !== "object") {
-      return { ...EMPTY_DB };
-    }
-
-    const normalizedRecords = Object.fromEntries(
-      Object.entries(parsed.records).map(([wallet, value]) => [wallet, normalizeWalletProfile(value)])
-    );
-
     return {
-      version: EMPTY_DB.version,
-      records: normalizedRecords,
+      db: normalizeDbShape(JSON.parse(raw)),
+      etag: null,
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { ...EMPTY_DB };
+      return {
+        db: { ...EMPTY_DB },
+        etag: null,
+      };
     }
     throw error;
   }
 }
 
-async function writeDb(nextDb) {
+async function readDb() {
+  const snapshot = await loadDbSnapshot();
+  return snapshot.db;
+}
+
+async function writeDb(nextDb, etag = null) {
+  if (isBlobDbEnabled()) {
+    await put(DB_BLOB_PATH, JSON.stringify(nextDb, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 60,
+      ...(etag ? { ifMatch: etag } : {}),
+    });
+    return;
+  }
+
   await ensureStorage();
   const tempPath = `${DB_PATH}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(nextDb, null, 2), "utf8");
@@ -96,9 +182,9 @@ async function writeDb(nextDb) {
 
 async function withDbMutation(mutate) {
   writeQueue = writeQueue.then(async () => {
-    const db = await readDb();
-    const result = await mutate(db);
-    await writeDb(db);
+    const snapshot = await loadDbSnapshot();
+    const result = await mutate(snapshot.db);
+    await writeDb(snapshot.db, snapshot.etag);
     return result;
   });
 
@@ -192,7 +278,7 @@ async function updateWalletProfile(wallet, updater) {
 async function deleteCharacterById(characterId) {
   if (!characterId) return null;
 
-  return withDbMutation(async (db) => {
+  const deleted = await withDbMutation(async (db) => {
     for (const [wallet, value] of Object.entries(db.records)) {
       const profile = normalizeWalletProfile(value);
       const characterIndex = profile.characters.findIndex((record) => record.id === characterId);
@@ -217,24 +303,90 @@ async function deleteCharacterById(characterId) {
 
     return null;
   });
+
+  if (deleted?.character?.image) {
+    await deleteStoredImage(deleted.character.image);
+  }
+
+  return deleted;
 }
 
 function buildImagePath(characterId, extension) {
   return path.join(IMAGES_DIR, `${characterId}.${extension}`);
 }
 
-async function writeImageBuffer(characterId, extension, buffer) {
+function isBlobImageStoreEnabled() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function buildBlobImagePath(characterId, extension) {
+  return `${BLOB_IMAGE_PREFIX}/${characterId}.${extension}`;
+}
+
+async function uploadImageToBlob(characterId, extension, buffer, mimeType) {
+  const pathname = buildBlobImagePath(characterId, extension);
+  const blob = await put(pathname, buffer, {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: mimeType,
+    cacheControlMaxAge: 31536000,
+  });
+
+  return {
+    url: blob.url,
+    blobPathname: blob.pathname,
+  };
+}
+
+async function writeImageBuffer(characterId, extension, buffer, mimeType = "image/png") {
+  if (isBlobImageStoreEnabled()) {
+    return uploadImageToBlob(characterId, extension, buffer, mimeType);
+  }
+
   await ensureStorage();
   const filePath = buildImagePath(characterId, extension);
   await fs.writeFile(filePath, buffer);
-  return filePath;
+  return { filePath };
 }
 
 async function copyFallbackImage(characterId, sourcePath) {
+  if (isBlobImageStoreEnabled()) {
+    const buffer = await fs.readFile(sourcePath);
+    return uploadImageToBlob(characterId, "jpg", buffer, "image/jpeg");
+  }
+
   await ensureStorage();
   const targetPath = buildImagePath(characterId, "jpg");
   await fs.copyFile(sourcePath, targetPath);
-  return targetPath;
+  return { filePath: targetPath };
+}
+
+async function deleteStoredImage(image) {
+  if (!image || typeof image !== "object") {
+    return;
+  }
+
+  if (image.blobPathname && isBlobImageStoreEnabled()) {
+    try {
+      await del(image.blobPathname);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[character:image:delete]", error.message);
+      }
+    }
+    return;
+  }
+
+  if (image.filePath) {
+    try {
+      await fs.unlink(image.filePath);
+    } catch (error) {
+      if (error.code !== "ENOENT" && process.env.NODE_ENV !== "production") {
+        console.warn("[character:image:delete]", error.message);
+      }
+    }
+  }
 }
 
 function createImageStore() {
@@ -249,6 +401,7 @@ module.exports = {
   deleteCharacterById,
   findCharacterRecordById,
   getWalletProfile,
+  isBlobImageStoreEnabled,
   listAllCharacters,
   readDb,
   saveWalletProfile,
