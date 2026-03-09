@@ -29,6 +29,7 @@ const walletConfigs = {
   },
 };
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
+const MAX_CHARACTERS_PER_WALLET = 3;
 
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
@@ -47,6 +48,8 @@ const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 let isAuthenticated = false;
 let isAdmin = false;
+let characterCount = 0;
+let toastTimeoutId = 0;
 
 function ensureWalletMenuItem(id, label, hidden = false) {
   if (!walletMenu) return null;
@@ -94,6 +97,30 @@ function setStatus(message, type = "neutral") {
   walletStatus.classList.toggle("error", type === "error");
 }
 
+function showToast(message) {
+  if (!message) return;
+
+  let toast = document.getElementById("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.add("visible");
+
+  if (toastTimeoutId) {
+    window.clearTimeout(toastTimeoutId);
+  }
+
+  toastTimeoutId = window.setTimeout(() => {
+    toast.classList.remove("visible");
+    toastTimeoutId = 0;
+  }, 3200);
+}
+
 async function apiRequest(path, body) {
   const response = await fetch(path, {
     method: "POST",
@@ -121,6 +148,47 @@ function closeModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
+function hasCharacterCreationCapacity() {
+  return isAdmin || characterCount < MAX_CHARACTERS_PER_WALLET;
+}
+
+function updateCreatePetMenuState() {
+  if (!walletMenuCreatePet) return;
+
+  const isBlocked = isAuthenticated && !hasCharacterCreationCapacity();
+  walletMenuCreatePet.classList.toggle("disabled", isBlocked);
+  walletMenuCreatePet.setAttribute("aria-disabled", isBlocked ? "true" : "false");
+  walletMenuCreatePet.title = isBlocked
+    ? `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`
+    : "";
+}
+
+async function refreshCharacterCapacity() {
+  if (!isAuthenticated) {
+    characterCount = 0;
+    updateCreatePetMenuState();
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/character/me", {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load character count.");
+    }
+
+    const data = await response.json();
+    characterCount = Array.isArray(data?.characters) ? data.characters.length : 0;
+  } catch {
+    characterCount = 0;
+  }
+
+  updateCreatePetMenuState();
+}
+
 function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
   isAuthenticated = true;
   isAdmin = Boolean(nextIsAdmin) || isAdminWalletAddress(walletAddress);
@@ -132,11 +200,13 @@ function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
   if (walletMenuAdmin) {
     walletMenuAdmin.classList.toggle("hidden", !isAdmin);
   }
+  updateCreatePetMenuState();
 }
 
 function showAuthState() {
   isAuthenticated = false;
   isAdmin = false;
+  characterCount = 0;
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
@@ -145,6 +215,7 @@ function showAuthState() {
   if (walletMenuAdmin) {
     walletMenuAdmin.classList.add("hidden");
   }
+  updateCreatePetMenuState();
   hideWalletMenu();
 }
 
@@ -227,6 +298,7 @@ async function connectWallet(walletKey) {
       walletAddress: verified.wallet,
       isAdmin: verified.isAdmin,
     });
+    await refreshCharacterCapacity();
     setStatus("Wallet connected successfully.", "success");
   } catch (error) {
     const message =
@@ -270,6 +342,7 @@ async function restoreSession() {
       walletAddress: data.wallet,
       isAdmin: data.isAdmin,
     });
+    await refreshCharacterCapacity();
   } catch {
     showAuthState();
   }
@@ -316,7 +389,13 @@ walletMenuLogout.addEventListener("click", async () => {
 });
 
 if (walletMenuCreatePet) {
-  walletMenuCreatePet.addEventListener("click", () => {
+  walletMenuCreatePet.addEventListener("click", async () => {
+    await refreshCharacterCapacity();
+    if (!hasCharacterCreationCapacity()) {
+      hideWalletMenu();
+      showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+      return;
+    }
     openPetCreation("type");
   });
 }

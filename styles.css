@@ -92,6 +92,41 @@ body {
   outline: none;
 }
 
+.wallet-menu-item.disabled {
+  color: #98a2b3;
+}
+
+.wallet-menu-item.disabled:hover,
+.wallet-menu-item.disabled:focus-visible {
+  background: transparent;
+}
+
+.app-toast {
+  background: rgba(16, 24, 40, 0.92);
+  border-radius: 14px;
+  bottom: 24px;
+  color: #fff;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  left: 50%;
+  line-height: 20px;
+  max-width: min(420px, calc(100vw - 32px));
+  opacity: 0;
+  padding: 12px 16px;
+  pointer-events: none;
+  position: fixed;
+  text-align: center;
+  transform: translate(-50%, 12px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 200;
+}
+
+.app-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .logo {
   position: absolute;
   top: 40px;

@@ -185,6 +185,7 @@ const labelAttrs = document.getElementById("labelAttrs");
 
 let suppressRewardsTooltipTimeout = null;
 let attrsRowsBudget = 0;
+let toastTimeoutId = 0;
 
 const state = {
   step: "type",
@@ -253,9 +254,44 @@ function setWalletStatus(message, type = "neutral") {
   walletStatus.classList.toggle("error", type === "error");
 }
 
+function showToast(message) {
+  if (!message) return;
+
+  let toast = document.getElementById("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.add("visible");
+
+  if (toastTimeoutId) {
+    window.clearTimeout(toastTimeoutId);
+  }
+
+  toastTimeoutId = window.setTimeout(() => {
+    toast.classList.remove("visible");
+    toastTimeoutId = 0;
+  }, 3200);
+}
+
 function updateAdminAccessUi() {
   if (!walletMenuAdmin) return;
   walletMenuAdmin.classList.toggle("hidden", !state.isAdmin);
+}
+
+function updateCreatePetMenuState() {
+  if (!walletMenuCreatePet) return;
+
+  const isBlocked = state.isAuthenticated && !hasCharacterCreationCapacity();
+  walletMenuCreatePet.classList.toggle("disabled", isBlocked);
+  walletMenuCreatePet.setAttribute("aria-disabled", isBlocked ? "true" : "false");
+  walletMenuCreatePet.title = isBlocked
+    ? `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`
+    : "";
 }
 
 async function apiRequest(path, body, method = "POST") {
@@ -310,6 +346,7 @@ function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   loggedWalletAddress.textContent = walletAddress;
   connectTrigger.textContent = shortenAddress(walletAddress);
   updateAdminAccessUi();
+  updateCreatePetMenuState();
 }
 
 function showWalletAuthState() {
@@ -329,6 +366,7 @@ function showWalletAuthState() {
   if (adminSearchInput) adminSearchInput.value = "";
   hideWalletMenu();
   updateAdminAccessUi();
+  updateCreatePetMenuState();
 }
 
 function extractSignatureBytes(signatureResult) {
@@ -469,11 +507,13 @@ function syncStateWithPayload(payload = {}) {
     syncTypeSelectionWithRecord(activeRecord);
     setCharacterImages(activeRecord.imageUrl, activeRecord.creatureType);
     syncDisplayedRarity(activeRecord);
+    updateCreatePetMenuState();
     return;
   }
 
   setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
   syncDisplayedRarity(null);
+  updateCreatePetMenuState();
 }
 
 function resetCharacterState({ keepTypeSelection = false, keepCharacters = false } = {}) {
@@ -495,6 +535,10 @@ function resetCharacterState({ keepTypeSelection = false, keepCharacters = false
 
 function openCreatePetFromMenu() {
   hideWalletMenu();
+  if (!hasCharacterCreationCapacity()) {
+    showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+    return;
+  }
   window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
 }
 
