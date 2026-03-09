@@ -76,7 +76,7 @@ function ensureWalletMenuItem(id, label, hidden = false) {
 }
 
 function ensureWalletMenuItems() {
-  walletMenuCreatePet = ensureWalletMenuItem("walletMenuCreatePet", "Create new pet");
+  walletMenuCreatePet = ensureWalletMenuItem("walletMenuCreatePet", "Create pet");
   walletMenuDashboard = ensureWalletMenuItem("walletMenuDashboard", "Dashboard");
   walletMenuAdmin = ensureWalletMenuItem("walletMenuAdmin", "Admin panel", true);
 }
