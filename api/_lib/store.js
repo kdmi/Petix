@@ -136,14 +136,6 @@ async function loadBlobDbSnapshot(access, { useCache = true, includeEtag = true 
 
 async function loadDbSnapshot() {
   if (isBlobDbEnabled()) {
-    const privateSnapshot = await loadBlobDbSnapshot("private", {
-      useCache: false,
-      includeEtag: true,
-    });
-    if (privateSnapshot) {
-      return privateSnapshot;
-    }
-
     const publicSnapshot = await loadBlobDbSnapshot("public", {
       includeEtag: false,
     });
@@ -184,12 +176,11 @@ async function readDb() {
 async function writeDb(nextDb, etag = null) {
   if (isBlobDbEnabled()) {
     await put(DB_BLOB_PATH, JSON.stringify(nextDb, null, 2), {
-      access: "private",
+      access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
       cacheControlMaxAge: 60,
-      ...(etag ? { ifMatch: etag } : {}),
     });
     return;
   }
