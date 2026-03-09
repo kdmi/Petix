@@ -41,6 +41,9 @@ const DEFAULT_VARIABLES_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/12SapHXfn-4U73z0SHk_fF79ECvAGYQYVVbF085uvBw8/gviz/tq?tqx=out:csv";
 const DEFAULT_RARITY_CHANCES_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1HIVAo3q3E0WW1n7cLgW6JW1w9t-SopAd7w4DzmLLAwM/gviz/tq?tqx=out:csv";
+const SHEET_FETCH_TIMEOUT_MS = 4000;
+const GEMINI_TEXT_TIMEOUT_MS = 6000;
+const GEMINI_IMAGE_TIMEOUT_MS = 10000;
 
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",
@@ -114,6 +117,27 @@ function normalizeCreatureType(input) {
 
 function fillTemplate(template, values) {
   return template.replace(/\[([A-Z_]+)\]/g, (_, key) => String(values[key] || "").trim());
+}
+
+async function fetchWithTimeout(url, options, timeoutMs, label) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error(`${label} timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`${label} timed out after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function createPromptContext(creatureType, variables) {
@@ -282,11 +306,16 @@ async function loadVariablesTable() {
   const sheetUrl = process.env.CHARACTER_VARIABLES_SHEET_CSV_URL || DEFAULT_VARIABLES_SHEET_URL;
 
   try {
-    const response = await fetch(sheetUrl, {
+    const response = await fetchWithTimeout(
+      sheetUrl,
+      {
       headers: {
         accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
       },
-    });
+      },
+      SHEET_FETCH_TIMEOUT_MS,
+      "Variables sheet request"
+    );
 
     if (!response.ok) {
       throw new Error(`Variables sheet request failed with ${response.status}.`);
@@ -313,11 +342,16 @@ async function loadRarityChancesTable() {
     process.env.RARITY_CHANCES_SHEET_CSV_URL || DEFAULT_RARITY_CHANCES_SHEET_URL;
 
   try {
-    const response = await fetch(sheetUrl, {
+    const response = await fetchWithTimeout(
+      sheetUrl,
+      {
       headers: {
         accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
       },
-    });
+      },
+      SHEET_FETCH_TIMEOUT_MS,
+      "Rarity sheet request"
+    );
 
     if (!response.ok) {
       throw new Error(`Rarity chances sheet request failed with ${response.status}.`);
@@ -586,7 +620,7 @@ async function requestGeminiText(prompt) {
   }
 
   const model = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
@@ -601,7 +635,9 @@ async function requestGeminiText(prompt) {
           },
         ],
       }),
-    }
+    },
+    GEMINI_TEXT_TIMEOUT_MS,
+    "Gemini text request"
   );
 
   const payload = await response.json().catch(() => ({}));
@@ -632,7 +668,7 @@ async function requestGeminiImage(prompt) {
   }
 
   const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
@@ -650,7 +686,9 @@ async function requestGeminiImage(prompt) {
           responseModalities: ["TEXT", "IMAGE"],
         },
       }),
-    }
+    },
+    GEMINI_IMAGE_TIMEOUT_MS,
+    "Gemini image request"
   );
 
   const payload = await response.json().catch(() => ({}));
@@ -691,9 +729,7 @@ async function generateCharacterImage(prompt, characterId, imageStore) {
     if (!image?.base64) {
       const fallback = await buildFallbackImage(imageStore, characterId, prompt);
       fallback.error = "Gemini image response did not include inline image data.";
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[character:image]", fallback.error);
-      }
+      console.warn("[character:image]", fallback.error);
       return fallback;
     }
 
@@ -714,9 +750,7 @@ async function generateCharacterImage(prompt, characterId, imageStore) {
       generatedAt: new Date().toISOString(),
     };
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[character:image]", error.message);
-    }
+    console.warn("[character:image]", error.message);
     const fallback = await buildFallbackImage(imageStore, characterId, prompt);
     fallback.error = error.message;
     return fallback;
@@ -733,6 +767,7 @@ async function generatePowerOptions(prompt, context) {
       options: mapPowerLinesToOptions(lines),
     };
   } catch (error) {
+    console.warn("[character:powers]", error.message);
     return {
       provider: "fallback",
       prompt,
@@ -752,6 +787,7 @@ async function generateCharacterName(prompt, context) {
       name,
     };
   } catch (error) {
+    console.warn("[character:name]", error.message);
     return {
       provider: "fallback",
       prompt,
