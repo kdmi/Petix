@@ -40,6 +40,9 @@ const walletConfigs = {
   },
 };
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
+const CREATION_ROUTE = "/pet-creation/";
+const DASHBOARD_ROUTE = "/dashboard/";
+const ADMIN_ROUTE = "/admin/";
 
 const TYPE_META = {
   Dragon: {
@@ -487,23 +490,29 @@ function resetCharacterState({ keepTypeSelection = false, keepCharacters = false
 
 function openCreatePetFromMenu() {
   hideWalletMenu();
-  resetCharacterState({ keepCharacters: true });
-  moveTo("type");
+  window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
 }
 
 function openDashboardFromMenu() {
   hideWalletMenu();
-  moveTo("cabinet");
+  window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
 }
 
 function openAdminPanelFromMenu() {
   hideWalletMenu();
-  moveTo("admin");
+  window.location.href = new URL(ADMIN_ROUTE, window.location.origin).toString();
 }
 
 function getRequestedScreen() {
   const screen = new URLSearchParams(window.location.search).get("screen");
   return ["type", "cabinet", "admin"].includes(screen) ? screen : "";
+}
+
+function getPageMode() {
+  const requestedScreen = getRequestedScreen();
+  if (requestedScreen === "cabinet") return "dashboard";
+  if (requestedScreen === "admin") return "admin";
+  return "creation";
 }
 
 function setProcessCopy(title, text) {
@@ -527,14 +536,15 @@ async function restoreCharacterState() {
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
     const requestedScreen = getRequestedScreen();
+    const pageMode = getPageMode();
 
-    if (data?.hasDraft && data.draft) {
+    if (pageMode === "creation" && data?.hasDraft && data.draft) {
       syncStateWithPayload(data);
       moveTo(data.draft.selectedPowerId ? "attrs" : "powers");
       return true;
     }
 
-    if (data?.hasCharacter && data.character) {
+    if ((pageMode === "dashboard" || pageMode === "admin") && data?.hasCharacter && data.character) {
       syncStateWithPayload(data);
       moveTo(requestedScreen === "admin" ? "admin" : "cabinet");
       return true;
@@ -542,12 +552,12 @@ async function restoreCharacterState() {
 
     syncStateWithPayload(data);
 
-    if (requestedScreen === "admin" && state.isAdmin) {
+    if (pageMode === "admin" && state.isAdmin) {
       moveTo("admin");
       return true;
     }
 
-    if (requestedScreen === "cabinet") {
+    if (pageMode === "dashboard") {
       moveTo("cabinet");
       return true;
     }
@@ -639,7 +649,7 @@ async function logoutWallet() {
   await apiRequest("/api/auth/solana/logout", {});
   resetCharacterState();
   showWalletAuthState();
-  moveTo("type");
+  window.location.href = new URL("/", window.location.origin).toString();
 }
 
 function resetStepScroll() {
@@ -1430,12 +1440,11 @@ function init() {
   });
 
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
-    moveTo("cabinet");
+    window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
   });
 
   createAnotherBtn.addEventListener("click", () => {
-    resetCharacterState({ keepCharacters: true });
-    moveTo("type");
+    window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
   });
 
   walletMenuCreatePet.addEventListener("click", () => {
@@ -1499,7 +1508,7 @@ function init() {
 
   if (adminBackToDashboardBtn) {
     adminBackToDashboardBtn.addEventListener("click", () => {
-      moveTo("cabinet");
+      window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
     });
   }
 
@@ -1508,7 +1517,7 @@ function init() {
       await logoutWallet();
     } catch {
       showWalletAuthState();
-      moveTo("type");
+      window.location.href = new URL("/", window.location.origin).toString();
     }
   });
 
@@ -1532,6 +1541,16 @@ function init() {
   refreshDetectedBadges();
   restoreWalletSession();
   closeWalletModal();
+  if (getPageMode() === "dashboard") {
+    moveTo("cabinet");
+    return;
+  }
+
+  if (getPageMode() === "admin") {
+    moveTo("admin");
+    return;
+  }
+
   moveTo("type");
 }
 

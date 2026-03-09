@@ -1,0 +1,13 @@
+{
+  "trailingSlash": true,
+  "rewrites": [
+    {
+      "source": "/dashboard/",
+      "destination": "/pet-creation/?screen=cabinet"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/pet-creation/?screen=admin"
+    }
+  ]
+}

@@ -119,11 +119,17 @@ function showAuthState() {
 }
 
 function openPetCreation(target = "type") {
-  const nextUrl = new URL("/pet-creation/", window.location.origin);
-  if (target && target !== "type") {
-    nextUrl.searchParams.set("screen", target);
+  if (target === "cabinet") {
+    window.location.href = new URL("/dashboard/", window.location.origin).toString();
+    return;
   }
-  window.location.href = nextUrl.toString();
+
+  if (target === "admin") {
+    window.location.href = new URL("/admin/", window.location.origin).toString();
+    return;
+  }
+
+  window.location.href = new URL("/pet-creation/", window.location.origin).toString();
 }
 
 function extractSignatureBytes(signatureResult) {
