@@ -1,4 +1,14 @@
 const TYPES = ["Dragon", "Phoenix", "Cat", "Owl", "Ape", "Panda", "Undead", "Other"];
+const DEFAULT_ATTRIBUTE_POINTS = 15;
+const DEFAULT_CHARACTER_IMAGE = "/assets/character/current-pet.jpg";
+const API_BASE_URL = window.PETIX_API_BASE_URL || "";
+const RARITY_META = {
+  legendary: { label: "Legendary", color: "#f79009", points: 15 },
+  epic: { label: "Epic", color: "#7a5af8", points: 13 },
+  rare: { label: "Rare", color: "#0ba5ec", points: 12 },
+  common: { label: "Common", color: "#667085", points: 10 },
+};
+
 const walletConfigs = {
   phantom: {
     label: "Phantom",
@@ -29,6 +39,7 @@ const walletConfigs = {
     },
   },
 };
+
 const TYPE_META = {
   Dragon: {
     default: { primary: "/assets/pet-types/dragon-default.svg" },
@@ -51,15 +62,9 @@ const TYPE_META = {
     active: { primary: "/assets/pet-types/owl-active.svg" },
   },
   Ape: {
-    default: {
-      primary: "/assets/pet-types/ape-default.svg",
-    },
-    hover: {
-      primary: "/assets/pet-types/ape-hover.svg",
-    },
-    active: {
-      primary: "/assets/pet-types/ape-active.svg",
-    },
+    default: { primary: "/assets/pet-types/ape-default.svg" },
+    hover: { primary: "/assets/pet-types/ape-hover.svg" },
+    active: { primary: "/assets/pet-types/ape-active.svg" },
   },
   Panda: {
     default: { primary: "/assets/pet-types/panda-default.svg" },
@@ -77,29 +82,12 @@ const TYPE_META = {
     active: { primary: "/assets/pet-types/other-active.svg" },
   },
 };
-const POWERS = [
-  {
-    id: "p1",
-    title: "Skeleton Call",
-    description: "At the beginning of the battle, summons a skeleton warrior",
-    iconDefault: "/assets/powers-step/power-icon-default.svg",
-    iconActive: "/assets/powers-step/power-icon-active.svg",
-  },
-  {
-    id: "p2",
-    title: "Critical Momentum",
-    description: "Each damage dealt increases the chance of a critical hit",
-    iconDefault: "/assets/powers-step/power-icon-default.svg",
-    iconActive: "/assets/powers-step/power-icon-active.svg",
-  },
-  {
-    id: "p3",
-    title: "Fire Shield",
-    description: "Creates a fire shield that absorbs part of the damage",
-    iconDefault: "/assets/powers-step/power-icon-default.svg",
-    iconActive: "/assets/powers-step/power-icon-active.svg",
-  },
-];
+
+const POWER_ICONS = {
+  default: "/assets/powers-step/power-icon-default.svg",
+  active: "/assets/powers-step/power-icon-active.svg",
+};
+const SUCCESS_POWER_ICON = "/assets/character/power-sparkle.svg";
 
 const ATTRS = [
   {
@@ -134,22 +122,32 @@ const screenPowers = document.getElementById("screenPowers");
 const screenAttrs = document.getElementById("screenAttrs");
 const screenSuccess = document.getElementById("screenSuccess");
 const screenCabinet = document.getElementById("screenCabinet");
+const screenAdmin = document.getElementById("screenAdmin");
 const typeContinueBtn = document.getElementById("typeContinueBtn");
 const otherInputWrap = document.getElementById("otherInputWrap");
 const otherTypeInput = document.getElementById("otherTypeInput");
 const powersGrid = document.getElementById("powersGrid");
 const powersContinueBtn = document.getElementById("powersContinueBtn");
 const powersTitle = document.getElementById("powersTitle");
+const powersRarityBadge = document.querySelector(".pet-rarity-badge");
 const attrsList = document.getElementById("attrsList");
 const pointsLeft = document.getElementById("pointsLeft");
 const attrsContinueBtn = document.getElementById("attrsContinueBtn");
+const attrsPetRarity = document.querySelector(".attrs-pet-rarity");
 const successPetName = document.getElementById("successPetName");
+const successCardRarity = document.querySelector(".success-card-rarity");
 const successStats = document.getElementById("successStats");
+const successPowerText = document.getElementById("successPowerText");
 const cabinetCard = document.getElementById("cabinetCard");
+const cabinetCount = document.getElementById("cabinetCount");
+const createAnotherBtn = document.getElementById("createAnotherBtn");
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
 const walletClose = document.getElementById("walletClose");
 const walletMenu = document.getElementById("walletMenu");
+const walletMenuCreatePet = document.getElementById("walletMenuCreatePet");
+const walletMenuDashboard = document.getElementById("walletMenuDashboard");
+const walletMenuAdmin = document.getElementById("walletMenuAdmin");
 const walletMenuLogout = document.getElementById("walletMenuLogout");
 const walletAuthPanel = document.getElementById("walletAuthPanel");
 const walletLoggedPanel = document.getElementById("walletLoggedPanel");
@@ -161,6 +159,17 @@ const attrsSidePanel = document.querySelector(".attrs-side-panel");
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 const progressWrap = document.querySelector(".progress-wrap");
+const adminCount = document.getElementById("adminCount");
+const adminSearchInput = document.getElementById("adminSearchInput");
+const adminTableBody = document.getElementById("adminTableBody");
+const adminEmpty = document.getElementById("adminEmpty");
+const adminRefreshBtn = document.getElementById("adminRefreshBtn");
+const adminBackToDashboardBtn = document.getElementById("adminBackToDashboardBtn");
+const processTitle = screenProcess.querySelector("h1");
+const processText = screenProcess.querySelector("p");
+const characterImages = document.querySelectorAll(
+  ".pet-result-image, .attrs-pet-image, .success-card-image"
+);
 
 const barType = document.getElementById("barType");
 const barPowers = document.getElementById("barPowers");
@@ -169,22 +178,63 @@ const labelType = document.getElementById("labelType");
 const labelPowers = document.getElementById("labelPowers");
 const labelAttrs = document.getElementById("labelAttrs");
 
+let suppressRewardsTooltipTimeout = null;
+let attrsRowsBudget = 0;
+
 const state = {
   step: "type",
   selectedType: "",
   selectedPowerId: "",
   isAuthenticated: false,
-  attrs: {
+  isAdmin: false,
+  isStarting: false,
+  isSavingPower: false,
+  isCreating: false,
+  pendingStartAfterAuth: false,
+  walletAddress: "",
+  draft: null,
+  character: null,
+  characters: [],
+  adminCharacters: [],
+  adminWalletQuery: "",
+  isAdminLoading: false,
+  deletingAdminCharacterId: "",
+  adminErrorMessage: "",
+  attrs: createEmptyAttrs(),
+};
+
+function createEmptyAttrs() {
+  return {
     stamina: 0,
     agility: 0,
     strength: 0,
     intelligence: 0,
-  },
-};
+  };
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 function shortenAddress(address) {
   if (!address || address.length < 12) return address || "";
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "Unknown";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function setWalletStatus(message, type = "neutral") {
@@ -193,8 +243,13 @@ function setWalletStatus(message, type = "neutral") {
   walletStatus.classList.toggle("error", type === "error");
 }
 
-async function authRequest(path, body, method = "POST") {
-  const response = await fetch(path, {
+function updateAdminAccessUi() {
+  if (!walletMenuAdmin) return;
+  walletMenuAdmin.classList.toggle("hidden", !state.isAdmin);
+}
+
+async function apiRequest(path, body, method = "POST") {
+  const response = await fetch(toApiUrl(path), {
     method,
     headers: method === "GET" ? {} : { "Content-Type": "application/json" },
     credentials: "include",
@@ -202,8 +257,26 @@ async function authRequest(path, body, method = "POST") {
   });
 
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Request failed");
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed.");
+  }
   return data;
+}
+
+function toApiUrl(path) {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (!API_BASE_URL) return path;
+  return `${API_BASE_URL}${path}`;
+}
+
+function normalizeCharacterRecord(record) {
+  if (!record) return null;
+
+  return {
+    ...record,
+    imageUrl: record.imageUrl ? toApiUrl(record.imageUrl) : DEFAULT_CHARACTER_IMAGE,
+  };
 }
 
 function openWalletModal() {
@@ -217,23 +290,35 @@ function closeWalletModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
-function showLoggedWalletState({ walletAddress }) {
+function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   state.isAuthenticated = true;
+  state.isAdmin = Boolean(isAdmin);
+  state.walletAddress = walletAddress || "";
   walletAuthPanel.classList.add("hidden");
   walletLoggedPanel.classList.remove("hidden");
   walletClose.classList.add("hidden");
   loggedWalletAddress.textContent = walletAddress;
   connectTrigger.textContent = shortenAddress(walletAddress);
+  updateAdminAccessUi();
 }
 
 function showWalletAuthState() {
   state.isAuthenticated = false;
+  state.isAdmin = false;
+  state.walletAddress = "";
+  state.adminCharacters = [];
+  state.adminWalletQuery = "";
+  state.isAdminLoading = false;
+  state.deletingAdminCharacterId = "";
+  state.adminErrorMessage = "";
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
   setWalletStatus("");
   connectTrigger.textContent = "Connect wallet";
+  if (adminSearchInput) adminSearchInput.value = "";
   hideWalletMenu();
+  updateAdminAccessUi();
 }
 
 function extractSignatureBytes(signatureResult) {
@@ -248,6 +333,207 @@ function bytesToBase64(bytes) {
     binary += String.fromCharCode(byte);
   });
   return window.btoa(binary);
+}
+
+function getActiveRecord() {
+  return state.character || state.draft;
+}
+
+function getPowerOptions() {
+  return getActiveRecord()?.powers || [];
+}
+
+function getSelectedPowerDescription(record) {
+  return record?.selectedPower?.description || "Power not selected yet";
+}
+
+function normalizeRarityLabel(label) {
+  const normalized = String(label || "").trim().toLowerCase();
+
+  if (normalized === "legendary") return "legendary";
+  if (normalized === "epic" || normalized === "epix") return "epic";
+  if (normalized === "rare") return "rare";
+  if (normalized === "common") return "common";
+  return "legendary";
+}
+
+function getRarityMeta(label) {
+  return RARITY_META[normalizeRarityLabel(label)] || RARITY_META.legendary;
+}
+
+function getAttributePointBudget(record = getActiveRecord()) {
+  const explicitBudget = Number(record?.attributePoints);
+  if (Number.isInteger(explicitBudget) && explicitBudget > 0) {
+    return explicitBudget;
+  }
+
+  return getRarityMeta(record?.rarity).points || DEFAULT_ATTRIBUTE_POINTS;
+}
+
+function applyRarityBadge(element, rarityLabel) {
+  if (!element) return;
+
+  const rarity = getRarityMeta(rarityLabel);
+  element.textContent = rarity.label;
+  element.style.backgroundColor = rarity.color;
+}
+
+function syncDisplayedRarity(record) {
+  applyRarityBadge(powersRarityBadge, record?.rarity);
+  applyRarityBadge(attrsPetRarity, record?.rarity);
+  applyRarityBadge(successCardRarity, record?.rarity);
+}
+
+function getCurrentCreatureType() {
+  return getActiveRecord()?.creatureType || getResolvedType() || "Pet";
+}
+
+function getCurrentCharacterName() {
+  const record = getActiveRecord();
+  if (record?.name) {
+    return record.name;
+  }
+
+  if (record?.displayName && record.displayName !== record.creatureType) {
+    return record.displayName;
+  }
+
+  return "";
+}
+
+function setCharacterImages(src, creatureType) {
+  characterImages.forEach((image) => {
+    image.src = src || DEFAULT_CHARACTER_IMAGE;
+    image.alt = creatureType ? `${creatureType} character` : "";
+  });
+}
+
+function syncTypeSelectionWithRecord(record) {
+  const creatureType = record?.creatureType || "";
+  if (!creatureType) {
+    state.selectedType = "";
+    otherTypeInput.value = "";
+    return;
+  }
+
+  if (TYPES.includes(creatureType)) {
+    state.selectedType = creatureType;
+    otherTypeInput.value = "";
+    return;
+  }
+
+  state.selectedType = "Other";
+  otherTypeInput.value = creatureType;
+}
+
+function syncStateWithPayload(payload = {}) {
+  if (Array.isArray(payload.characters)) {
+    state.characters = payload.characters.map(normalizeCharacterRecord);
+  }
+
+  if ("draft" in payload) {
+    state.draft = normalizeCharacterRecord(payload.draft);
+  }
+
+  if ("character" in payload) {
+    state.character = normalizeCharacterRecord(payload.character);
+    if (payload.character) {
+      state.draft = null;
+    }
+  } else if (!state.draft) {
+    state.character = state.characters[state.characters.length - 1] || null;
+  }
+
+  const activeRecord = state.draft || state.character;
+  state.selectedPowerId = activeRecord?.selectedPowerId || "";
+  state.attrs = {
+    ...createEmptyAttrs(),
+    ...(activeRecord?.attributes || {}),
+  };
+
+  if (activeRecord) {
+    syncTypeSelectionWithRecord(activeRecord);
+    setCharacterImages(activeRecord.imageUrl, activeRecord.creatureType);
+    syncDisplayedRarity(activeRecord);
+    return;
+  }
+
+  setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
+  syncDisplayedRarity(null);
+}
+
+function resetCharacterState({ keepTypeSelection = false, keepCharacters = false } = {}) {
+  state.draft = null;
+  state.character = null;
+  if (!keepCharacters) {
+    state.characters = [];
+  }
+  state.selectedPowerId = "";
+  state.attrs = createEmptyAttrs();
+  setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
+  syncDisplayedRarity(null);
+
+  if (!keepTypeSelection) {
+    state.selectedType = "";
+    otherTypeInput.value = "";
+  }
+}
+
+function openCreatePetFromMenu() {
+  hideWalletMenu();
+  resetCharacterState({ keepCharacters: true });
+  moveTo("type");
+}
+
+function openDashboardFromMenu() {
+  hideWalletMenu();
+  moveTo("cabinet");
+}
+
+function openAdminPanelFromMenu() {
+  hideWalletMenu();
+  moveTo("admin");
+}
+
+function setProcessCopy(title, text) {
+  processTitle.textContent = title;
+  processText.textContent = text;
+}
+
+function handleFlowError(error, fallbackMessage) {
+  const message = typeof error?.message === "string" ? error.message : fallbackMessage;
+  if (/unauthorized/i.test(message)) {
+    setWalletStatus("Connect wallet to create a character.", "error");
+    openWalletModal();
+    return;
+  }
+  window.alert(message || fallbackMessage);
+}
+
+async function restoreCharacterState() {
+  if (!state.isAuthenticated) return false;
+
+  try {
+    const data = await apiRequest("/api/character/me", {}, "GET");
+
+    if (data?.hasDraft && data.draft) {
+      syncStateWithPayload(data);
+      moveTo(data.draft.selectedPowerId ? "attrs" : "powers");
+      return true;
+    }
+
+    if (data?.hasCharacter && data.character) {
+      syncStateWithPayload(data);
+      moveTo("cabinet");
+      return true;
+    }
+
+    syncStateWithPayload(data);
+
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 async function connectWallet(walletKey) {
@@ -271,7 +557,7 @@ async function connectWallet(walletKey) {
     if (!address) throw new Error("Wallet address was not returned.");
 
     setWalletStatus("Creating sign-in challenge...");
-    const challenge = await authRequest("/api/auth/solana/challenge", { wallet: address });
+    const challenge = await apiRequest("/api/auth/solana/challenge", { wallet: address });
     const encodedMessage = new TextEncoder().encode(challenge.message);
     if (!provider.signMessage) throw new Error("Wallet does not support message signing.");
 
@@ -280,7 +566,7 @@ async function connectWallet(walletKey) {
     const signatureBase64 = bytesToBase64(extractSignatureBytes(signatureResult));
 
     setWalletStatus("Verifying signature...");
-    const verified = await authRequest("/api/auth/solana/verify", {
+    const verified = await apiRequest("/api/auth/solana/verify", {
       wallet: address,
       walletType: walletKey,
       message: challenge.message,
@@ -288,8 +574,12 @@ async function connectWallet(walletKey) {
       challengeToken: challenge.challengeToken,
     });
 
-    showLoggedWalletState({ walletAddress: verified.wallet });
+    showLoggedWalletState({ walletAddress: verified.wallet, isAdmin: verified.isAdmin });
     setWalletStatus("Wallet connected successfully.", "success");
+    const restored = await restoreCharacterState();
+    if (restored) {
+      state.pendingStartAfterAuth = false;
+    }
   } catch (error) {
     const message = typeof error?.message === "string" ? error.message : "Connection failed.";
     setWalletStatus(message, "error");
@@ -314,17 +604,20 @@ function refreshDetectedBadges() {
 
 async function restoreWalletSession() {
   try {
-    const data = await authRequest("/api/auth/solana/me", {}, "GET");
+    const data = await apiRequest("/api/auth/solana/me", {}, "GET");
     if (!data?.authenticated || !data?.wallet) throw new Error("No active session");
-    showLoggedWalletState({ walletAddress: data.wallet });
+    showLoggedWalletState({ walletAddress: data.wallet, isAdmin: data.isAdmin });
+    await restoreCharacterState();
   } catch {
     showWalletAuthState();
   }
 }
 
 async function logoutWallet() {
-  await authRequest("/api/auth/solana/logout", {});
+  await apiRequest("/api/auth/solana/logout", {});
+  resetCharacterState();
   showWalletAuthState();
+  moveTo("type");
 }
 
 function resetStepScroll() {
@@ -339,16 +632,18 @@ function resetStepScroll() {
 }
 
 function showScreen(targetId) {
-  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet].forEach((screen) => {
-    screen.classList.toggle("hidden", screen.id !== targetId);
-  });
+  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenAdmin].forEach(
+    (screen) => {
+      screen.classList.toggle("hidden", screen.id !== targetId);
+    }
+  );
 
   document.body.classList.toggle("success-screen-active", targetId === "screenSuccess");
 }
 
 function setProgress(step) {
   if (progressWrap) {
-    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet");
+    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet" || step === "admin");
   }
 
   barType.classList.toggle("active", ["type", "process"].includes(step));
@@ -372,7 +667,7 @@ function getResolvedType() {
 }
 
 function updateTypeContinueState() {
-  const isValid = Boolean(getResolvedType());
+  const isValid = Boolean(getResolvedType()) && !state.isStarting;
   typeContinueBtn.disabled = !isValid;
   typeContinueBtn.classList.toggle("enabled", isValid);
 }
@@ -392,20 +687,15 @@ function preloadTypeIcons() {
 }
 
 function preloadPowersAssets() {
-  const assets = [
-    "/assets/character/current-pet.jpg",
-    "/assets/powers-step/power-icon-default.svg",
-    "/assets/powers-step/power-icon-active.svg",
-  ];
-  assets.forEach((url) => {
+  [POWER_ICONS.default, POWER_ICONS.active].forEach((url) => {
     const img = new Image();
     img.src = url;
   });
 }
 
 function preloadAttrsAssets() {
-  const assets = [
-    "/assets/character/current-pet.jpg",
+  [
+    DEFAULT_CHARACTER_IMAGE,
     "/assets/attrs-step/stamina.svg",
     "/assets/attrs-step/agility.svg",
     "/assets/attrs-step/strength.svg",
@@ -413,8 +703,7 @@ function preloadAttrsAssets() {
     "/assets/attrs-step/minus.svg",
     "/assets/attrs-step/plus.svg",
     "/assets/attrs-step/wallet.svg",
-  ];
-  assets.forEach((url) => {
+  ].forEach((url) => {
     const img = new Image();
     img.src = url;
   });
@@ -446,6 +735,7 @@ function renderTypeStep() {
     chip.classList.toggle("active", isActive);
     applyChipIcon(chip, isActive ? "active" : "default");
   });
+
   const isOther = state.selectedType === "Other";
   otherInputWrap.classList.toggle("hidden", !isOther);
   if (isOther) {
@@ -455,61 +745,73 @@ function renderTypeStep() {
       otherTypeInput.setSelectionRange(length, length);
     });
   }
+
   updateTypeContinueState();
 }
 
 function renderPowersStep() {
-  powersGrid.innerHTML = "";
-  const hasSelected = POWERS.some((item) => item.id === state.selectedPowerId);
-  powersContinueBtn.disabled = !hasSelected;
-  powersContinueBtn.classList.toggle("enabled", hasSelected);
-  powersTitle.textContent = `The ${getResolvedType() || "Pet"} is now your Pet`;
+  const powers = getPowerOptions();
+  const hasSelected = powers.some((item) => item.id === state.selectedPowerId);
+  const characterName = getCurrentCharacterName();
 
-  POWERS.forEach((power) => {
+  powersGrid.innerHTML = "";
+  powersTitle.textContent = characterName
+    ? `Choose a power for ${characterName}`
+    : "Choose a power for your pet";
+  powersContinueBtn.disabled = !hasSelected || state.isSavingPower;
+  powersContinueBtn.classList.toggle("enabled", hasSelected && !state.isSavingPower);
+
+  powers.forEach((power) => {
     const isActive = power.id === state.selectedPowerId;
-    const iconSrc = isActive ? power.iconActive : power.iconDefault;
     const card = document.createElement("button");
     card.type = "button";
     card.className = "power-card";
+    card.dataset.powerId = power.id;
     card.classList.toggle("active", isActive);
-    card.innerHTML = `<img class="power-card-icon" src="${iconSrc}" alt="" width="20" height="20" /><p>${power.description}</p>`;
+    card.innerHTML = `
+      <img class="power-card-icon" src="${isActive ? POWER_ICONS.active : POWER_ICONS.default}" alt="" width="20" height="20" />
+      <p>${power.description}</p>
+    `;
+
     card.addEventListener("click", () => {
-      if (state.selectedPowerId === power.id) return;
+      if (state.isSavingPower || state.selectedPowerId === power.id) return;
       state.selectedPowerId = power.id;
       renderPowersStep();
     });
+
     powersGrid.appendChild(card);
   });
 }
 
 function pointsRemaining() {
-  return 15 - Object.values(state.attrs).reduce((sum, value) => sum + value, 0);
+  return getAttributePointBudget() - Object.values(state.attrs).reduce((sum, value) => sum + value, 0);
 }
 
 function updateAttrsButtonState() {
   const left = pointsRemaining();
   pointsLeft.textContent = String(left);
-  const ready = left === 0;
+  const ready = left === 0 && !state.isCreating;
+
   attrsContinueBtn.disabled = !ready;
   attrsContinueBtn.classList.toggle("enabled", ready);
   attrsContinueBtn.classList.toggle("mobile-hidden", !ready);
+
   if (attrsSidePanel) {
     attrsSidePanel.classList.toggle("is-ready", ready);
   }
 }
 
-function renderAttrsStep() {
+function ensureAttrsRows() {
+  const totalSegments = DEFAULT_ATTRIBUTE_POINTS;
+  if (attrsRowsBudget === totalSegments) return;
+
   attrsList.innerHTML = "";
 
   ATTRS.forEach((attr) => {
-    const value = state.attrs[attr.key];
-    const canMinus = value > 0;
-    const canPlus = pointsRemaining() > 0 && value < 15;
-    const segments = Array.from({ length: 15 }, (_, index) => {
+    const segments = Array.from({ length: totalSegments }, (_, index) => {
       const classes = ["attr-segment"];
       if (index === 0) classes.push("first");
-      if (index === 14) classes.push("last");
-      if (index < value) classes.push("filled");
+      if (index === totalSegments - 1) classes.push("last");
       return `<span class="${classes.join(" ")}"></span>`;
     }).join("");
 
@@ -526,58 +828,342 @@ function renderAttrsStep() {
           <p>${attr.desc}</p>
         </div>
         <div class="attr-controls">
-          <button class="attr-btn" type="button" data-action="minus" ${canMinus ? "" : "disabled"}>
+          <button class="attr-btn" type="button" data-action="minus" disabled>
             <img src="/assets/attrs-step/minus.svg" alt="" width="20" height="20" />
           </button>
-          <button class="attr-btn" type="button" data-action="plus" ${canPlus ? "" : "disabled"}>
+          <button class="attr-btn" type="button" data-action="plus">
             <img src="/assets/attrs-step/plus.svg" alt="" width="20" height="20" />
           </button>
         </div>
       </div>
-      <div class="attr-scale">${segments}</div>
+      <div class="attr-scale" style="grid-template-columns: repeat(${totalSegments}, minmax(0, 1fr));">${segments}</div>
     `;
 
     const minusBtn = row.querySelector('[data-action="minus"]');
     const plusBtn = row.querySelector('[data-action="plus"]');
 
     minusBtn.addEventListener("click", () => {
-      if (state.attrs[attr.key] <= 0) return;
+      if (state.attrs[attr.key] <= 0 || state.isCreating) return;
       state.attrs[attr.key] -= 1;
-      renderAttrsStep();
+      updateAttrsStep();
     });
 
     plusBtn.addEventListener("click", () => {
-      if (state.attrs[attr.key] >= 15 || pointsRemaining() <= 0) return;
+      if (state.attrs[attr.key] >= DEFAULT_ATTRIBUTE_POINTS || pointsRemaining() <= 0 || state.isCreating) {
+        return;
+      }
       state.attrs[attr.key] += 1;
-      renderAttrsStep();
+      updateAttrsStep();
     });
 
     attrsList.appendChild(row);
   });
 
+  attrsRowsBudget = totalSegments;
+}
+
+function updateAttrsStep() {
+  ensureAttrsRows();
+
+  ATTRS.forEach((attr) => {
+    const row = attrsList.querySelector(`[data-attr="${attr.key}"]`);
+    if (!row) return;
+
+    const value = state.attrs[attr.key];
+    const canMinus = value > 0 && !state.isCreating;
+    const canPlus = pointsRemaining() > 0 && value < DEFAULT_ATTRIBUTE_POINTS && !state.isCreating;
+    const minusBtn = row.querySelector('[data-action="minus"]');
+    const plusBtn = row.querySelector('[data-action="plus"]');
+    const segments = row.querySelectorAll(".attr-segment");
+
+    if (minusBtn) minusBtn.disabled = !canMinus;
+    if (plusBtn) plusBtn.disabled = !canPlus;
+
+    segments.forEach((segment, index) => {
+      segment.classList.toggle("filled", index < value);
+    });
+  });
+
   updateAttrsButtonState();
 }
 
+function renderAttrsStep() {
+  updateAttrsStep();
+}
+
+function suppressRewardsTooltip() {
+  document.body.classList.add("suppress-rewards-tooltip");
+
+  if (suppressRewardsTooltipTimeout) {
+    window.clearTimeout(suppressRewardsTooltipTimeout);
+  }
+
+  const clearSuppression = () => {
+    document.body.classList.remove("suppress-rewards-tooltip");
+    window.removeEventListener("pointermove", handlePointerMove);
+    suppressRewardsTooltipTimeout = null;
+  };
+
+  const handlePointerMove = () => {
+    clearSuppression();
+  };
+
+  window.addEventListener("pointermove", handlePointerMove, { once: true });
+  suppressRewardsTooltipTimeout = window.setTimeout(clearSuppression, 300);
+}
+
 function renderCabinet() {
-  const power = POWERS.find((item) => item.id === state.selectedPowerId);
-  cabinetCard.innerHTML = `
-    <h2>${getResolvedType() || "Pet"}</h2>
-    <p><strong>Power:</strong> ${power ? power.title : "-"}</p>
-    <p><strong>Stamina:</strong> ${state.attrs.stamina}</p>
-    <p><strong>Agility:</strong> ${state.attrs.agility}</p>
-    <p><strong>Strength:</strong> ${state.attrs.strength}</p>
-    <p><strong>Intelligence:</strong> ${state.attrs.intelligence}</p>
-  `;
+  const records = [...state.characters].reverse();
+  if (cabinetCount) {
+    const total = records.length;
+    cabinetCount.textContent = `${total} character${total === 1 ? "" : "s"}`;
+  }
+
+  if (!records.length) {
+    cabinetCard.innerHTML = '<p class="cabinet-empty">No characters created yet.</p>';
+    return;
+  }
+
+  cabinetCard.innerHTML = records
+    .map((record) => {
+      const rarity = getRarityMeta(record.rarity);
+      const statsMarkup = ATTRS.map((attr) => {
+        const value = record.attributes[attr.key];
+        return `
+          <div class="success-card-stat">
+            <img src="${attr.icon}" alt="" width="20" height="20" />
+            <span>${value}</span>
+          </div>
+        `;
+      }).join("");
+
+      return `
+        <article class="cabinet-character">
+          <div class="success-card cabinet-success-card" aria-hidden="true">
+            <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
+            <div class="success-card-image-wrap">
+              <img class="success-card-image" src="${record.imageUrl}" alt="${record.creatureType} character" width="248" height="248" />
+              <span class="success-card-level">Lvl. 1</span>
+              <span class="success-card-rarity" style="background-color: ${rarity.color};">${rarity.label}</span>
+              <span class="success-card-exp-label">Experience</span>
+              <span class="success-card-exp-value">0/500</span>
+              <span class="success-card-exp-track"></span>
+              <span class="success-card-exp-progress"></span>
+            </div>
+            <div class="success-card-stats">${statsMarkup}</div>
+            <div class="success-card-power">
+              <img class="success-card-power-icon" src="${SUCCESS_POWER_ICON}" alt="" width="20" height="20" />
+              <p class="success-card-power-text">${getSelectedPowerDescription(record)}</p>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function getFilteredAdminCharacters() {
+  const query = state.adminWalletQuery.trim().toLowerCase();
+  if (!query) {
+    return state.adminCharacters;
+  }
+
+  return state.adminCharacters.filter((record) =>
+    String(record.creatorWallet || "")
+      .toLowerCase()
+      .includes(query)
+  );
+}
+
+function updateAdminCount(records) {
+  if (!adminCount) return;
+
+  const total = records.length;
+  const baseLabel = `${total} created character${total === 1 ? "" : "s"}`;
+  adminCount.textContent = state.adminWalletQuery.trim()
+    ? `${baseLabel} found`
+    : baseLabel;
+}
+
+function setAdminEmptyState(message, shouldShow) {
+  if (!adminEmpty) return;
+  adminEmpty.textContent = message;
+  adminEmpty.classList.toggle("hidden", !shouldShow);
+}
+
+function syncDeletedCharacterLocally(creatorWallet, characterId) {
+  if (!creatorWallet || creatorWallet !== state.walletAddress) {
+    return;
+  }
+
+  state.characters = state.characters.filter((record) => record.id !== characterId);
+
+  if (state.character?.id === characterId) {
+    state.character = state.characters[state.characters.length - 1] || null;
+  }
+}
+
+function renderAdminTable() {
+  if (!adminTableBody) return;
+
+  const records = getFilteredAdminCharacters();
+  updateAdminCount(records);
+  adminTableBody.innerHTML = "";
+
+  if (!state.isAdmin) {
+    setAdminEmptyState("Admin access is not available for this wallet.", true);
+    return;
+  }
+
+  if (state.isAdminLoading) {
+    setAdminEmptyState("Loading created characters...", true);
+    return;
+  }
+
+  if (state.adminErrorMessage) {
+    setAdminEmptyState(state.adminErrorMessage, true);
+    return;
+  }
+
+  if (!records.length) {
+    const message = state.adminWalletQuery.trim()
+      ? "No characters found for this wallet search."
+      : "No created characters yet.";
+    setAdminEmptyState(message, true);
+    return;
+  }
+
+  setAdminEmptyState("", false);
+
+  records.forEach((record) => {
+    const row = document.createElement("tr");
+
+    const characterCell = document.createElement("td");
+    characterCell.className = "admin-character-cell";
+
+    const thumb = document.createElement("img");
+    thumb.className = "admin-character-thumb";
+    thumb.src = record.imageUrl;
+    thumb.alt = record.creatureType ? `${record.creatureType} character` : "Character preview";
+    thumb.width = 56;
+    thumb.height = 56;
+
+    const summary = document.createElement("div");
+    summary.className = "admin-character-summary";
+
+    const title = document.createElement("strong");
+    title.textContent = record.name || record.displayName || record.creatureType;
+
+    const meta = document.createElement("span");
+    meta.textContent = record.rarity || "Unknown";
+
+    summary.append(title, meta);
+    characterCell.append(thumb, summary);
+
+    const typeCell = document.createElement("td");
+    typeCell.textContent = record.creatureType || "Unknown";
+
+    const powerCell = document.createElement("td");
+    powerCell.className = "admin-power-cell";
+    powerCell.textContent = getSelectedPowerDescription(record);
+
+    const walletCell = document.createElement("td");
+    walletCell.className = "admin-wallet-cell";
+    walletCell.textContent = record.creatorWallet || "";
+
+    const createdCell = document.createElement("td");
+    createdCell.textContent = formatDateTime(record.completedAt || record.createdAt);
+
+    const actionCell = document.createElement("td");
+    const deleteBtn = document.createElement("button");
+    const isDeleting = state.deletingAdminCharacterId === record.id;
+    deleteBtn.type = "button";
+    deleteBtn.className = "admin-delete-btn";
+    deleteBtn.disabled = isDeleting;
+    deleteBtn.textContent = isDeleting ? "Deleting..." : "Delete";
+    deleteBtn.addEventListener("click", async () => {
+      await deleteAdminCharacter(record);
+    });
+    actionCell.appendChild(deleteBtn);
+
+    row.append(characterCell, typeCell, powerCell, walletCell, createdCell, actionCell);
+    adminTableBody.appendChild(row);
+  });
+}
+
+async function loadAdminCharacters({ force = false } = {}) {
+  if (!state.isAdmin) return;
+  if (state.isAdminLoading) return;
+  if (!force && state.adminCharacters.length) {
+    renderAdminTable();
+    return;
+  }
+
+  state.isAdminLoading = true;
+  state.adminErrorMessage = "";
+  renderAdminTable();
+
+  try {
+    const data = await apiRequest("/api/admin/characters", {}, "GET");
+    state.adminCharacters = Array.isArray(data.characters)
+      ? data.characters.map(normalizeCharacterRecord)
+      : [];
+  } catch (error) {
+    state.adminCharacters = [];
+    state.adminErrorMessage =
+      typeof error?.message === "string" ? error.message : "Failed to load characters.";
+  } finally {
+    state.isAdminLoading = false;
+    renderAdminTable();
+  }
+}
+
+async function deleteAdminCharacter(record) {
+  if (!record?.id || state.deletingAdminCharacterId) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete character "${record.name || record.displayName || record.creatureType}"?`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  state.deletingAdminCharacterId = record.id;
+  renderAdminTable();
+
+  try {
+    const data = await apiRequest("/api/admin/delete-character", {
+      characterId: record.id,
+    });
+
+    state.adminCharacters = state.adminCharacters.filter((item) => item.id !== record.id);
+    syncDeletedCharacterLocally(data.creatorWallet, record.id);
+    renderAdminTable();
+  } catch (error) {
+    const message =
+      typeof error?.message === "string" ? error.message : "Failed to delete character.";
+    window.alert(message);
+  } finally {
+    state.deletingAdminCharacterId = "";
+    renderAdminTable();
+  }
 }
 
 function renderSuccessStep() {
+  const record = state.character;
+  if (!record) return;
+
+  syncDisplayedRarity(record);
+
   if (successPetName) {
-    successPetName.textContent = "Riche Lich";
+    successPetName.textContent = record.name || record.displayName || record.creatureType;
   }
 
   if (successStats) {
     successStats.innerHTML = ATTRS.map((attr) => {
-      const value = state.attrs[attr.key];
+      const value = record.attributes[attr.key];
       return `
         <div class="success-card-stat">
           <img src="${attr.icon}" alt="" width="20" height="20" />
@@ -585,6 +1171,10 @@ function renderSuccessStep() {
         </div>
       `;
     }).join("");
+  }
+
+  if (successPowerText) {
+    successPowerText.textContent = getSelectedPowerDescription(record);
   }
 }
 
@@ -607,32 +1197,19 @@ function fireSuccessConfetti() {
   };
 
   window.requestAnimationFrame(() => {
-    fire(0.25, {
-      spread: 26,
-      startVelocity: 55,
-    });
-    fire(0.2, {
-      spread: 60,
-    });
-    fire(0.35, {
-      decay: 0.91,
-      scalar: 0.8,
-      spread: 100,
-    });
-    fire(0.1, {
-      decay: 0.92,
-      scalar: 1.2,
-      spread: 120,
-      startVelocity: 25,
-    });
-    fire(0.1, {
-      spread: 120,
-      startVelocity: 45,
-    });
+    fire(0.25, { spread: 26, startVelocity: 55 });
+    fire(0.2, { spread: 60 });
+    fire(0.35, { decay: 0.91, scalar: 0.8, spread: 100 });
+    fire(0.1, { decay: 0.92, scalar: 1.2, spread: 120, startVelocity: 25 });
+    fire(0.1, { spread: 120, startVelocity: 45 });
   });
 }
 
 function moveTo(step) {
+  if (step === "admin" && !state.isAdmin) {
+    step = state.isAuthenticated ? "cabinet" : "type";
+  }
+
   state.step = step;
   setProgress(step);
 
@@ -650,6 +1227,7 @@ function moveTo(step) {
   if (step === "attrs") {
     showScreen("screenAttrs");
     renderAttrsStep();
+    suppressRewardsTooltip();
   }
   if (step === "success") {
     showScreen("screenSuccess");
@@ -660,8 +1238,111 @@ function moveTo(step) {
     showScreen("screenCabinet");
     renderCabinet();
   }
+  if (step === "admin") {
+    showScreen("screenAdmin");
+    renderAdminTable();
+    loadAdminCharacters();
+  }
 
   resetStepScroll();
+}
+
+async function startCharacterCreation() {
+  if (state.isStarting) return;
+
+  const creatureType = getResolvedType();
+  if (!creatureType) {
+    renderTypeStep();
+    return;
+  }
+
+  if (!state.isAuthenticated) {
+    state.pendingStartAfterAuth = true;
+    setWalletStatus("Connect wallet to create a character.", "error");
+    openWalletModal();
+    return;
+  }
+
+  state.pendingStartAfterAuth = false;
+  state.isStarting = true;
+  updateTypeContinueState();
+  setProcessCopy("Cooking up your pet...", "Please wait, it could take a few seconds");
+  moveTo("process");
+
+  try {
+    const [data] = await Promise.all([
+      apiRequest("/api/character/start", { creatureType }),
+      wait(1200),
+    ]);
+
+    syncStateWithPayload(data);
+    moveTo("powers");
+  } catch (error) {
+    moveTo("type");
+    if (/already exists/i.test(error.message)) {
+      await restoreCharacterState();
+      return;
+    }
+    handleFlowError(error, "Unable to create character.");
+  } finally {
+    state.isStarting = false;
+    renderTypeStep();
+  }
+}
+
+async function savePowerSelectionAndContinue() {
+  if (state.isSavingPower || !state.selectedPowerId) return;
+
+  state.isSavingPower = true;
+  renderPowersStep();
+
+  try {
+    const data = await apiRequest("/api/character/select-power", {
+      selectedPowerId: state.selectedPowerId,
+    });
+
+    syncStateWithPayload(data);
+    moveTo("attrs");
+  } catch (error) {
+    if (/already exists/i.test(error.message)) {
+      await restoreCharacterState();
+      return;
+    }
+    handleFlowError(error, "Unable to save superpower.");
+    renderPowersStep();
+  } finally {
+    state.isSavingPower = false;
+    if (state.step === "powers") {
+      renderPowersStep();
+    }
+  }
+}
+
+async function completeCharacterCreation() {
+  if (state.isCreating || pointsRemaining() !== 0) return;
+
+  state.isCreating = true;
+  updateAttrsStep();
+
+  try {
+    const data = await apiRequest("/api/character/create", {
+      stats: state.attrs,
+    });
+
+    syncStateWithPayload(data);
+    moveTo("success");
+  } catch (error) {
+    if (/already exists/i.test(error.message)) {
+      await restoreCharacterState();
+      return;
+    }
+    handleFlowError(error, "Unable to finalize character.");
+  } finally {
+    state.isCreating = false;
+    if (state.step === "attrs") {
+      updateAttrsStep();
+    }
+  }
 }
 
 function init() {
@@ -672,8 +1353,9 @@ function init() {
   preloadTypeIcons();
   preloadPowersAssets();
   preloadAttrsAssets();
-  const chips = [...document.querySelectorAll(".type-chip")];
+  setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
 
+  const chips = [...document.querySelectorAll(".type-chip")];
   chips.forEach((chip) => {
     chip.addEventListener("click", () => {
       state.selectedType = chip.dataset.type || "";
@@ -682,18 +1364,22 @@ function init() {
       }
       renderTypeStep();
     });
+
     chip.addEventListener("mouseenter", () => {
       if (chip.classList.contains("active")) return;
       applyChipIcon(chip, "hover");
     });
+
     chip.addEventListener("mouseleave", () => {
       if (chip.classList.contains("active")) return;
       applyChipIcon(chip, "default");
     });
+
     chip.addEventListener("focus", () => {
       if (chip.classList.contains("active")) return;
       applyChipIcon(chip, "hover");
     });
+
     chip.addEventListener("blur", () => {
       if (chip.classList.contains("active")) return;
       applyChipIcon(chip, "default");
@@ -701,20 +1387,16 @@ function init() {
   });
 
   otherTypeInput.addEventListener("input", updateTypeContinueState);
-
   typeContinueBtn.addEventListener("click", () => {
-    moveTo("process");
-    window.setTimeout(() => {
-      moveTo("powers");
-    }, 5000);
+    startCharacterCreation();
   });
 
   powersContinueBtn.addEventListener("click", () => {
-    moveTo("attrs");
+    savePowerSelectionAndContinue();
   });
 
   attrsContinueBtn.addEventListener("click", () => {
-    moveTo("success");
+    completeCharacterCreation();
   });
 
   document.getElementById("backToTypeBtn").addEventListener("click", () => {
@@ -728,6 +1410,25 @@ function init() {
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
     moveTo("cabinet");
   });
+
+  createAnotherBtn.addEventListener("click", () => {
+    resetCharacterState({ keepCharacters: true });
+    moveTo("type");
+  });
+
+  walletMenuCreatePet.addEventListener("click", () => {
+    openCreatePetFromMenu();
+  });
+
+  walletMenuDashboard.addEventListener("click", () => {
+    openDashboardFromMenu();
+  });
+
+  if (walletMenuAdmin) {
+    walletMenuAdmin.addEventListener("click", () => {
+      openAdminPanelFromMenu();
+    });
+  }
 
   connectTrigger.addEventListener("click", () => {
     if (state.isAuthenticated) {
@@ -748,11 +1449,35 @@ function init() {
     });
   });
 
-  continueBtn.addEventListener("click", closeWalletModal);
+  continueBtn.addEventListener("click", async () => {
+    closeWalletModal();
+    if (state.pendingStartAfterAuth) {
+      await startCharacterCreation();
+    }
+  });
 
   if (claimRewardsBtn) {
     claimRewardsBtn.addEventListener("click", () => {
       claimRewardsBtn.blur();
+    });
+  }
+
+  if (adminSearchInput) {
+    adminSearchInput.addEventListener("input", (event) => {
+      state.adminWalletQuery = event.target.value || "";
+      renderAdminTable();
+    });
+  }
+
+  if (adminRefreshBtn) {
+    adminRefreshBtn.addEventListener("click", async () => {
+      await loadAdminCharacters({ force: true });
+    });
+  }
+
+  if (adminBackToDashboardBtn) {
+    adminBackToDashboardBtn.addEventListener("click", () => {
+      moveTo("cabinet");
     });
   }
 
@@ -761,6 +1486,7 @@ function init() {
       await logoutWallet();
     } catch {
       showWalletAuthState();
+      moveTo("type");
     }
   });
 

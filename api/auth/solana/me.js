@@ -1,6 +1,15 @@
-const { SESSION_COOKIE, json, parseCookies, verifyToken } = require("../../_lib/auth");
+const {
+  SESSION_COOKIE,
+  handleCors,
+  isAdminWallet,
+  json,
+  parseCookies,
+  verifyToken,
+} = require("../../_lib/auth");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
   if (req.method !== "GET") {
     json(res, 405, { error: "Method not allowed." });
     return;
@@ -22,6 +31,7 @@ module.exports = async (req, res) => {
   json(res, 200, {
     authenticated: true,
     wallet: session.wallet,
+    isAdmin: isAdminWallet(session.wallet),
     walletType: session.walletType,
     walletName: session.walletName,
   });

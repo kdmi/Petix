@@ -2,10 +2,13 @@ const {
   CHALLENGE_COOKIE,
   SESSION_COOKIE,
   clearCookie,
+  handleCors,
   json,
 } = require("../../_lib/auth");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
   if (req.method !== "POST") {
     json(res, 405, { error: "Method not allowed." });
     return;

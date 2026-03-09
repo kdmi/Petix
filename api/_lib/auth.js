@@ -8,11 +8,24 @@ const CHARACTER_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const CHALLENGE_COOKIE = "petix_challenge";
 const SESSION_COOKIE = "petix_session";
 const CHARACTER_COOKIE = "petix_character";
+const ADMIN_WALLET = "AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9";
+const INTERNAL_AUTH_HEADER = "x-petix-internal-secret";
+const INTERNAL_WALLET_HEADER = "x-petix-wallet";
+const INTERNAL_WALLET_NAME_HEADER = "x-petix-wallet-name";
+const INTERNAL_WALLET_TYPE_HEADER = "x-petix-wallet-type";
 
 function getSecret() {
   const secret = process.env.SOLANA_AUTH_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error("SOLANA_AUTH_SECRET is missing or too short.");
+  }
+  return secret;
+}
+
+function getInternalApiSecret() {
+  const secret = process.env.INTERNAL_API_SECRET;
+  if (!secret || secret.length < 24) {
+    return "";
   }
   return secret;
 }
@@ -91,6 +104,65 @@ function appendSetCookie(res, cookieValue) {
   res.setHeader("Set-Cookie", next);
 }
 
+function appendVaryHeader(res, value) {
+  const current = res.getHeader("Vary");
+  if (!current) {
+    res.setHeader("Vary", value);
+    return;
+  }
+
+  const values = Array.isArray(current)
+    ? current.flatMap((item) => String(item).split(","))
+    : String(current).split(",");
+  const normalized = values.map((item) => item.trim()).filter(Boolean);
+  if (!normalized.includes(value)) {
+    normalized.push(value);
+  }
+  res.setHeader("Vary", normalized.join(", "));
+}
+
+function getAllowedOrigins() {
+  const configured = String(process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (configured.length) {
+    return configured;
+  }
+
+  return ["http://localhost:3000", "https://petix.fun", "https://www.petix.fun"];
+}
+
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  appendVaryHeader(res, "Origin");
+
+  if (!origin) {
+    return false;
+  }
+
+  if (!getAllowedOrigins().includes(origin)) {
+    return false;
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  return true;
+}
+
+function handleCors(req, res) {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return true;
+  }
+  return false;
+}
+
 function setCookie(res, name, value, maxAgeMs) {
   const isProd = process.env.NODE_ENV === "production";
   const maxAge = Math.floor(maxAgeMs / 1000);
@@ -99,7 +171,7 @@ function setCookie(res, name, value, maxAgeMs) {
     "Path=/",
     `Max-Age=${maxAge}`,
     "HttpOnly",
-    "SameSite=Lax",
+    isProd ? "SameSite=None" : "SameSite=Lax",
   ];
   if (isProd) parts.push("Secure");
   appendSetCookie(res, parts.join("; "));
@@ -112,7 +184,7 @@ function clearCookie(res, name) {
     "Path=/",
     "Max-Age=0",
     "HttpOnly",
-    "SameSite=Lax",
+    isProd ? "SameSite=None" : "SameSite=Lax",
   ];
   if (isProd) parts.push("Secure");
   appendSetCookie(res, parts.join("; "));
@@ -201,6 +273,14 @@ function walletTypeToName(walletType) {
   return map[walletType] || "Wallet";
 }
 
+function isAdminWallet(wallet) {
+  return String(wallet || "").trim() === ADMIN_WALLET;
+}
+
+function isAdminSession(session) {
+  return Boolean(session?.wallet) && isAdminWallet(session.wallet);
+}
+
 function createSession(wallet, walletType) {
   const now = Date.now();
   const session = {
@@ -227,6 +307,24 @@ function createToken(payload, ttlMs) {
 }
 
 function getSessionFromRequest(req) {
+  const internalSecret = getInternalApiSecret();
+  const internalWallet = String(req.headers[INTERNAL_WALLET_HEADER] || "").trim();
+  if (
+    internalSecret &&
+    String(req.headers[INTERNAL_AUTH_HEADER] || "") === internalSecret &&
+    isLikelySolanaAddress(internalWallet)
+  ) {
+    return {
+      type: "internal-session",
+      wallet: internalWallet,
+      walletName: String(req.headers[INTERNAL_WALLET_NAME_HEADER] || "Wallet").trim() || "Wallet",
+      walletType:
+        String(req.headers[INTERNAL_WALLET_TYPE_HEADER] || "internal").trim() || "internal",
+      iat: Date.now(),
+      exp: Date.now() + SESSION_TTL_MS,
+    };
+  }
+
   const cookies = parseCookies(req);
   const sessionToken = cookies[SESSION_COOKIE];
   if (!sessionToken) return null;
@@ -238,10 +336,16 @@ function getSessionFromRequest(req) {
 }
 
 module.exports = {
+  ADMIN_WALLET,
   CHALLENGE_COOKIE,
   CHALLENGE_TTL_MS,
   CHARACTER_COOKIE,
   CHARACTER_TTL_MS,
+  INTERNAL_AUTH_HEADER,
+  INTERNAL_WALLET_HEADER,
+  INTERNAL_WALLET_NAME_HEADER,
+  INTERNAL_WALLET_TYPE_HEADER,
+  applyCors,
   SESSION_COOKIE,
   SESSION_TTL_MS,
   clearCookie,
@@ -250,6 +354,9 @@ module.exports = {
   createChallenge,
   createSession,
   getSessionFromRequest,
+  handleCors,
+  isAdminSession,
+  isAdminWallet,
   isLikelySolanaAddress,
   json,
   parseCookies,

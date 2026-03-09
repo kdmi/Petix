@@ -1,18 +1,21 @@
+const { getSessionFromRequest, handleCors, json, parseJsonBody } = require("../_lib/auth");
 const {
-  CHARACTER_COOKIE,
-  CHARACTER_TTL_MS,
-  clearCookie,
-  createToken,
-  getSessionFromRequest,
-  json,
-  parseCookies,
-  parseJsonBody,
-  setCookie,
-  verifyToken,
-} = require("../_lib/auth");
-const { validateSkillAllocation } = require("../_lib/character");
+  getAttributePointBudget,
+  normalizeAttributes,
+  serializeCharacterRecord,
+  validateSkillAllocation,
+} = require("../_lib/character");
+const { isCharacterProxyEnabled, proxyCharacterJson } = require("../_lib/character-proxy");
+const { updateWalletProfile } = require("../_lib/store");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
+  if (isCharacterProxyEnabled()) {
+    await proxyCharacterJson(req, res, "/api/character/create");
+    return;
+  }
+
   if (req.method !== "POST") {
     json(res, 405, { error: "Method not allowed." });
     return;
@@ -24,76 +27,51 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const cookies = parseCookies(req);
-  const rawCharacterCookie = cookies[CHARACTER_COOKIE];
-  if (!rawCharacterCookie) {
-    json(res, 400, { error: "Character draft not found. Start again." });
-    return;
-  }
-
-  const parsed = verifyToken(rawCharacterCookie);
-  if (!parsed || parsed.exp < Date.now() || parsed.wallet !== session.wallet) {
-    clearCookie(res, CHARACTER_COOKIE);
-    json(res, 400, { error: "Character draft is invalid or expired." });
-    return;
-  }
-
-  if (parsed.type === "character_profile") {
-    json(res, 409, { error: "Character already exists for this user." });
-    return;
-  }
-
-  if (parsed.type !== "character_draft" || !parsed.draft) {
-    clearCookie(res, CHARACTER_COOKIE);
-    json(res, 400, { error: "Character draft is invalid." });
-    return;
-  }
-
   try {
     const body = await parseJsonBody(req);
-    const selectedPowerId = String(body.selectedPowerId || "");
+    const selectedPowerId = String(body.selectedPowerId || "").trim();
     const stats = body.stats || {};
 
-    if (!validateSkillAllocation(stats)) {
-      json(res, 400, { error: "Invalid skill allocation. Exactly 15 points are required." });
-      return;
-    }
+    const profile = await updateWalletProfile(session.wallet, async (current) => {
+      if (!current.draft) {
+        throw new Error("Character draft not found. Start again.");
+      }
 
-    const selectedPower = parsed.draft.powers.find((power) => power.id === selectedPowerId);
-    if (!selectedPower) {
-      json(res, 400, { error: "Selected superpower is invalid." });
-      return;
-    }
+      const attributePointBudget = getAttributePointBudget(current.draft);
+      if (!validateSkillAllocation(stats, attributePointBudget)) {
+        throw new Error(
+          `Invalid attribute allocation. Exactly ${attributePointBudget} points are required.`
+        );
+      }
 
-    const character = {
-      wallet: session.wallet,
-      walletName: session.walletName,
-      archetype: parsed.draft.archetype,
-      style: parsed.draft.style,
-      mood: parsed.draft.mood,
-      sidekick: parsed.draft.sidekick,
-      name: parsed.draft.name,
-      prompt: parsed.draft.prompt,
-      imageUrl: parsed.draft.imageUrl,
-      powers: parsed.draft.powers,
-      selectedPower,
-      stats,
-      createdAt: new Date().toISOString(),
-    };
+      const nextSelectedPowerId = selectedPowerId || current.draft.selectedPowerId;
+      const selectedPower = current.draft.powers.find((power) => power.id === nextSelectedPowerId);
+      if (!selectedPower) {
+        throw new Error("Selected superpower is invalid.");
+      }
 
-    const characterToken = createToken(
-      {
-        type: "character_profile",
-        wallet: session.wallet,
-        character,
-      },
-      CHARACTER_TTL_MS
-    );
-    setCookie(res, CHARACTER_COOKIE, characterToken, CHARACTER_TTL_MS);
+      const now = new Date().toISOString();
+      const completedCharacter = {
+        ...current.draft,
+        status: "completed",
+        selectedPowerId: nextSelectedPowerId,
+        attributes: normalizeAttributes(stats),
+        completedAt: now,
+        updatedAt: now,
+      };
+
+      return {
+        draft: null,
+        characters: [...current.characters, completedCharacter],
+      };
+    });
+
+    const latestCharacter = profile.characters[profile.characters.length - 1] || null;
 
     json(res, 200, {
       success: true,
-      character,
+      character: serializeCharacterRecord(latestCharacter),
+      characters: profile.characters.map(serializeCharacterRecord),
     });
   } catch (error) {
     json(res, 400, { error: error.message || "Bad request." });

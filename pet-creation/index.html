@@ -23,6 +23,9 @@
         <div class="topbar-actions">
           <button class="connect-trigger" id="connectTrigger" type="button">Connect wallet</button>
           <div class="wallet-menu hidden" id="walletMenu">
+            <button class="wallet-menu-item" id="walletMenuCreatePet" type="button">Create new pet</button>
+            <button class="wallet-menu-item" id="walletMenuDashboard" type="button">Dashboard</button>
+            <button class="wallet-menu-item hidden" id="walletMenuAdmin" type="button">Admin panel</button>
             <button class="wallet-menu-item" id="walletMenuLogout" type="button">Log Out</button>
           </div>
         </div>
@@ -212,6 +215,12 @@
             <span class="success-card-exp-progress"></span>
           </div>
           <div class="success-card-stats" id="successStats"></div>
+          <div class="success-card-power">
+            <img class="success-card-power-icon" src="/assets/character/power-sparkle.svg" alt="" width="20" height="20" />
+            <p class="success-card-power-text" id="successPowerText">
+              At the beginning of the battle, summons a skeleton warrior
+            </p>
+          </div>
         </div>
 
         <h1>Your Pet successfully created!</h1>
@@ -220,8 +229,62 @@
       </section>
 
       <section class="screen hidden" id="screenCabinet">
-        <h1>Temporary Cabinet</h1>
-        <div class="cabinet-card" id="cabinetCard"></div>
+        <div class="cabinet-header">
+          <div>
+            <h1>Dashboard</h1>
+            <p id="cabinetCount">0 characters</p>
+          </div>
+          <button class="primary-btn cabinet-create-btn enabled" id="createAnotherBtn" type="button">
+            Create another pet
+          </button>
+        </div>
+        <div class="cabinet-grid" id="cabinetCard"></div>
+      </section>
+
+      <section class="screen hidden" id="screenAdmin">
+        <div class="admin-panel">
+          <div class="admin-header">
+            <div>
+              <h1>Admin panel</h1>
+              <p id="adminCount">0 created characters</p>
+            </div>
+            <div class="admin-actions">
+              <button class="admin-secondary-btn" id="adminBackToDashboardBtn" type="button">
+                Back to dashboard
+              </button>
+              <button class="admin-secondary-btn" id="adminRefreshBtn" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <label class="admin-search">
+            <span class="visually-hidden">Search by wallet</span>
+            <input
+              id="adminSearchInput"
+              type="search"
+              inputmode="search"
+              placeholder="Search by wallet address"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th scope="col">Character</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Power</th>
+                  <th scope="col">Creator wallet</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+              <tbody id="adminTableBody"></tbody>
+            </table>
+          </div>
+
+          <p class="admin-empty hidden" id="adminEmpty"></p>
+        </div>
       </section>
     </main>
 

@@ -2,9 +2,11 @@ const {
   CHALLENGE_COOKIE,
   SESSION_COOKIE,
   buildChallengeMessage,
+  handleCors,
   SESSION_TTL_MS,
   clearCookie,
   createSession,
+  isAdminWallet,
   isLikelySolanaAddress,
   json,
   parseCookies,
@@ -16,6 +18,8 @@ const {
 } = require("../../_lib/auth");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
   if (req.method !== "POST") {
     json(res, 405, { error: "Method not allowed." });
     return;
@@ -88,6 +92,7 @@ module.exports = async (req, res) => {
     json(res, 200, {
       authenticated: true,
       wallet,
+      isAdmin: isAdminWallet(wallet),
       walletType,
       walletName: walletTypeToName(walletType),
     });

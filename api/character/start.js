@@ -1,17 +1,20 @@
+const { getSessionFromRequest, handleCors, json, parseJsonBody } = require("../_lib/auth");
 const {
-  CHARACTER_COOKIE,
-  clearCookie,
-  createToken,
-  getSessionFromRequest,
-  json,
-  parseCookies,
-  parseJsonBody,
-  setCookie,
-  verifyToken,
-} = require("../_lib/auth");
-const { DRAFT_TTL_MS, buildCharacterDraft } = require("../_lib/character");
+  buildCharacterDraft,
+  isMultipleCharactersEnabled,
+  serializeCharacterRecord,
+} = require("../_lib/character");
+const { isCharacterProxyEnabled, proxyCharacterJson } = require("../_lib/character-proxy");
+const { createImageStore, getWalletProfile, saveWalletProfile } = require("../_lib/store");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
+  if (isCharacterProxyEnabled()) {
+    await proxyCharacterJson(req, res, "/api/character/start");
+    return;
+  }
+
   if (req.method !== "POST") {
     json(res, 405, { error: "Method not allowed." });
     return;
@@ -23,37 +26,37 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const cookies = parseCookies(req);
-  const existingCharacterToken = cookies[CHARACTER_COOKIE];
-  if (existingCharacterToken) {
-    const parsed = verifyToken(existingCharacterToken);
-    if (
-      parsed &&
-      parsed.type === "character_profile" &&
-      parsed.exp >= Date.now() &&
-      parsed.wallet === session.wallet
-    ) {
-      json(res, 409, { error: "Character already exists for this user." });
+  try {
+    const profile = await getWalletProfile(session.wallet);
+    if (!isMultipleCharactersEnabled(req.headers.origin) && profile.characters.length > 0) {
+      json(res, 409, {
+        error: "Character already exists for this wallet.",
+        character: serializeCharacterRecord(profile.characters[profile.characters.length - 1]),
+        characters: profile.characters.map(serializeCharacterRecord),
+      });
       return;
     }
-    clearCookie(res, CHARACTER_COOKIE);
-  }
 
-  try {
     const body = await parseJsonBody(req);
-    const archetype = String(body.archetype || "");
-    const draft = buildCharacterDraft(archetype);
-    const draftToken = createToken(
-      {
-        type: "character_draft",
-        wallet: session.wallet,
-        draft,
-      },
-      DRAFT_TTL_MS
-    );
+    const creatureType = body.creatureType || body.archetype || "";
+    const draft = await buildCharacterDraft(creatureType, createImageStore());
 
-    setCookie(res, CHARACTER_COOKIE, draftToken, DRAFT_TTL_MS);
-    json(res, 200, { draft });
+    const nextProfile = {
+      ...profile,
+      draft: {
+        ...draft,
+        wallet: session.wallet,
+        walletName: session.walletName,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    await saveWalletProfile(session.wallet, nextProfile);
+
+    json(res, 200, {
+      draft: serializeCharacterRecord(nextProfile.draft),
+      characters: nextProfile.characters.map(serializeCharacterRecord),
+    });
   } catch (error) {
     json(res, 400, { error: error.message || "Bad request." });
   }

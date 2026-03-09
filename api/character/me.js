@@ -1,12 +1,16 @@
-const {
-  CHARACTER_COOKIE,
-  json,
-  parseCookies,
-  verifyToken,
-  getSessionFromRequest,
-} = require("../_lib/auth");
+const { getSessionFromRequest, handleCors, json } = require("../_lib/auth");
+const { serializeCharacterRecord } = require("../_lib/character");
+const { isCharacterProxyEnabled, proxyCharacterJson } = require("../_lib/character-proxy");
+const { getWalletProfile } = require("../_lib/store");
 
 module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+
+  if (isCharacterProxyEnabled()) {
+    await proxyCharacterJson(req, res, "/api/character/me");
+    return;
+  }
+
   if (req.method !== "GET") {
     json(res, 405, { error: "Method not allowed." });
     return;
@@ -18,26 +22,14 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const cookies = parseCookies(req);
-  const raw = cookies[CHARACTER_COOKIE];
-  if (!raw) {
-    json(res, 200, { hasCharacter: false });
-    return;
-  }
-
-  const token = verifyToken(raw);
-  if (
-    !token ||
-    token.type !== "character_profile" ||
-    token.exp < Date.now() ||
-    token.wallet !== session.wallet
-  ) {
-    json(res, 200, { hasCharacter: false });
-    return;
-  }
+  const profile = await getWalletProfile(session.wallet);
+  const latestCharacter = profile.characters[profile.characters.length - 1] || null;
 
   json(res, 200, {
-    hasCharacter: true,
-    character: token.character,
+    hasDraft: Boolean(profile.draft),
+    hasCharacter: profile.characters.length > 0,
+    draft: serializeCharacterRecord(profile.draft),
+    character: serializeCharacterRecord(latestCharacter),
+    characters: profile.characters.map(serializeCharacterRecord),
   });
 };
