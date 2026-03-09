@@ -1571,11 +1571,17 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   background: #f2f4f7;
   border: 1px solid var(--gray-200);
   border-radius: 16px;
+  cursor: zoom-in;
   display: block;
   flex: 0 0 56px;
   height: 56px;
   object-fit: cover;
   width: 56px;
+}
+
+.admin-character-thumb:focus-visible {
+  box-shadow: 0 0 0 4px rgba(16, 24, 40, 0.08);
+  outline: none;
 }
 
 .admin-wallet-cell {
@@ -1701,6 +1707,69 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   font-size: 14px;
   line-height: 20px;
   word-break: break-word;
+}
+
+.admin-lightbox {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.82);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 140;
+}
+
+.admin-lightbox-content {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: min(720px, calc(100vw - 48px));
+  position: relative;
+  width: 100%;
+}
+
+.admin-lightbox-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  border-radius: 999px;
+  color: var(--gray-900);
+  cursor: pointer;
+  display: flex;
+  font-size: 18px;
+  height: 36px;
+  justify-content: center;
+  position: absolute;
+  right: 0;
+  top: -8px;
+  width: 36px;
+}
+
+.admin-lightbox-close:hover,
+.admin-lightbox-close:focus-visible {
+  background: #fff;
+  outline: none;
+}
+
+.admin-lightbox-image {
+  background: #fff;
+  border-radius: 24px;
+  display: block;
+  max-height: min(80vh, 720px);
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+}
+
+.admin-lightbox-caption {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  margin: 0;
+  text-align: center;
 }
 
 .wallet-overlay {
@@ -2308,6 +2377,19 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   .admin-details-grid,
   .admin-info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-lightbox {
+    padding: 16px;
+  }
+
+  .admin-lightbox-content {
+    max-width: calc(100vw - 32px);
+  }
+
+  .admin-lightbox-image {
+    border-radius: 20px;
+    max-height: min(72vh, 560px);
   }
 
   .powers-screen {

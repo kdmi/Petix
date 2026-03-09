@@ -188,6 +188,9 @@ let suppressRewardsTooltipTimeout = null;
 let attrsRowsBudget = 0;
 let toastTimeoutId = 0;
 let creatureTypeLimitToastAt = 0;
+let adminImageLightbox = null;
+let adminLightboxImage = null;
+let adminLightboxCaption = null;
 
 const state = {
   step: "type",
@@ -264,6 +267,68 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function ensureAdminImageLightbox() {
+  if (adminImageLightbox && adminLightboxImage && adminLightboxCaption) {
+    return;
+  }
+
+  adminImageLightbox = document.createElement("div");
+  adminImageLightbox.className = "admin-lightbox hidden";
+  adminImageLightbox.setAttribute("aria-hidden", "true");
+
+  const content = document.createElement("div");
+  content.className = "admin-lightbox-content";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "admin-lightbox-close";
+  closeBtn.setAttribute("aria-label", "Close preview");
+  closeBtn.textContent = "x";
+
+  adminLightboxImage = document.createElement("img");
+  adminLightboxImage.className = "admin-lightbox-image";
+  adminLightboxImage.alt = "";
+
+  adminLightboxCaption = document.createElement("p");
+  adminLightboxCaption.className = "admin-lightbox-caption";
+
+  content.append(closeBtn, adminLightboxImage, adminLightboxCaption);
+  adminImageLightbox.appendChild(content);
+  document.body.appendChild(adminImageLightbox);
+
+  closeBtn.addEventListener("click", closeAdminImageLightbox);
+  adminImageLightbox.addEventListener("click", (event) => {
+    if (event.target === adminImageLightbox) {
+      closeAdminImageLightbox();
+    }
+  });
+}
+
+function openAdminImageLightbox(src, alt, caption) {
+  if (!src) return;
+
+  ensureAdminImageLightbox();
+  adminLightboxImage.src = src;
+  adminLightboxImage.alt = alt || "";
+  adminLightboxCaption.textContent = caption || "";
+  adminImageLightbox.classList.remove("hidden");
+  adminImageLightbox.setAttribute("aria-hidden", "false");
+}
+
+function closeAdminImageLightbox() {
+  if (!adminImageLightbox) return;
+
+  adminImageLightbox.classList.add("hidden");
+  adminImageLightbox.setAttribute("aria-hidden", "true");
+  if (adminLightboxImage) {
+    adminLightboxImage.src = "";
+    adminLightboxImage.alt = "";
+  }
+  if (adminLightboxCaption) {
+    adminLightboxCaption.textContent = "";
+  }
 }
 
 function setWalletStatus(message, type = "neutral") {
@@ -1264,6 +1329,23 @@ function renderAdminTable() {
     thumb.alt = record.creatureType ? `${record.creatureType} character` : "Character preview";
     thumb.width = 56;
     thumb.height = 56;
+    thumb.tabIndex = 0;
+    thumb.setAttribute("role", "button");
+    thumb.setAttribute("aria-label", `Preview ${record.name || record.displayName || record.creatureType}`);
+    const openPreview = () => {
+      openAdminImageLightbox(
+        record.imageUrl,
+        thumb.alt,
+        `${record.name || record.displayName || record.creatureType} · ${record.rarity || "Unknown"}`
+      );
+    };
+    thumb.addEventListener("click", openPreview);
+    thumb.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openPreview();
+      }
+    });
 
     const summary = document.createElement("div");
     summary.className = "admin-character-summary";
@@ -1774,6 +1856,7 @@ function init() {
     if (event.key === "Escape" && walletOverlay.getAttribute("aria-hidden") === "false") {
       closeWalletModal();
     }
+    if (event.key === "Escape") closeAdminImageLightbox();
     if (event.key === "Escape") hideWalletMenu();
   });
 
