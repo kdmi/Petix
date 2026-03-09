@@ -110,30 +110,50 @@ async function readBlobText(stream) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function loadBlobDbSnapshot(access, { useCache = true, includeEtag = true } = {}) {
+  const blobResult = await get(DB_BLOB_PATH, {
+    access,
+    ...(access === "private" ? { useCache } : {}),
+  }).catch((error) => {
+    if (error?.name === "BlobNotFoundError") {
+      return null;
+    }
+    throw error;
+  });
+
+  if (!blobResult || blobResult.statusCode !== 200) {
+    return null;
+  }
+
+  const raw = await readBlobText(blobResult.stream);
+  const parsed = raw ? JSON.parse(raw) : EMPTY_DB;
+
+  return {
+    db: normalizeDbShape(parsed),
+    etag: includeEtag ? blobResult.blob.etag || null : null,
+  };
+}
+
 async function loadDbSnapshot() {
   if (isBlobDbEnabled()) {
-    const blobResult = await get(DB_BLOB_PATH, {
-      access: "public",
-    }).catch((error) => {
-      if (error?.name === "BlobNotFoundError") {
-        return null;
-      }
-      throw error;
+    const privateSnapshot = await loadBlobDbSnapshot("private", {
+      useCache: false,
+      includeEtag: true,
     });
-
-    if (!blobResult || blobResult.statusCode !== 200) {
-      return {
-        db: { ...EMPTY_DB },
-        etag: null,
-      };
+    if (privateSnapshot) {
+      return privateSnapshot;
     }
 
-    const raw = await readBlobText(blobResult.stream);
-    const parsed = raw ? JSON.parse(raw) : EMPTY_DB;
+    const publicSnapshot = await loadBlobDbSnapshot("public", {
+      includeEtag: false,
+    });
+    if (publicSnapshot) {
+      return publicSnapshot;
+    }
 
     return {
-      db: normalizeDbShape(parsed),
-      etag: blobResult.blob.etag || null,
+      db: { ...EMPTY_DB },
+      etag: null,
     };
   }
 
@@ -164,7 +184,7 @@ async function readDb() {
 async function writeDb(nextDb, etag = null) {
   if (isBlobDbEnabled()) {
     await put(DB_BLOB_PATH, JSON.stringify(nextDb, null, 2), {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
