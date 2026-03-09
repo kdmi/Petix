@@ -551,7 +551,7 @@ async function restoreCharacterState() {
 
     if ((pageMode === "dashboard" || pageMode === "admin") && data?.hasCharacter && data.character) {
       syncStateWithPayload(data);
-      moveTo(requestedScreen === "admin" ? "admin" : "cabinet");
+      moveTo(pageMode === "admin" || requestedScreen === "admin" ? "admin" : "cabinet");
       return true;
     }
 
