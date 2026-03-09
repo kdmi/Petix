@@ -273,8 +273,22 @@ function walletTypeToName(walletType) {
   return map[walletType] || "Wallet";
 }
 
+function getAdminWallets() {
+  const configured = [
+    process.env.ADMIN_WALLETS || "",
+    process.env.ADMIN_WALLET || "",
+    ADMIN_WALLET,
+  ]
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(configured));
+}
+
 function isAdminWallet(wallet) {
-  return String(wallet || "").trim() === ADMIN_WALLET;
+  const normalizedWallet = String(wallet || "").trim();
+  return Boolean(normalizedWallet) && getAdminWallets().includes(normalizedWallet);
 }
 
 function isAdminSession(session) {
