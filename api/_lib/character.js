@@ -49,7 +49,7 @@ const GEMINI_IMAGE_TIMEOUT_MS = 45000;
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",
   "",
-  "High-quality stylized hand-painted 3D game asset illustration of a cute creature, isolated on a very light, soft pastel background in a shade corresponding to the body color. The aesthetic is that of a collectible toy with clean lines, soft gradients, and hand-drawn details. The main body is a simple, rounded cube with absolutely no legs, lower appendages, or distinct feet, presenting a pure cubic form featuring a [CREATURE_TYPE] design. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. The body is [BODY_COLOR] with integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS]. The camera is at a moderate front-above angle (a gentle 3/4 front view), displaying the creature's full face and a portion of the top, with the creature facing towards the left. The main cubic body maintains a consistent larger size relative to the canvas.",
+  "High-quality stylized hand-painted 3D game asset illustration of a cute creature, isolated on a very light, soft pastel background that complements the overall palette. The aesthetic is that of a collectible toy with clean lines, soft gradients, and hand-drawn details. The main body is a simple, rounded cube with absolutely no legs, lower appendages, or distinct feet, presenting a pure cubic form featuring a [CREATURE_TYPE] design. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. The creature uses a cohesive color palette that naturally fits its element and overall design, with integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS]. The camera is at a moderate front-above angle (a gentle 3/4 front view), displaying the creature's full face and a portion of the top, with the creature facing towards the left. The main cubic body maintains a consistent larger size relative to the canvas.",
 ].join("\n");
 
 const POWERS_PROMPT_TEMPLATE = [
@@ -71,7 +71,6 @@ const POWERS_PROMPT_TEMPLATE = [
   "- Profession style: [PROFESSION_STYLE]",
   "- Top item: [TOP_ITEM]",
   "- Element effects: [ELEMENT_EFFECTS]",
-  "- Body color: [BODY_COLOR]",
   "- Facial features: [FACIAL_FEATURES]",
   "- Side details: [SIDE_DETAILS]",
 ].join("\n");
@@ -87,7 +86,7 @@ const NAME_PROMPT_TEMPLATE = [
   "- if your first idea is longer than 20 characters, rewrite it shorter",
   "",
   "Character profile:",
-  "My creature is [CREATURE_TYPE]. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. The body is [BODY_COLOR] with integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS].",
+  "My creature is [CREATURE_TYPE]. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. It has integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS].",
 ].join("\n");
 
 let variablesCache = null;
