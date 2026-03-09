@@ -167,7 +167,7 @@ async function refreshCharacterCapacity() {
   if (!isAuthenticated) {
     characterCount = 0;
     updateCreatePetMenuState();
-    return;
+    return null;
   }
 
   try {
@@ -182,11 +182,20 @@ async function refreshCharacterCapacity() {
 
     const data = await response.json();
     characterCount = Array.isArray(data?.characters) ? data.characters.length : 0;
+    updateCreatePetMenuState();
+    return data;
   } catch {
     characterCount = 0;
+    updateCreatePetMenuState();
+    return null;
   }
+}
 
-  updateCreatePetMenuState();
+function redirectAuthenticatedUser(data = null) {
+  const characters = Array.isArray(data?.characters) ? data.characters : [];
+  const targetPath = characters.length > 0 ? "/dashboard/" : "/pet-creation/";
+  const targetUrl = new URL(targetPath, window.location.origin).toString();
+  window.location.replace(targetUrl);
 }
 
 function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
@@ -298,8 +307,9 @@ async function connectWallet(walletKey) {
       walletAddress: verified.wallet,
       isAdmin: verified.isAdmin,
     });
-    await refreshCharacterCapacity();
+    const characterData = await refreshCharacterCapacity();
     setStatus("Wallet connected successfully.", "success");
+    redirectAuthenticatedUser(characterData);
   } catch (error) {
     const message =
       typeof error?.message === "string" ? error.message : "Connection failed.";
@@ -342,7 +352,8 @@ async function restoreSession() {
       walletAddress: data.wallet,
       isAdmin: data.isAdmin,
     });
-    await refreshCharacterCapacity();
+    const characterData = await refreshCharacterCapacity();
+    redirectAuthenticatedUser(characterData);
   } catch {
     showAuthState();
   }
