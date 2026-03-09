@@ -113,7 +113,6 @@ async function loadDbSnapshot() {
   if (isBlobDbEnabled()) {
     const blobResult = await get(DB_BLOB_PATH, {
       access: "public",
-      useCache: false,
     }).catch((error) => {
       if (error?.name === "BlobNotFoundError") {
         return null;
