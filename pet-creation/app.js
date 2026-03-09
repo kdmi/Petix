@@ -1270,6 +1270,8 @@ function renderAdminTable() {
 
     const actionCell = document.createElement("td");
     actionCell.className = "admin-action-cell";
+    const actionStack = document.createElement("div");
+    actionStack.className = "admin-action-stack";
     const isExpanded = isAdminCharacterExpanded(record.id);
     const detailsBtn = document.createElement("button");
     detailsBtn.type = "button";
@@ -1289,7 +1291,8 @@ function renderAdminTable() {
     deleteBtn.addEventListener("click", async () => {
       await deleteAdminCharacter(record);
     });
-    actionCell.append(detailsBtn, deleteBtn);
+    actionStack.append(detailsBtn, deleteBtn);
+    actionCell.appendChild(actionStack);
 
     row.append(characterCell, typeCell, walletCell, createdCell, actionCell);
     adminTableBody.appendChild(row);

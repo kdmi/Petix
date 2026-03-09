@@ -1584,7 +1584,7 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   word-break: break-all;
 }
 
-.admin-action-cell {
+.admin-action-stack {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -2295,7 +2295,7 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
     border-radius: 20px;
   }
 
-  .admin-action-cell {
+  .admin-action-stack {
     align-items: stretch;
     flex-direction: column;
   }
