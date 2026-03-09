@@ -567,6 +567,14 @@ async function restoreCharacterState() {
       return true;
     }
 
+    if (pageMode === "creation") {
+      state.character = null;
+      state.selectedPowerId = "";
+      state.attrs = createEmptyAttrs();
+      setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
+      syncDisplayedRarity(null);
+    }
+
     return false;
   } catch {
     return false;
@@ -1302,6 +1310,7 @@ async function startCharacterCreation() {
 
   state.pendingStartAfterAuth = false;
   state.isStarting = true;
+  resetCharacterState({ keepTypeSelection: true, keepCharacters: true });
   updateTypeContinueState();
   setProcessCopy("Cooking up your pet...", "Please wait, it could take a few seconds");
   moveTo("process");
