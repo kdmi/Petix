@@ -1261,10 +1261,6 @@ function renderAdminTable() {
     const typeCell = document.createElement("td");
     typeCell.textContent = record.creatureType || "Unknown";
 
-    const powerCell = document.createElement("td");
-    powerCell.className = "admin-power-cell";
-    powerCell.textContent = getSelectedPowerDescription(record);
-
     const walletCell = document.createElement("td");
     walletCell.className = "admin-wallet-cell";
     walletCell.textContent = record.creatorWallet || "";
@@ -1295,7 +1291,7 @@ function renderAdminTable() {
     });
     actionCell.append(detailsBtn, deleteBtn);
 
-    row.append(characterCell, typeCell, powerCell, walletCell, createdCell, actionCell);
+    row.append(characterCell, typeCell, walletCell, createdCell, actionCell);
     adminTableBody.appendChild(row);
 
     if (isExpanded) {
@@ -1303,7 +1299,7 @@ function renderAdminTable() {
       detailsRow.className = "admin-details-row";
 
       const detailsCell = document.createElement("td");
-      detailsCell.colSpan = 6;
+      detailsCell.colSpan = 5;
       detailsCell.className = "admin-details-cell";
       detailsCell.innerHTML = createAdminDetailsMarkup(record);
 
