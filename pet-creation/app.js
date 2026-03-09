@@ -41,6 +41,7 @@ const walletConfigs = {
 };
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
 const MAX_CHARACTERS_PER_WALLET = 3;
+const CUSTOM_CREATURE_TYPE_MAX_LENGTH = 24;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
@@ -186,6 +187,7 @@ const labelAttrs = document.getElementById("labelAttrs");
 let suppressRewardsTooltipTimeout = null;
 let attrsRowsBudget = 0;
 let toastTimeoutId = 0;
+let creatureTypeLimitToastAt = 0;
 
 const state = {
   step: "type",
@@ -292,6 +294,23 @@ function showToast(message) {
     toast.classList.remove("visible");
     toastTimeoutId = 0;
   }, 3200);
+}
+
+function showCreatureTypeLimitToast() {
+  const now = Date.now();
+  if (now - creatureTypeLimitToastAt < 1200) return;
+  creatureTypeLimitToastAt = now;
+  showToast(`Character type is limited to ${CUSTOM_CREATURE_TYPE_MAX_LENGTH} characters.`);
+}
+
+function willOtherTypeInputExceedLimit(input, insertedLength) {
+  const maxLength = input.maxLength > 0 ? input.maxLength : CUSTOM_CREATURE_TYPE_MAX_LENGTH;
+  const selectionStart = input.selectionStart ?? input.value.length;
+  const selectionEnd = input.selectionEnd ?? input.value.length;
+  const selectedLength = Math.max(0, selectionEnd - selectionStart);
+  const nextLength = input.value.length - selectedLength + insertedLength;
+
+  return insertedLength > 0 && nextLength > maxLength;
 }
 
 function updateAdminAccessUi() {
@@ -1624,6 +1643,24 @@ function init() {
       if (chip.classList.contains("active")) return;
       applyChipIcon(chip, "default");
     });
+  });
+
+  otherTypeInput.addEventListener("beforeinput", (event) => {
+    if (event.isComposing || String(event.inputType || "").startsWith("delete")) {
+      return;
+    }
+
+    const insertedLength = typeof event.data === "string" ? event.data.length : 0;
+    if (willOtherTypeInputExceedLimit(otherTypeInput, insertedLength)) {
+      showCreatureTypeLimitToast();
+    }
+  });
+
+  otherTypeInput.addEventListener("paste", (event) => {
+    const pastedText = event.clipboardData?.getData("text") || "";
+    if (willOtherTypeInputExceedLimit(otherTypeInput, pastedText.length)) {
+      showCreatureTypeLimitToast();
+    }
   });
 
   otherTypeInput.addEventListener("input", updateTypeContinueState);
