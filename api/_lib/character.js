@@ -36,7 +36,8 @@ const FALLBACK_RARITY_CHANCES_CSV_PATH = path.join(
   "_data",
   "rarity-chances.csv"
 );
-const FALLBACK_IMAGE_PATH = path.join(process.cwd(), "assets", "character", "current-pet.jpg");
+const IMAGE_GENERATION_ERROR_MESSAGE =
+  "Character image generation failed. Please restart the creation.";
 const DEFAULT_VARIABLES_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/12SapHXfn-4U73z0SHk_fF79ECvAGYQYVVbF085uvBw8/gviz/tq?tqx=out:csv";
 const DEFAULT_RARITY_CHANCES_SHEET_URL =
@@ -712,25 +713,12 @@ async function requestGeminiImage(prompt) {
   return null;
 }
 
-async function buildFallbackImage(imageStore, characterId, prompt) {
-  const storedImage = await imageStore.copyFallbackImage(characterId, FALLBACK_IMAGE_PATH);
-  return {
-    provider: "placeholder",
-    prompt,
-    mimeType: "image/jpeg",
-    ...storedImage,
-    generatedAt: new Date().toISOString(),
-  };
-}
-
 async function generateCharacterImage(prompt, characterId, imageStore) {
   try {
     const image = await requestGeminiImage(prompt);
     if (!image?.base64) {
-      const fallback = await buildFallbackImage(imageStore, characterId, prompt);
-      fallback.error = "Gemini image response did not include inline image data.";
-      console.warn("[character:image]", fallback.error);
-      return fallback;
+      console.warn("[character:image]", "Gemini image response did not include inline image data.");
+      throw new Error(IMAGE_GENERATION_ERROR_MESSAGE);
     }
 
     const extension = getImageExtension(image.mimeType);
@@ -751,9 +739,7 @@ async function generateCharacterImage(prompt, characterId, imageStore) {
     };
   } catch (error) {
     console.warn("[character:image]", error.message);
-    const fallback = await buildFallbackImage(imageStore, characterId, prompt);
-    fallback.error = error.message;
-    return fallback;
+    throw new Error(IMAGE_GENERATION_ERROR_MESSAGE);
   }
 }
 
