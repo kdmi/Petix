@@ -843,7 +843,12 @@ function validateSkillAllocation(stats, expectedTotal = TOTAL_ATTRIBUTE_POINTS) 
 }
 
 function isMultipleCharactersEnabled(origin = "") {
-  if (String(process.env.ALLOW_MULTIPLE_CHARACTERS || "").toLowerCase() === "true") {
+  const envValue = String(process.env.ALLOW_MULTIPLE_CHARACTERS || "").trim().toLowerCase();
+  if (envValue === "false") {
+    return false;
+  }
+
+  if (envValue === "true") {
     return true;
   }
 
@@ -851,7 +856,7 @@ function isMultipleCharactersEnabled(origin = "") {
     return true;
   }
 
-  return process.env.NODE_ENV !== "production";
+  return true;
 }
 
 function serializeCharacterRecord(record) {
