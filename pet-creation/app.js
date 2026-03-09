@@ -39,6 +39,7 @@ const walletConfigs = {
     },
   },
 };
+const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
 
 const TYPE_META = {
   Dragon: {
@@ -223,6 +224,11 @@ function shortenAddress(address) {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
+function isAdminWalletAddress(address) {
+  const normalized = String(address || "").trim();
+  return Boolean(normalized) && ADMIN_WALLETS.includes(normalized);
+}
+
 function formatDateTime(value) {
   if (!value) return "Unknown";
 
@@ -292,7 +298,7 @@ function closeWalletModal() {
 
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   state.isAuthenticated = true;
-  state.isAdmin = Boolean(isAdmin);
+  state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
   state.walletAddress = walletAddress || "";
   walletAuthPanel.classList.add("hidden");
   walletLoggedPanel.classList.remove("hidden");

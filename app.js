@@ -28,6 +28,7 @@ const walletConfigs = {
     },
   },
 };
+const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
 
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
@@ -50,6 +51,11 @@ let isAdmin = false;
 function shortenAddress(address) {
   if (!address || address.length < 12) return address || "";
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function isAdminWalletAddress(address) {
+  const normalized = String(address || "").trim();
+  return Boolean(normalized) && ADMIN_WALLETS.includes(normalized);
 }
 
 function setStatus(message, type = "neutral") {
@@ -87,7 +93,7 @@ function closeModal() {
 
 function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
   isAuthenticated = true;
-  isAdmin = Boolean(nextIsAdmin);
+  isAdmin = Boolean(nextIsAdmin) || isAdminWalletAddress(walletAddress);
   walletAuthPanel.classList.add("hidden");
   walletLoggedPanel.classList.remove("hidden");
   walletClose.classList.add("hidden");
@@ -222,7 +228,6 @@ async function restoreSession() {
     if (!response.ok) throw new Error("No active session");
     const data = await response.json();
     if (!data?.authenticated || !data?.wallet) throw new Error("No active session");
-    isAdmin = Boolean(data.isAdmin);
     showLoggedState({
       walletAddress: data.wallet,
       isAdmin: data.isAdmin,
