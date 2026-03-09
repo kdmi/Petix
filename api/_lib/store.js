@@ -29,6 +29,7 @@ const EMPTY_WALLET_PROFILE = {
   draft: null,
   characters: [],
 };
+const DB_MUTATION_RETRY_LIMIT = 4;
 
 let writeQueue = Promise.resolve();
 
@@ -179,13 +180,37 @@ async function writeDb(nextDb, etag = null) {
   await fs.rename(tempPath, DB_PATH);
 }
 
-async function withDbMutation(mutate) {
-  writeQueue = writeQueue.then(async () => {
+function isBlobPreconditionError(error) {
+  const message = String(error?.message || "");
+  return error?.name === "BlobPreconditionFailedError" || /precondition failed|etag mismatch/i.test(message);
+}
+
+async function executeDbMutation(mutate) {
+  for (let attempt = 0; attempt < DB_MUTATION_RETRY_LIMIT; attempt += 1) {
     const snapshot = await loadDbSnapshot();
     const result = await mutate(snapshot.db);
-    await writeDb(snapshot.db, snapshot.etag);
-    return result;
-  });
+
+    try {
+      await writeDb(snapshot.db, snapshot.etag);
+      return result;
+    } catch (error) {
+      const shouldRetry =
+        isBlobDbEnabled() &&
+        isBlobPreconditionError(error) &&
+        attempt < DB_MUTATION_RETRY_LIMIT - 1;
+
+      if (!shouldRetry) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Database mutation retry limit reached.");
+}
+
+async function withDbMutation(mutate) {
+  const run = async () => executeDbMutation(mutate);
+  writeQueue = writeQueue.catch(() => null).then(run);
 
   return writeQueue;
 }
