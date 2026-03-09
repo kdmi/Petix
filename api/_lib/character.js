@@ -41,9 +41,9 @@ const DEFAULT_VARIABLES_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/12SapHXfn-4U73z0SHk_fF79ECvAGYQYVVbF085uvBw8/gviz/tq?tqx=out:csv";
 const DEFAULT_RARITY_CHANCES_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1HIVAo3q3E0WW1n7cLgW6JW1w9t-SopAd7w4DzmLLAwM/gviz/tq?tqx=out:csv";
-const SHEET_FETCH_TIMEOUT_MS = 4000;
-const GEMINI_TEXT_TIMEOUT_MS = 6000;
-const GEMINI_IMAGE_TIMEOUT_MS = 10000;
+const SHEET_FETCH_TIMEOUT_MS = 6000;
+const GEMINI_TEXT_TIMEOUT_MS = 20000;
+const GEMINI_IMAGE_TIMEOUT_MS = 45000;
 
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",

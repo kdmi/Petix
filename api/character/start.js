@@ -53,6 +53,21 @@ module.exports = async (req, res) => {
 
     await saveWalletProfile(session.wallet, nextProfile);
 
+    console.log(
+      "[character:start]",
+      JSON.stringify({
+        wallet: session.wallet,
+        characterId: draft.id,
+        creatureType: draft.creatureType,
+        nameProvider: draft.generation?.nameProvider || "unknown",
+        powersProvider: draft.generation?.powersProvider || "unknown",
+        imageProvider: draft.generation?.imageProvider || "unknown",
+        nameError: draft.generation?.nameError || null,
+        powersError: draft.generation?.powersError || null,
+        imageError: draft.generation?.imageError || null,
+      })
+    );
+
     json(res, 200, {
       draft: serializeCharacterRecord(nextProfile.draft),
       characters: nextProfile.characters.map(serializeCharacterRecord),
