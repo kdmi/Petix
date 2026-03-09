@@ -864,23 +864,6 @@ function validateSkillAllocation(stats, expectedTotal = TOTAL_ATTRIBUTE_POINTS) 
   return isValid && sum === expectedTotal;
 }
 
-function isMultipleCharactersEnabled(origin = "") {
-  const envValue = String(process.env.ALLOW_MULTIPLE_CHARACTERS || "").trim().toLowerCase();
-  if (envValue === "false") {
-    return false;
-  }
-
-  if (envValue === "true") {
-    return true;
-  }
-
-  if (String(origin || "").startsWith("http://localhost:")) {
-    return true;
-  }
-
-  return true;
-}
-
 function serializeCharacterRecord(record) {
   if (!record) return null;
 
@@ -919,7 +902,6 @@ module.exports = {
   TOTAL_ATTRIBUTE_POINTS,
   buildCharacterDraft,
   getAttributePointBudget,
-  isMultipleCharactersEnabled,
   normalizeAttributes,
   normalizeCreatureType,
   serializeCharacterRecord,

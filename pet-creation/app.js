@@ -40,6 +40,7 @@ const walletConfigs = {
   },
 };
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
+const MAX_CHARACTERS_PER_WALLET = 3;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
@@ -410,6 +411,10 @@ function getCurrentCharacterName() {
   return "";
 }
 
+function hasCharacterCreationCapacity() {
+  return state.isAdmin || state.characters.length < MAX_CHARACTERS_PER_WALLET;
+}
+
 function setCharacterImages(src, creatureType) {
   characterImages.forEach((image) => {
     image.src = src || DEFAULT_CHARACTER_IMAGE;
@@ -556,6 +561,11 @@ async function restoreCharacterState() {
     }
 
     syncStateWithPayload(data);
+
+    if (pageMode === "creation" && !state.isAdmin && state.characters.length >= MAX_CHARACTERS_PER_WALLET) {
+      moveTo("cabinet");
+      return true;
+    }
 
     if (pageMode === "admin" && state.isAdmin) {
       moveTo("admin");
@@ -959,9 +969,18 @@ function suppressRewardsTooltip() {
 
 function renderCabinet() {
   const records = [...state.characters].reverse();
+  const canCreateAnother = hasCharacterCreationCapacity();
   if (cabinetCount) {
     const total = records.length;
     cabinetCount.textContent = `${total} character${total === 1 ? "" : "s"}`;
+  }
+
+  if (createAnotherBtn) {
+    createAnotherBtn.disabled = !canCreateAnother;
+    createAnotherBtn.classList.toggle("enabled", canCreateAnother);
+    createAnotherBtn.title = canCreateAnother
+      ? ""
+      : `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`;
   }
 
   if (!records.length) {
@@ -1308,6 +1327,12 @@ async function startCharacterCreation() {
     return;
   }
 
+  if (!hasCharacterCreationCapacity()) {
+    moveTo("cabinet");
+    window.alert(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+    return;
+  }
+
   state.pendingStartAfterAuth = false;
   state.isStarting = true;
   resetCharacterState({ keepTypeSelection: true, keepCharacters: true });
@@ -1327,6 +1352,12 @@ async function startCharacterCreation() {
     moveTo("type");
     if (/already exists/i.test(error.message)) {
       await restoreCharacterState();
+      return;
+    }
+    if (/limit reached/i.test(error.message)) {
+      await restoreCharacterState();
+      moveTo("cabinet");
+      window.alert(error.message);
       return;
     }
     handleFlowError(error, "Unable to create character.");

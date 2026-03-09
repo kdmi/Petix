@@ -1,11 +1,18 @@
-const { getSessionFromRequest, handleCors, json, parseJsonBody } = require("../_lib/auth");
+const {
+  getSessionFromRequest,
+  handleCors,
+  isAdminWallet,
+  json,
+  parseJsonBody,
+} = require("../_lib/auth");
 const {
   buildCharacterDraft,
-  isMultipleCharactersEnabled,
   serializeCharacterRecord,
 } = require("../_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../_lib/character-proxy");
 const { createImageStore, getWalletProfile, saveWalletProfile } = require("../_lib/store");
+
+const MAX_CHARACTERS_PER_WALLET = 3;
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -28,9 +35,9 @@ module.exports = async (req, res) => {
 
   try {
     const profile = await getWalletProfile(session.wallet);
-    if (!isMultipleCharactersEnabled(req.headers.origin) && profile.characters.length > 0) {
+    if (!isAdminWallet(session.wallet) && profile.characters.length >= MAX_CHARACTERS_PER_WALLET) {
       json(res, 409, {
-        error: "Character already exists for this wallet.",
+        error: `Character limit reached for this wallet. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`,
         character: serializeCharacterRecord(profile.characters[profile.characters.length - 1]),
         characters: profile.characters.map(serializeCharacterRecord),
       });
