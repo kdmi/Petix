@@ -166,6 +166,12 @@ const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 const progressWrap = document.querySelector(".progress-wrap");
 const adminCount = document.getElementById("adminCount");
+const adminUsersCount = document.getElementById("adminUsersCount");
+const adminCharactersCount = document.getElementById("adminCharactersCount");
+const adminRarityCommon = document.getElementById("adminRarityCommon");
+const adminRarityRare = document.getElementById("adminRarityRare");
+const adminRarityEpic = document.getElementById("adminRarityEpic");
+const adminRarityLegendary = document.getElementById("adminRarityLegendary");
 const adminSearchInput = document.getElementById("adminSearchInput");
 const adminTableBody = document.getElementById("adminTableBody");
 const adminEmpty = document.getElementById("adminEmpty");
@@ -1270,6 +1276,36 @@ function updateAdminCount(records) {
     : baseLabel;
 }
 
+function renderAdminStats() {
+  const records = state.adminCharacters;
+  const rarityCounts = {
+    common: 0,
+    rare: 0,
+    epic: 0,
+    legendary: 0,
+  };
+
+  records.forEach((record) => {
+    const rarityKey = normalizeRarityLabel(record?.rarity);
+    if (rarityKey in rarityCounts) {
+      rarityCounts[rarityKey] += 1;
+    }
+  });
+
+  const users = new Set(
+    records
+      .map((record) => String(record?.creatorWallet || "").trim())
+      .filter(Boolean)
+  ).size;
+
+  if (adminUsersCount) adminUsersCount.textContent = String(users);
+  if (adminCharactersCount) adminCharactersCount.textContent = String(records.length);
+  if (adminRarityCommon) adminRarityCommon.textContent = String(rarityCounts.common);
+  if (adminRarityRare) adminRarityRare.textContent = String(rarityCounts.rare);
+  if (adminRarityEpic) adminRarityEpic.textContent = String(rarityCounts.epic);
+  if (adminRarityLegendary) adminRarityLegendary.textContent = String(rarityCounts.legendary);
+}
+
 function setAdminEmptyState(message, shouldShow) {
   if (!adminEmpty) return;
   adminEmpty.textContent = message;
@@ -1292,6 +1328,7 @@ function renderAdminTable() {
   if (!adminTableBody) return;
 
   const records = getFilteredAdminCharacters();
+  renderAdminStats();
   updateAdminCount(records);
   adminTableBody.innerHTML = "";
 

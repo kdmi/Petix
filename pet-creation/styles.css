@@ -1506,6 +1506,55 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   outline: none;
 }
 
+.admin-stats-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.admin-stat-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 20px;
+  min-height: 96px;
+  padding: 18px;
+}
+
+.admin-stat-label {
+  color: var(--gray-500);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 18px;
+  text-transform: uppercase;
+}
+
+.admin-stat-value {
+  color: var(--gray-900);
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 34px;
+  margin-top: 10px;
+}
+
+#adminRarityCommon {
+  color: #667085;
+}
+
+#adminRarityRare {
+  color: #0ba5ec;
+}
+
+#adminRarityEpic {
+  color: #7a5af8;
+}
+
+#adminRarityLegendary {
+  color: #f79009;
+}
+
 .admin-table-wrap {
   background: #fff;
   border: 1px solid var(--gray-200);
@@ -2362,6 +2411,10 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   .admin-secondary-btn,
   .admin-search input {
     width: 100%;
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-table-wrap {
