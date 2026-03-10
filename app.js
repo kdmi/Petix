@@ -52,6 +52,8 @@ const walletMenuLogout = document.getElementById("walletMenuLogout");
 const walletAuthPanel = document.getElementById("walletAuthPanel");
 const walletLoggedPanel = document.getElementById("walletLoggedPanel");
 const walletStatus = document.getElementById("walletStatus");
+const walletActionBtn = document.getElementById("walletActionBtn");
+const walletFooter = document.querySelector(".wallet-footer");
 const loggedWalletAddress = document.getElementById("loggedWalletAddress");
 const continueBtn = document.getElementById("continueBtn");
 const walletButtons = document.querySelectorAll(".wallet-item");
@@ -61,6 +63,7 @@ let isAuthenticated = false;
 let isAdmin = false;
 let characterCount = 0;
 let toastTimeoutId = 0;
+let pendingMobileWalletActionUrl = "";
 
 function ensureWalletMenuItem(id, label, hidden = false) {
   if (!walletMenu) return null;
@@ -106,6 +109,20 @@ function setStatus(message, type = "neutral") {
   walletStatus.textContent = message;
   walletStatus.classList.toggle("success", type === "success");
   walletStatus.classList.toggle("error", type === "error");
+}
+
+function hideWalletActionButton() {
+  pendingMobileWalletActionUrl = "";
+  if (!walletActionBtn) return;
+  walletActionBtn.textContent = "";
+  walletActionBtn.classList.add("hidden");
+}
+
+function showWalletActionButton(label, nextUrl) {
+  if (!walletActionBtn) return;
+  pendingMobileWalletActionUrl = nextUrl;
+  walletActionBtn.textContent = label;
+  walletActionBtn.classList.remove("hidden");
 }
 
 function showToast(message) {
@@ -365,6 +382,34 @@ function closeModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
+function showWalletAuthPanel() {
+  walletAuthPanel.classList.remove("hidden");
+  walletLoggedPanel.classList.add("hidden");
+}
+
+function showWalletActionState(message, walletLabel, nextUrl) {
+  showWalletAuthPanel();
+  setStatus(message);
+  showWalletActionButton(`Continue in ${walletLabel}`, nextUrl);
+  walletButtons.forEach((button) => {
+    button.classList.add("hidden");
+  });
+  if (walletFooter) {
+    walletFooter.classList.add("hidden");
+  }
+  openModal();
+}
+
+function showWalletChoiceState() {
+  hideWalletActionButton();
+  walletButtons.forEach((button) => {
+    button.classList.remove("hidden");
+  });
+  if (walletFooter) {
+    walletFooter.classList.remove("hidden");
+  }
+}
+
 function hasCharacterCreationCapacity() {
   return isAdmin || characterCount < MAX_CHARACTERS_PER_WALLET;
 }
@@ -414,6 +459,16 @@ async function handleMobileWalletCallback() {
   const stage = url.searchParams.get("mobileStage");
 
   if (!walletType || !stage) {
+    const pending = loadMobileWalletAuthState();
+    const pendingWallet = pending?.walletType ? walletConfigs[pending.walletType] : null;
+    if (pending?.pendingSignUrl && pendingWallet) {
+      showWalletActionState(
+        `Connected to ${pendingWallet.label}. Continue in the app to sign the message.`,
+        pendingWallet.label,
+        pending.pendingSignUrl
+      );
+      return true;
+    }
     return false;
   }
 
@@ -476,6 +531,12 @@ async function handleMobileWalletCallback() {
         pending.dappSecretKey
       );
 
+      const signUrl = new URL(wallet.mobileSignMessageUrl);
+      signUrl.searchParams.set("dapp_encryption_public_key", pending.dappPublicKey);
+      signUrl.searchParams.set("nonce", signPayload.nonce);
+      signUrl.searchParams.set("redirect_link", buildMobileWalletCallbackUrl(walletType, "sign"));
+      signUrl.searchParams.set("payload", signPayload.payload);
+
       saveMobileWalletAuthState({
         ...pending,
         walletPublicKey,
@@ -483,18 +544,15 @@ async function handleMobileWalletCallback() {
         walletSession,
         challengeMessage: challenge.message,
         challengeToken: challenge.challengeToken,
+        pendingSignUrl: signUrl.toString(),
       });
 
       cleanupMobileWalletCallbackParams();
-
-      const signUrl = new URL(wallet.mobileSignMessageUrl);
-      signUrl.searchParams.set("dapp_encryption_public_key", pending.dappPublicKey);
-      signUrl.searchParams.set("nonce", signPayload.nonce);
-      signUrl.searchParams.set("redirect_link", buildMobileWalletCallbackUrl(walletType, "sign"));
-      signUrl.searchParams.set("payload", signPayload.payload);
-
-      setStatus("Please confirm signature in your wallet...");
-      window.location.replace(signUrl.toString());
+      showWalletActionState(
+        `Connected to ${wallet.label}. Continue in the app to sign the message.`,
+        wallet.label,
+        signUrl.toString()
+      );
       return true;
     }
 
@@ -552,6 +610,7 @@ function redirectAuthenticatedUser(data = null) {
 function showLoggedState({ walletAddress, isAdmin: nextIsAdmin = false }) {
   isAuthenticated = true;
   isAdmin = Boolean(nextIsAdmin) || isAdminWalletAddress(walletAddress);
+  hideWalletActionButton();
   walletAuthPanel.classList.add("hidden");
   walletLoggedPanel.classList.remove("hidden");
   walletClose.classList.add("hidden");
@@ -567,6 +626,7 @@ function showAuthState() {
   isAuthenticated = false;
   isAdmin = false;
   characterCount = 0;
+  showWalletChoiceState();
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
@@ -759,6 +819,13 @@ walletButtons.forEach((button) => {
 continueBtn.addEventListener("click", () => {
   closeModal();
 });
+
+if (walletActionBtn) {
+  walletActionBtn.addEventListener("click", () => {
+    if (!pendingMobileWalletActionUrl) return;
+    window.location.href = pendingMobileWalletActionUrl;
+  });
+}
 
 walletMenuLogout.addEventListener("click", async () => {
   try {

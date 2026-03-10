@@ -334,6 +334,10 @@ body {
   text-decoration: none;
 }
 
+.wallet-footer.hidden {
+  display: none;
+}
+
 .wallet-close {
   position: absolute;
   right: 12px;
