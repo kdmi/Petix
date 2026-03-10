@@ -224,7 +224,9 @@ const state = {
   draft: null,
   character: null,
   characters: [],
+  hasHydratedCharacters: false,
   adminCharacters: [],
+  hasLoadedAdminCharacters: false,
   adminWalletQuery: "",
   expandedAdminCharacterIds: [],
   isAdminLoading: false,
@@ -607,6 +609,7 @@ function syncTypeSelectionWithRecord(record) {
 function syncStateWithPayload(payload = {}) {
   if (Array.isArray(payload.characters)) {
     state.characters = payload.characters.map(normalizeCharacterRecord);
+    state.hasHydratedCharacters = true;
   }
 
   if ("draft" in payload) {
@@ -647,6 +650,7 @@ function resetCharacterState({ keepTypeSelection = false, keepCharacters = false
   state.character = null;
   if (!keepCharacters) {
     state.characters = [];
+    state.hasHydratedCharacters = false;
   }
   state.selectedPowerId = "";
   state.attrs = createEmptyAttrs();
@@ -1159,6 +1163,23 @@ function suppressRewardsTooltip() {
 function renderCabinet() {
   const records = [...state.characters].reverse();
   const canCreateAnother = hasCharacterCreationCapacity();
+  if (!state.hasHydratedCharacters) {
+    if (cabinetCount) {
+      cabinetCount.textContent = "Loading...";
+    }
+
+    if (createAnotherBtn) {
+      createAnotherBtn.disabled = true;
+      createAnotherBtn.classList.remove("enabled");
+      createAnotherBtn.classList.add("disabled");
+      createAnotherBtn.setAttribute("aria-disabled", "true");
+      createAnotherBtn.title = "";
+    }
+
+    cabinetCard.innerHTML = '<p class="cabinet-empty">Loading characters...</p>';
+    return;
+  }
+
   if (cabinetCount) {
     const total = records.length;
     cabinetCount.textContent = `${total} character${total === 1 ? "" : "s"}`;
@@ -1308,6 +1329,11 @@ function createAdminDetailsMarkup(record) {
 function updateAdminCount(records) {
   if (!adminCount) return;
 
+  if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
+    adminCount.textContent = "Loading characters...";
+    return;
+  }
+
   const total = records.length;
   const baseLabel = `${total} created character${total === 1 ? "" : "s"}`;
   adminCount.textContent = state.adminWalletQuery.trim()
@@ -1316,6 +1342,16 @@ function updateAdminCount(records) {
 }
 
 function renderAdminStats() {
+  if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
+    if (adminUsersCount) adminUsersCount.textContent = "—";
+    if (adminCharactersCount) adminCharactersCount.textContent = "—";
+    if (adminRarityCommon) adminRarityCommon.textContent = "—";
+    if (adminRarityRare) adminRarityRare.textContent = "—";
+    if (adminRarityEpic) adminRarityEpic.textContent = "—";
+    if (adminRarityLegendary) adminRarityLegendary.textContent = "—";
+    return;
+  }
+
   const records = state.adminCharacters;
   const rarityCounts = {
     common: 0,
@@ -1523,6 +1559,7 @@ async function loadAdminCharacters({ force = false } = {}) {
       typeof error?.message === "string" ? error.message : "Failed to load characters.";
   } finally {
     state.isAdminLoading = false;
+    state.hasLoadedAdminCharacters = true;
     renderAdminTable();
   }
 }
