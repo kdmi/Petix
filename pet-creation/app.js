@@ -1691,6 +1691,7 @@ function moveTo(step) {
     loadAdminCharacters();
   }
 
+  document.body.classList.remove("app-booting");
   resetStepScroll();
 }
 

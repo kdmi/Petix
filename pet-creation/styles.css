@@ -193,6 +193,10 @@ select {
   text-align: center;
 }
 
+body.app-booting .screen {
+  display: none !important;
+}
+
 .hero-icon {
   display: block;
   height: 72px;
