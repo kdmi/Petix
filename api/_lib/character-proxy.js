@@ -12,8 +12,18 @@ function getCharacterApiBaseUrl() {
   return String(process.env.CHARACTER_API_BASE_URL || "").trim().replace(/\/+$/, "");
 }
 
+function isCharacterProxyExplicitlyEnabled() {
+  return String(process.env.ENABLE_CHARACTER_PROXY || "")
+    .trim()
+    .toLowerCase() === "true";
+}
+
 function isCharacterProxyEnabled() {
-  return process.env.NODE_ENV !== "production" && Boolean(getCharacterApiBaseUrl());
+  return (
+    process.env.NODE_ENV !== "production" &&
+    isCharacterProxyExplicitlyEnabled() &&
+    Boolean(getCharacterApiBaseUrl())
+  );
 }
 
 function getInternalSecret() {

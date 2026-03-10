@@ -45,6 +45,12 @@ const DEFAULT_RARITY_CHANCES_SHEET_URL =
 const SHEET_FETCH_TIMEOUT_MS = 6000;
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
 const GEMINI_IMAGE_TIMEOUT_MS = 45000;
+const LOCAL_FALLBACK_IMAGE_PATH = path.join(
+  process.cwd(),
+  "assets",
+  "character",
+  "current-pet.jpg"
+);
 
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",
@@ -117,6 +123,18 @@ function normalizeCreatureType(input) {
 
 function fillTemplate(template, values) {
   return template.replace(/\[([A-Z_]+)\]/g, (_, key) => String(values[key] || "").trim());
+}
+
+function shouldUseLiveCharacterGeneration() {
+  if (process.env.NODE_ENV === "production") {
+    return true;
+  }
+
+  return (
+    String(process.env.ENABLE_LIVE_CHARACTER_GENERATION || "")
+      .trim()
+      .toLowerCase() === "true"
+  );
 }
 
 async function fetchWithTimeout(url, options, timeoutMs, label) {
@@ -614,6 +632,10 @@ function parseNameFromText(text, context) {
 }
 
 async function requestGeminiText(prompt) {
+  if (!shouldUseLiveCharacterGeneration()) {
+    return null;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
     return null;
@@ -662,6 +684,10 @@ function getImageExtension(mimeType) {
 }
 
 async function requestGeminiImage(prompt) {
+  if (!shouldUseLiveCharacterGeneration()) {
+    return null;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
     return null;
@@ -713,6 +739,17 @@ async function requestGeminiImage(prompt) {
 }
 
 async function generateCharacterImage(prompt, characterId, imageStore) {
+  if (!shouldUseLiveCharacterGeneration()) {
+    const storedImage = await imageStore.copyFallbackImage(characterId, LOCAL_FALLBACK_IMAGE_PATH);
+    return {
+      provider: "mock",
+      prompt,
+      mimeType: "image/jpeg",
+      ...storedImage,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   try {
     const image = await requestGeminiImage(prompt);
     if (!image?.base64) {

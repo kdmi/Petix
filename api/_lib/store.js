@@ -3,7 +3,10 @@ const fs = require("fs/promises");
 const path = require("path");
 const { del, get, list, put } = require("@vercel/blob");
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+const DATA_DIR =
+  process.env.NODE_ENV === "production"
+    ? path.join(process.cwd(), ".data")
+    : path.join(process.cwd(), ".data", "local-dev");
 const IMAGES_DIR = path.join(DATA_DIR, "character-images");
 const DB_PATH = path.join(DATA_DIR, "characters.json");
 const BLOB_IMAGE_PREFIX = String(process.env.BLOB_CHARACTER_IMAGE_PREFIX || "characters").replace(
