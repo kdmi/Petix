@@ -2,6 +2,11 @@ const walletConfigs = {
   phantom: {
     label: "Phantom",
     installUrl: "https://phantom.app/",
+    mobileBrowseUrl: (targetUrl) => {
+      const encodedTarget = encodeURIComponent(targetUrl);
+      const encodedRef = encodeURIComponent(window.location.origin);
+      return `https://phantom.app/ul/browse/${encodedTarget}?ref=${encodedRef}`;
+    },
     getProvider: () => {
       if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
       if (window.solana?.isPhantom) return window.solana;
@@ -11,6 +16,11 @@ const walletConfigs = {
   solflare: {
     label: "Solflare",
     installUrl: "https://solflare.com/",
+    mobileBrowseUrl: (targetUrl) => {
+      const encodedTarget = encodeURIComponent(targetUrl);
+      const encodedRef = encodeURIComponent(window.location.origin);
+      return `https://solflare.com/ul/v1/browse/${encodedTarget}?ref=${encodedRef}`;
+    },
     getProvider: () => {
       if (window.solflare?.isSolflare) return window.solflare;
       if (window.SolflareApp) return window.SolflareApp;
@@ -20,6 +30,8 @@ const walletConfigs = {
   trust: {
     label: "Trust Wallet",
     installUrl: "https://trustwallet.com/browser-extension",
+    mobileBrowseUrl: (targetUrl) =>
+      `https://link.trustwallet.com/open_url?coin_id=501&url=${encodeURIComponent(targetUrl)}`,
     getProvider: () => {
       if (window.trustwallet?.solana) return window.trustwallet.solana;
       if (window.trustWallet?.solana) return window.trustWallet.solana;
@@ -120,6 +132,14 @@ function showToast(message) {
     toast.classList.remove("visible");
     toastTimeoutId = 0;
   }, 3200);
+}
+
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent || "");
+}
+
+function canUseWalletBrowseDeeplink() {
+  return isMobileDevice() && window.location.protocol === "https:";
 }
 
 async function apiRequest(path, body) {
@@ -265,6 +285,12 @@ async function connectWallet(walletKey) {
 
   const provider = wallet.getProvider();
   if (!provider) {
+    if (canUseWalletBrowseDeeplink() && typeof wallet.mobileBrowseUrl === "function") {
+      setStatus(`Opening ${wallet.label} app...`);
+      window.location.href = wallet.mobileBrowseUrl(window.location.href);
+      return;
+    }
+
     setStatus(`${wallet.label} is not detected. Opening install page...`);
     window.open(wallet.installUrl, "_blank", "noopener,noreferrer");
     return;
