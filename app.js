@@ -494,15 +494,15 @@ async function handleMobileWalletCallback() {
 
   try {
     const wallet = walletConfigs[walletType];
-    const encryptionPublicKey = url.searchParams.get(wallet.mobileEncryptionPublicKeyParam);
     const nonce = url.searchParams.get("nonce");
     const data = url.searchParams.get("data");
 
-    if (!encryptionPublicKey || !nonce || !data) {
-      throw new Error("Wallet callback is missing required fields.");
-    }
-
     if (stage === "connect") {
+      const encryptionPublicKey = url.searchParams.get(wallet.mobileEncryptionPublicKeyParam);
+      if (!encryptionPublicKey || !nonce || !data) {
+        throw new Error("Wallet connect callback is missing required fields.");
+      }
+
       const decrypted = decryptMobileWalletPayload(
         encryptionPublicKey,
         nonce,
@@ -557,6 +557,10 @@ async function handleMobileWalletCallback() {
     }
 
     if (stage === "sign") {
+      if (!pending.walletEncryptionPublicKey || !nonce || !data) {
+        throw new Error("Wallet signature callback is missing required fields.");
+      }
+
       const decrypted = decryptMobileWalletPayload(
         pending.walletEncryptionPublicKey,
         nonce,
