@@ -12,6 +12,21 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
       rel="stylesheet"
     />
+    <style>
+      .hidden {
+        display: none !important;
+      }
+
+      body.app-booting .screen {
+        display: none !important;
+      }
+
+      body.app-booting[data-page="creation"] #screenType,
+      body.app-booting[data-page="dashboard"] #screenCabinet,
+      body.app-booting[data-page="admin"] #screenAdmin {
+        display: flex !important;
+      }
+    </style>
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260310d" />
   </head>
   <body class="app-booting" data-page="creation">
