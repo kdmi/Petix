@@ -2,11 +2,9 @@ const walletConfigs = {
   phantom: {
     label: "Phantom",
     installUrl: "https://phantom.app/",
-    mobileBrowseUrl: (targetUrl) => {
-      const encodedTarget = encodeURIComponent(targetUrl);
-      const encodedRef = encodeURIComponent(window.location.origin);
-      return `https://phantom.app/ul/browse/${encodedTarget}?ref=${encodedRef}`;
-    },
+    mobileConnectUrl: "https://phantom.app/ul/v1/connect",
+    mobileSignMessageUrl: "https://phantom.app/ul/v1/signMessage",
+    mobileEncryptionPublicKeyParam: "phantom_encryption_public_key",
     getProvider: () => {
       if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
       if (window.solana?.isPhantom) return window.solana;
@@ -16,11 +14,9 @@ const walletConfigs = {
   solflare: {
     label: "Solflare",
     installUrl: "https://solflare.com/",
-    mobileBrowseUrl: (targetUrl) => {
-      const encodedTarget = encodeURIComponent(targetUrl);
-      const encodedRef = encodeURIComponent(window.location.origin);
-      return `https://solflare.com/ul/v1/browse/${encodedTarget}?ref=${encodedRef}`;
-    },
+    mobileConnectUrl: "https://solflare.com/ul/v1/connect",
+    mobileSignMessageUrl: "https://solflare.com/ul/v1/signMessage",
+    mobileEncryptionPublicKeyParam: "solflare_encryption_public_key",
     getProvider: () => {
       if (window.solflare?.isSolflare) return window.solflare;
       if (window.SolflareApp) return window.SolflareApp;
@@ -42,6 +38,8 @@ const walletConfigs = {
 };
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
 const MAX_CHARACTERS_PER_WALLET = 3;
+const MOBILE_WALLET_AUTH_STORAGE_KEY = "petix_mobile_wallet_auth";
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
@@ -134,12 +132,210 @@ function showToast(message) {
   }, 3200);
 }
 
+function bytesToUtf8(bytes) {
+  return new TextDecoder().decode(bytes);
+}
+
+function utf8ToBytes(value) {
+  return new TextEncoder().encode(String(value || ""));
+}
+
+function bytesToBase58(bytes) {
+  if (!(bytes instanceof Uint8Array)) {
+    bytes = new Uint8Array(bytes || []);
+  }
+  if (!bytes.length) return "";
+
+  const digits = [0];
+  bytes.forEach((byte) => {
+    let carry = byte;
+    for (let index = 0; index < digits.length; index += 1) {
+      const current = digits[index] * 256 + carry;
+      digits[index] = current % 58;
+      carry = Math.floor(current / 58);
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = Math.floor(carry / 58);
+    }
+  });
+
+  let leadingZeroCount = 0;
+  while (leadingZeroCount < bytes.length && bytes[leadingZeroCount] === 0) {
+    leadingZeroCount += 1;
+  }
+
+  let output = "1".repeat(leadingZeroCount);
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    output += BASE58_ALPHABET[digits[index]];
+  }
+
+  return output;
+}
+
+function base58ToBytes(value) {
+  const input = String(value || "").trim();
+  if (!input) return new Uint8Array();
+
+  const bytes = [0];
+  for (const character of input) {
+    const alphabetIndex = BASE58_ALPHABET.indexOf(character);
+    if (alphabetIndex === -1) {
+      throw new Error("Invalid base58 string.");
+    }
+
+    let carry = alphabetIndex;
+    for (let index = 0; index < bytes.length; index += 1) {
+      const current = bytes[index] * 58 + carry;
+      bytes[index] = current & 0xff;
+      carry = current >> 8;
+    }
+
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+
+  let leadingZeroCount = 0;
+  while (leadingZeroCount < input.length && input[leadingZeroCount] === "1") {
+    leadingZeroCount += 1;
+  }
+
+  const output = new Uint8Array(leadingZeroCount + bytes.length);
+  for (let index = 0; index < leadingZeroCount; index += 1) {
+    output[index] = 0;
+  }
+  for (let index = 0; index < bytes.length; index += 1) {
+    output[output.length - 1 - index] = bytes[index];
+  }
+
+  return output;
+}
+
+function getNacl() {
+  if (!window.nacl?.box) {
+    throw new Error("Secure mobile wallet auth is unavailable right now.");
+  }
+  return window.nacl;
+}
+
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent || "");
 }
 
 function canUseWalletBrowseDeeplink() {
   return isMobileDevice() && window.location.protocol === "https:";
+}
+
+function canUseWalletDeeplinkAuth(walletKey) {
+  return canUseWalletBrowseDeeplink() && ["phantom", "solflare"].includes(walletKey);
+}
+
+function saveMobileWalletAuthState(payload) {
+  window.localStorage.setItem(MOBILE_WALLET_AUTH_STORAGE_KEY, JSON.stringify(payload));
+}
+
+function loadMobileWalletAuthState() {
+  try {
+    const raw = window.localStorage.getItem(MOBILE_WALLET_AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearMobileWalletAuthState() {
+  window.localStorage.removeItem(MOBILE_WALLET_AUTH_STORAGE_KEY);
+}
+
+function buildMobileWalletCallbackUrl(walletType, stage) {
+  const url = new URL("/", window.location.origin);
+  url.searchParams.set("mobileWallet", walletType);
+  url.searchParams.set("mobileStage", stage);
+  return url.toString();
+}
+
+function cleanupMobileWalletCallbackParams({ keepAuthPrompt = false } = {}) {
+  const url = new URL(window.location.href);
+  [
+    "mobileWallet",
+    "mobileStage",
+    "phantom_encryption_public_key",
+    "solflare_encryption_public_key",
+    "nonce",
+    "data",
+    "errorCode",
+    "errorMessage",
+  ].forEach((key) => {
+    url.searchParams.delete(key);
+  });
+
+  if (!keepAuthPrompt) {
+    url.searchParams.delete("auth");
+  }
+
+  const normalized =
+    url.pathname + (url.search ? url.search : "") + (url.hash ? url.hash : "");
+  window.history.replaceState({}, "", normalized);
+}
+
+function decryptMobileWalletPayload(encryptionPublicKey, nonce, data, dappSecretKey) {
+  const nacl = getNacl();
+  const sharedSecret = nacl.box.before(
+    base58ToBytes(encryptionPublicKey),
+    base58ToBytes(dappSecretKey)
+  );
+  const decrypted = nacl.box.open.after(base58ToBytes(data), base58ToBytes(nonce), sharedSecret);
+
+  if (!decrypted) {
+    throw new Error("Unable to decrypt wallet response.");
+  }
+
+  return JSON.parse(bytesToUtf8(decrypted));
+}
+
+function encryptMobileWalletPayload(encryptionPublicKey, payload, dappSecretKey) {
+  const nacl = getNacl();
+  const sharedSecret = nacl.box.before(
+    base58ToBytes(encryptionPublicKey),
+    base58ToBytes(dappSecretKey)
+  );
+  const nonce = nacl.randomBytes(24);
+  const encrypted = nacl.box.after(utf8ToBytes(JSON.stringify(payload)), nonce, sharedSecret);
+
+  return {
+    nonce: bytesToBase58(nonce),
+    payload: bytesToBase58(encrypted),
+  };
+}
+
+async function startMobileWalletAuth(walletKey) {
+  const wallet = walletConfigs[walletKey];
+  if (!wallet?.mobileConnectUrl) {
+    throw new Error("Mobile wallet auth is not supported for this wallet.");
+  }
+
+  const nacl = getNacl();
+  const keyPair = nacl.box.keyPair();
+  saveMobileWalletAuthState({
+    walletType: walletKey,
+    dappPublicKey: bytesToBase58(keyPair.publicKey),
+    dappSecretKey: bytesToBase58(keyPair.secretKey),
+    walletPublicKey: "",
+    walletEncryptionPublicKey: "",
+    walletSession: "",
+    challengeMessage: "",
+    challengeToken: "",
+  });
+
+  const connectUrl = new URL(wallet.mobileConnectUrl);
+  connectUrl.searchParams.set("app_url", window.location.origin);
+  connectUrl.searchParams.set("dapp_encryption_public_key", bytesToBase58(keyPair.publicKey));
+  connectUrl.searchParams.set("redirect_link", buildMobileWalletCallbackUrl(walletKey, "connect"));
+
+  setStatus(`Opening ${wallet.label} app...`);
+  window.location.href = connectUrl.toString();
 }
 
 async function apiRequest(path, body) {
@@ -209,6 +405,140 @@ async function refreshCharacterCapacity() {
     characterCount = 0;
     updateCreatePetMenuState();
     return null;
+  }
+}
+
+async function handleMobileWalletCallback() {
+  const url = new URL(window.location.href);
+  const walletType = url.searchParams.get("mobileWallet");
+  const stage = url.searchParams.get("mobileStage");
+
+  if (!walletType || !stage) {
+    return false;
+  }
+
+  const pending = loadMobileWalletAuthState();
+  if (!pending || pending.walletType !== walletType) {
+    cleanupMobileWalletCallbackParams({ keepAuthPrompt: true });
+    showAuthState();
+    setStatus("Mobile sign-in session expired. Please try again.", "error");
+    openModal();
+    return true;
+  }
+
+  const errorCode = url.searchParams.get("errorCode");
+  const errorMessage = url.searchParams.get("errorMessage");
+  if (errorCode) {
+    clearMobileWalletAuthState();
+    cleanupMobileWalletCallbackParams({ keepAuthPrompt: true });
+    showAuthState();
+    setStatus(errorMessage || "Wallet request was cancelled.", "error");
+    openModal();
+    return true;
+  }
+
+  try {
+    const wallet = walletConfigs[walletType];
+    const encryptionPublicKey = url.searchParams.get(wallet.mobileEncryptionPublicKeyParam);
+    const nonce = url.searchParams.get("nonce");
+    const data = url.searchParams.get("data");
+
+    if (!encryptionPublicKey || !nonce || !data) {
+      throw new Error("Wallet callback is missing required fields.");
+    }
+
+    if (stage === "connect") {
+      const decrypted = decryptMobileWalletPayload(
+        encryptionPublicKey,
+        nonce,
+        data,
+        pending.dappSecretKey
+      );
+
+      const walletPublicKey = String(decrypted.public_key || "").trim();
+      const walletSession = String(decrypted.session || "");
+      if (!walletPublicKey || !walletSession) {
+        throw new Error("Wallet connect response is incomplete.");
+      }
+
+      const challenge = await apiRequest("/api/auth/solana/challenge", {
+        wallet: walletPublicKey,
+      });
+
+      const messageBytes = utf8ToBytes(challenge.message);
+      const signPayload = encryptMobileWalletPayload(
+        encryptionPublicKey,
+        {
+          message: bytesToBase58(messageBytes),
+          session: walletSession,
+          display: "utf8",
+        },
+        pending.dappSecretKey
+      );
+
+      saveMobileWalletAuthState({
+        ...pending,
+        walletPublicKey,
+        walletEncryptionPublicKey: encryptionPublicKey,
+        walletSession,
+        challengeMessage: challenge.message,
+        challengeToken: challenge.challengeToken,
+      });
+
+      cleanupMobileWalletCallbackParams();
+
+      const signUrl = new URL(wallet.mobileSignMessageUrl);
+      signUrl.searchParams.set("dapp_encryption_public_key", pending.dappPublicKey);
+      signUrl.searchParams.set("nonce", signPayload.nonce);
+      signUrl.searchParams.set("redirect_link", buildMobileWalletCallbackUrl(walletType, "sign"));
+      signUrl.searchParams.set("payload", signPayload.payload);
+
+      setStatus("Please confirm signature in your wallet...");
+      window.location.replace(signUrl.toString());
+      return true;
+    }
+
+    if (stage === "sign") {
+      const decrypted = decryptMobileWalletPayload(
+        pending.walletEncryptionPublicKey,
+        nonce,
+        data,
+        pending.dappSecretKey
+      );
+      const signatureBase58 = String(decrypted.signature || "");
+      if (!signatureBase58) {
+        throw new Error("Wallet signature response is incomplete.");
+      }
+      const signature = bytesToBase64(base58ToBytes(signatureBase58));
+
+      const verified = await apiRequest("/api/auth/solana/verify", {
+        wallet: pending.walletPublicKey,
+        walletType,
+        message: pending.challengeMessage,
+        signature,
+        challengeToken: pending.challengeToken,
+      });
+
+      clearMobileWalletAuthState();
+      cleanupMobileWalletCallbackParams();
+      showLoggedState({
+        walletAddress: verified.wallet,
+        isAdmin: verified.isAdmin,
+      });
+      const characterData = await refreshCharacterCapacity();
+      setStatus("Wallet connected successfully.", "success");
+      redirectAuthenticatedUser(characterData);
+      return true;
+    }
+
+    throw new Error("Unknown mobile wallet callback stage.");
+  } catch (error) {
+    clearMobileWalletAuthState();
+    cleanupMobileWalletCallbackParams({ keepAuthPrompt: true });
+    showAuthState();
+    setStatus(error.message || "Mobile wallet sign-in failed.", "error");
+    openModal();
+    return true;
   }
 }
 
@@ -285,6 +615,17 @@ async function connectWallet(walletKey) {
 
   const provider = wallet.getProvider();
   if (!provider) {
+    if (canUseWalletDeeplinkAuth(walletKey)) {
+      try {
+        await startMobileWalletAuth(walletKey);
+      } catch (error) {
+        const message =
+          typeof error?.message === "string" ? error.message : "Unable to open wallet app.";
+        setStatus(message, "error");
+      }
+      return;
+    }
+
     if (canUseWalletBrowseDeeplink() && typeof wallet.mobileBrowseUrl === "function") {
       setStatus(`Opening ${wallet.label} app...`);
       window.location.href = wallet.mobileBrowseUrl(window.location.href);
@@ -345,6 +686,7 @@ async function connectWallet(walletKey) {
 }
 
 async function logoutWallet() {
+  clearMobileWalletAuthState();
   await apiRequest("/api/auth/solana/logout", {});
   showAuthState();
 }
@@ -463,6 +805,9 @@ document.addEventListener("click", (event) => {
 
 window.addEventListener("load", async () => {
   refreshDetectedBadges();
+  if (await handleMobileWalletCallback()) {
+    return;
+  }
   await restoreSession();
   if (!isAuthenticated && shouldOpenAuthModal) {
     setStatus("Connect wallet to continue.", "error");
