@@ -54,6 +54,7 @@ const walletConfigs = {
 const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
 const MAX_CHARACTERS_PER_WALLET = 3;
 const CUSTOM_CREATURE_TYPE_MAX_LENGTH = 24;
+const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
@@ -189,6 +190,10 @@ const adminTableBody = document.getElementById("adminTableBody");
 const adminEmpty = document.getElementById("adminEmpty");
 const adminRefreshBtn = document.getElementById("adminRefreshBtn");
 const adminBackToDashboardBtn = document.getElementById("adminBackToDashboardBtn");
+const adminPagination = document.getElementById("adminPagination");
+const adminPageInfo = document.getElementById("adminPageInfo");
+const adminPrevBtn = document.getElementById("adminPrevBtn");
+const adminNextBtn = document.getElementById("adminNextBtn");
 const processTitle = screenProcess.querySelector("h1");
 const processText = screenProcess.querySelector("p");
 const characterImages = document.querySelectorAll(
@@ -228,6 +233,7 @@ const state = {
   adminCharacters: [],
   hasLoadedAdminCharacters: false,
   adminWalletQuery: "",
+  adminPage: 1,
   expandedAdminCharacterIds: [],
   isAdminLoading: false,
   deletingAdminCharacterId: "",
@@ -1251,6 +1257,48 @@ function getFilteredAdminCharacters() {
   );
 }
 
+function getAdminPaginationState(records = getFilteredAdminCharacters()) {
+  const totalItems = records.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, state.adminPage), totalPages);
+  const startIndex = (currentPage - 1) * ADMIN_PAGE_SIZE;
+
+  state.adminPage = currentPage;
+
+  return {
+    totalItems,
+    totalPages,
+    currentPage,
+    startIndex,
+    endIndex: startIndex + ADMIN_PAGE_SIZE,
+    pageRecords: records.slice(startIndex, startIndex + ADMIN_PAGE_SIZE),
+  };
+}
+
+function renderAdminPagination(records) {
+  if (!adminPagination || !adminPageInfo || !adminPrevBtn || !adminNextBtn) return;
+
+  if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
+    adminPagination.classList.add("hidden");
+    return;
+  }
+
+  const { totalItems, totalPages, currentPage, startIndex, endIndex } =
+    getAdminPaginationState(records);
+
+  if (!totalItems || totalPages <= 1) {
+    adminPagination.classList.add("hidden");
+    return;
+  }
+
+  adminPagination.classList.remove("hidden");
+  const visibleFrom = startIndex + 1;
+  const visibleTo = Math.min(endIndex, totalItems);
+  adminPageInfo.textContent = `${visibleFrom}-${visibleTo} of ${totalItems}`;
+  adminPrevBtn.disabled = currentPage <= 1;
+  adminNextBtn.disabled = currentPage >= totalPages;
+}
+
 function isAdminCharacterExpanded(characterId) {
   return state.expandedAdminCharacterIds.includes(characterId);
 }
@@ -1403,22 +1451,27 @@ function renderAdminTable() {
   if (!adminTableBody) return;
 
   const records = getFilteredAdminCharacters();
+  const { pageRecords } = getAdminPaginationState(records);
   renderAdminStats();
   updateAdminCount(records);
+  renderAdminPagination(records);
   adminTableBody.innerHTML = "";
 
   if (!state.isAdmin) {
     setAdminEmptyState("Admin access is not available for this wallet.", true);
+    if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
   if (state.isAdminLoading) {
     setAdminEmptyState("Loading created characters...", true);
+    if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
   if (state.adminErrorMessage) {
     setAdminEmptyState(state.adminErrorMessage, true);
+    if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
@@ -1427,12 +1480,13 @@ function renderAdminTable() {
       ? "No characters found for this wallet search."
       : "No created characters yet.";
     setAdminEmptyState(message, true);
+    if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
   setAdminEmptyState("", false);
 
-  records.forEach((record) => {
+  pageRecords.forEach((record) => {
     const row = document.createElement("tr");
     row.className = "admin-row";
 
@@ -1548,6 +1602,7 @@ async function loadAdminCharacters({ force = false } = {}) {
     state.adminCharacters = Array.isArray(data.characters)
       ? data.characters.map(normalizeCharacterRecord)
       : [];
+    state.adminPage = 1;
     const visibleIds = new Set(state.adminCharacters.map((record) => record.id));
     state.expandedAdminCharacterIds = state.expandedAdminCharacterIds.filter((id) =>
       visibleIds.has(id)
@@ -1947,6 +2002,7 @@ function init() {
   if (adminSearchInput) {
     adminSearchInput.addEventListener("input", (event) => {
       state.adminWalletQuery = event.target.value || "";
+      state.adminPage = 1;
       renderAdminTable();
     });
   }
@@ -1960,6 +2016,23 @@ function init() {
   if (adminBackToDashboardBtn) {
     adminBackToDashboardBtn.addEventListener("click", () => {
       window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
+    });
+  }
+
+  if (adminPrevBtn) {
+    adminPrevBtn.addEventListener("click", () => {
+      if (state.adminPage <= 1) return;
+      state.adminPage -= 1;
+      renderAdminTable();
+    });
+  }
+
+  if (adminNextBtn) {
+    adminNextBtn.addEventListener("click", () => {
+      const { totalPages } = getAdminPaginationState();
+      if (state.adminPage >= totalPages) return;
+      state.adminPage += 1;
+      renderAdminTable();
     });
   }
 

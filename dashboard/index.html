@@ -27,7 +27,7 @@
         display: flex !important;
       }
     </style>
-    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260310d" />
+    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260310e" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -324,6 +324,14 @@
             </table>
           </div>
 
+          <div class="admin-pagination hidden" id="adminPagination">
+            <p class="admin-pagination-info" id="adminPageInfo">1-20 of 0</p>
+            <div class="admin-pagination-actions">
+              <button class="admin-pagination-btn" id="adminPrevBtn" type="button">Previous</button>
+              <button class="admin-pagination-btn" id="adminNextBtn" type="button">Next</button>
+            </div>
+          </div>
+
           <p class="admin-empty hidden" id="adminEmpty"></p>
         </div>
       </section>
@@ -370,6 +378,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-    <script src="/pet-creation/app.js?v=20260310d"></script>
+    <script src="/pet-creation/app.js?v=20260310e"></script>
   </body>
 </html>
