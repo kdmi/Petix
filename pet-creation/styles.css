@@ -1228,11 +1228,12 @@ body.suppress-rewards-tooltip .attrs-rewards-wrap:focus-within .attrs-rewards-to
   height: 32px;
   justify-content: center;
   line-height: 24px;
-  min-width: 107px;
-  padding: 4px 10px;
+  min-width: 0;
+  padding: 4px 12px;
   position: absolute;
   right: 8px;
   top: 8px;
+  white-space: nowrap;
   z-index: 1;
 }
 
