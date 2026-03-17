@@ -1,7 +1,15 @@
 const TYPES = ["Dragon", "Phoenix", "Cat", "Owl", "Ape", "Panda", "Undead", "Other"];
 const DEFAULT_ATTRIBUTE_POINTS = 15;
 const DEFAULT_CHARACTER_IMAGE = "/assets/character/current-pet.jpg";
+const ENABLE_ARENA = false;
+const DEFAULT_DASHBOARD_ENERGY_MAX = 3;
+const DEFAULT_DASHBOARD_ENERGY_CURRENT = 3;
 const API_BASE_URL = window.PETIX_API_BASE_URL || "";
+const DASHBOARD_DEMO_IMAGE_PATHS = [
+  "/dashboard-demo/Image%20(Dragon%20character).png",
+  "/dashboard-demo/Image%20(Cat%20character).png",
+  "/dashboard-demo/Image%20(Owl%20character).png",
+];
 const RARITY_META = {
   legendary: { label: "Legendary", color: "#f79009", points: 15 },
   epic: { label: "Epic", color: "#7a5af8", points: 13 },
@@ -58,6 +66,8 @@ const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
+const BATTLE_ROUTE = "/battle/";
+const CLIENT_LOG_ENDPOINT = "/api/client-log";
 
 const TYPE_META = {
   Dragon: {
@@ -107,6 +117,127 @@ const POWER_ICONS = {
   active: "/assets/powers-step/power-icon-active.svg",
 };
 const SUCCESS_POWER_ICON = "/assets/character/power-sparkle.svg";
+const ARENA_ROULETTE_ITEM_SIZE = 160;
+const ARENA_ROULETTE_GAP = 24;
+const ARENA_ROULETTE_STEP = ARENA_ROULETTE_ITEM_SIZE + ARENA_ROULETTE_GAP;
+const ARENA_ROULETTE_REPEAT_COUNT = 5;
+const ARENA_ROULETTE_TRAVEL_ITEMS = 22;
+const ARENA_ROULETTE_DURATION = 4800;
+const ARENA_FOCUS_CARD_DELAY = 1100;
+const ARENA_PREPARE_MIN_SPINNER_DURATION = 1600;
+const ARENA_IMAGE_TARGET_SIZE = 512;
+const ARENA_BATTLE_LAUNCH_DELAY = 900;
+
+const ARENA_OPPONENT_POOL = [
+  {
+    id: "opponent-benny-bonnie",
+    name: "Benny Bonnie",
+    creatureType: "Burger Moth",
+    imageUrl: "https://www.figma.com/api/mcp/asset/f02fbff3-bf67-4c57-9434-55e9c86a3666",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 6, strength: 5, intelligence: 5 },
+    selectedPower: { description: "At the beginning of the battle, summons a skeleton warrior" },
+  },
+  {
+    id: "opponent-sweet-bombino",
+    name: "Sweet Bombino",
+    creatureType: "Cyber Bunny",
+    imageUrl: "https://www.figma.com/api/mcp/asset/b2560924-0557-4db8-9bd7-3548e6deb26d",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 6, strength: 5, intelligence: 5 },
+    selectedPower: { description: "At the beginning of the battle, summons a skeleton warrior" },
+  },
+  {
+    id: "opponent-frost-fizz",
+    name: "Frost Fizz",
+    creatureType: "Bubble Cake",
+    imageUrl: "https://www.figma.com/api/mcp/asset/b2bb3e64-9975-4a40-82ee-13865f31cfa5",
+    rarity: "rare",
+    attributes: { stamina: 5, agility: 4, strength: 4, intelligence: 6 },
+    selectedPower: { description: "Covers the arena with sparkling frost and slows the target." },
+  },
+  {
+    id: "opponent-ember-crust",
+    name: "Ember Crust",
+    creatureType: "Molten Pastry",
+    imageUrl: "https://www.figma.com/api/mcp/asset/948e3ddd-1038-45b2-ae85-365d527547e8",
+    rarity: "rare",
+    attributes: { stamina: 5, agility: 3, strength: 6, intelligence: 4 },
+    selectedPower: { description: "Ignites the ground and gains bonus damage on the next strike." },
+  },
+  {
+    id: "opponent-toast-rider",
+    name: "Toast Rider",
+    creatureType: "Toast Sprite",
+    imageUrl: "https://www.figma.com/api/mcp/asset/44ad6112-e6ec-4098-a95b-272d791909bd",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 5, strength: 4, intelligence: 6 },
+    selectedPower: { description: "Summons a hot gust that raises critical chance for one round." },
+  },
+  {
+    id: "opponent-gilded-core",
+    name: "Gilded Core",
+    creatureType: "Clockwork Relic",
+    imageUrl: "https://www.figma.com/api/mcp/asset/e6270898-8c2a-4bcf-af64-fd36f2e6d117",
+    rarity: "rare",
+    attributes: { stamina: 6, agility: 3, strength: 5, intelligence: 5 },
+    selectedPower: { description: "Deploys a brass shell and reduces incoming damage." },
+  },
+  {
+    id: "opponent-jelly-spark",
+    name: "Jelly Spark",
+    creatureType: "Arc Jelly",
+    imageUrl: "https://www.figma.com/api/mcp/asset/c57367f5-f7c1-4b17-bad0-dd9bc3b4f301",
+    rarity: "rare",
+    attributes: { stamina: 3, agility: 6, strength: 4, intelligence: 6 },
+    selectedPower: { description: "Releases static arcs that chain between targets in the arena." },
+  },
+  {
+    id: "opponent-night-captain",
+    name: "Night Captain",
+    creatureType: "Abyss Corsair",
+    imageUrl: "https://www.figma.com/api/mcp/asset/995470d1-ccbd-4b11-91aa-85ed21eea56b",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 5, strength: 5, intelligence: 5 },
+    selectedPower: { description: "Summons a shadow tide and slips out of the first hit." },
+  },
+  {
+    id: "opponent-panda-drift",
+    name: "Panda Drift",
+    creatureType: "Turbo Panda",
+    imageUrl: "https://www.figma.com/api/mcp/asset/ec89c239-bdf2-43a8-b95a-b356e985f24f",
+    rarity: "rare",
+    attributes: { stamina: 6, agility: 4, strength: 5, intelligence: 3 },
+    selectedPower: { description: "Charges through the lane and gains bonus armor on impact." },
+  },
+  {
+    id: "opponent-sand-cube",
+    name: "Sand Cube",
+    creatureType: "Rune Block",
+    imageUrl: "https://www.figma.com/api/mcp/asset/8f5b9a53-464d-4e6e-bdc8-8b96b2dd9576",
+    rarity: "rare",
+    attributes: { stamina: 5, agility: 4, strength: 4, intelligence: 6 },
+    selectedPower: { description: "Builds a dust mirage that weakens the enemy's next ability." },
+  },
+  {
+    id: "opponent-bloom-byte",
+    name: "Bloom Byte",
+    creatureType: "Pixel Bloom",
+    imageUrl: "https://www.figma.com/api/mcp/asset/736bdcba-4025-41ba-93f5-a199245bbc1f",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 5, strength: 3, intelligence: 7 },
+    selectedPower: { description: "Splits into neon petals and boosts spell effectiveness." },
+  },
+  {
+    id: "opponent-hex-crate",
+    name: "Hex Crate",
+    creatureType: "Curse Box",
+    imageUrl: "https://www.figma.com/api/mcp/asset/60debe2b-c983-453d-adb9-af86adfc3421",
+    rarity: "rare",
+    attributes: { stamina: 4, agility: 4, strength: 5, intelligence: 6 },
+    selectedPower: { description: "Marks the target with a hex and amplifies the next direct hit." },
+  },
+];
 
 const ATTRS = [
   {
@@ -141,6 +272,7 @@ const screenPowers = document.getElementById("screenPowers");
 const screenAttrs = document.getElementById("screenAttrs");
 const screenSuccess = document.getElementById("screenSuccess");
 const screenCabinet = document.getElementById("screenCabinet");
+const screenArena = document.getElementById("screenArena");
 const screenAdmin = document.getElementById("screenAdmin");
 const typeContinueBtn = document.getElementById("typeContinueBtn");
 const otherInputWrap = document.getElementById("otherInputWrap");
@@ -160,6 +292,23 @@ const successPowerText = document.getElementById("successPowerText");
 const cabinetCard = document.getElementById("cabinetCard");
 const cabinetCount = document.getElementById("cabinetCount");
 const createAnotherBtn = document.getElementById("createAnotherBtn");
+const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
+const dashboardTabArena = document.getElementById("dashboardTabArena");
+const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
+const dashboardEnergy = document.getElementById("dashboardEnergy");
+const dashboardEnergyCurrent = document.getElementById("dashboardEnergyCurrent");
+const dashboardEnergyMax = document.getElementById("dashboardEnergyMax");
+const arenaIdleState = document.getElementById("arenaIdleState");
+const arenaBattleState = document.getElementById("arenaBattleState");
+const arenaStageTitle = document.getElementById("arenaStageTitle");
+const arenaRoulette = document.getElementById("arenaRoulette");
+const arenaRouletteTrack = document.getElementById("arenaRouletteTrack");
+const arenaRouletteFocus = document.getElementById("arenaRouletteFocus");
+const arenaRouletteFocusImage = document.getElementById("arenaRouletteFocusImage");
+const arenaFocusCard = document.getElementById("arenaFocusCard");
+const arenaVersus = document.getElementById("arenaVersus");
+const arenaOpponentCard = document.getElementById("arenaOpponentCard");
+const arenaPlayerCard = document.getElementById("arenaPlayerCard");
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
 const walletClose = document.getElementById("walletClose");
@@ -186,14 +335,25 @@ const adminRarityRare = document.getElementById("adminRarityRare");
 const adminRarityEpic = document.getElementById("adminRarityEpic");
 const adminRarityLegendary = document.getElementById("adminRarityLegendary");
 const adminSearchInput = document.getElementById("adminSearchInput");
+const adminSearchLabel = document.getElementById("adminSearchLabel");
 const adminTableBody = document.getElementById("adminTableBody");
+const adminTableHeadRow = document.getElementById("adminTableHeadRow");
 const adminEmpty = document.getElementById("adminEmpty");
 const adminRefreshBtn = document.getElementById("adminRefreshBtn");
+const adminExportBtn = document.getElementById("adminExportBtn");
 const adminBackToDashboardBtn = document.getElementById("adminBackToDashboardBtn");
+const adminNavCharacters = document.getElementById("adminNavCharacters");
+const adminNavWaitlist = document.getElementById("adminNavWaitlist");
 const adminPagination = document.getElementById("adminPagination");
 const adminPageInfo = document.getElementById("adminPageInfo");
 const adminPrevBtn = document.getElementById("adminPrevBtn");
 const adminNextBtn = document.getElementById("adminNextBtn");
+const adminStatLabel1 = document.getElementById("adminStatLabel1");
+const adminStatLabel2 = document.getElementById("adminStatLabel2");
+const adminStatLabel3 = document.getElementById("adminStatLabel3");
+const adminStatLabel4 = document.getElementById("adminStatLabel4");
+const adminStatLabel5 = document.getElementById("adminStatLabel5");
+const adminStatLabel6 = document.getElementById("adminStatLabel6");
 const processTitle = screenProcess.querySelector("h1");
 const processText = screenProcess.querySelector("p");
 const characterImages = document.querySelectorAll(
@@ -214,6 +374,10 @@ let creatureTypeLimitToastAt = 0;
 let adminImageLightbox = null;
 let adminLightboxImage = null;
 let adminLightboxCaption = null;
+let arenaAnimationFrameId = 0;
+let arenaTimeoutIds = [];
+let arenaFocusedSequenceIndex = -1;
+const arenaImagePromises = new Map();
 
 const state = {
   step: "type",
@@ -230,6 +394,7 @@ const state = {
   character: null,
   characters: [],
   hasHydratedCharacters: false,
+  adminSection: "characters",
   adminCharacters: [],
   hasLoadedAdminCharacters: false,
   adminWalletQuery: "",
@@ -238,7 +403,19 @@ const state = {
   isAdminLoading: false,
   deletingAdminCharacterId: "",
   adminErrorMessage: "",
+  adminWaitlistEntries: [],
+  hasLoadedAdminWaitlist: false,
+  adminWaitlistQuery: "",
+  adminWaitlistPage: 1,
+  isAdminWaitlistLoading: false,
+  adminWaitlistErrorMessage: "",
   attrs: createEmptyAttrs(),
+  energyCurrent: DEFAULT_DASHBOARD_ENERGY_CURRENT,
+  energyMax: DEFAULT_DASHBOARD_ENERGY_MAX,
+  isFightPreparing: false,
+  fightPreparingCharacterId: "",
+  dashboardDemoImageById: {},
+  activeBattle: null,
 };
 
 function createEmptyAttrs() {
@@ -284,6 +461,24 @@ function formatAdminFieldLabel(key) {
   return String(key || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getRecordLevel(record) {
+  return Math.max(1, Math.floor(Number(record?.level) || 1));
+}
+
+function getRecordExperience(record) {
+  return Math.max(0, Math.floor(Number(record?.experience) || 0));
+}
+
+function getRecordExperienceForNextLevel(record) {
+  return Math.max(1, Math.floor(Number(record?.experienceForNextLevel) || 500));
+}
+
+function getRecordExperienceProgress(record) {
+  const total = getRecordExperienceForNextLevel(record);
+  const current = getRecordExperience(record);
+  return Math.max(0, Math.min(100, (current / total) * 100));
 }
 
 function escapeHtml(value) {
@@ -438,7 +633,7 @@ async function apiRequest(path, body, method = "POST") {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || "Request failed.");
+    throw new Error(data.message || data.error || "Request failed.");
   }
   return data;
 }
@@ -450,12 +645,74 @@ function toApiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
+function reportClientIssue(event, details = {}) {
+  if (!event) return;
+
+  const payload = {
+    event,
+    step: state.step,
+    selectedPowerId: state.selectedPowerId || "",
+    draftId: state.draft?.id || "",
+    path: window.location.pathname,
+    ...details,
+  };
+  const url = toApiUrl(CLIENT_LOG_ENDPOINT);
+  const body = JSON.stringify(payload);
+
+  if (navigator.sendBeacon) {
+    const blob = new Blob([body], { type: "application/json" });
+    navigator.sendBeacon(url, blob);
+    return;
+  }
+
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    keepalive: true,
+    body,
+  }).catch(() => {});
+}
+
 function normalizeCharacterRecord(record) {
   if (!record) return null;
 
   return {
     ...record,
     imageUrl: record.imageUrl ? toApiUrl(record.imageUrl) : DEFAULT_CHARACTER_IMAGE,
+  };
+}
+
+function buildDashboardDemoImageMap(records = []) {
+  if (!ENABLE_ARENA) {
+    return {};
+  }
+
+  const map = {};
+
+  records.slice(0, DASHBOARD_DEMO_IMAGE_PATHS.length).forEach((record, index) => {
+    if (!record?.id) return;
+    map[String(record.id)] = DASHBOARD_DEMO_IMAGE_PATHS[index];
+  });
+
+  return map;
+}
+
+function applyDashboardDemoImage(record) {
+  if (!ENABLE_ARENA) {
+    return record;
+  }
+
+  if (!record) return null;
+
+  const demoImageUrl = state.dashboardDemoImageById[String(record.id)];
+  if (!demoImageUrl) {
+    return record;
+  }
+
+  return {
+    ...record,
+    imageUrl: demoImageUrl,
   };
 }
 
@@ -487,17 +744,32 @@ function showWalletAuthState() {
   state.isAuthenticated = false;
   state.isAdmin = false;
   state.walletAddress = "";
+  state.adminSection = "characters";
   state.adminCharacters = [];
   state.adminWalletQuery = "";
   state.isAdminLoading = false;
   state.deletingAdminCharacterId = "";
   state.adminErrorMessage = "";
+  state.adminWaitlistEntries = [];
+  state.adminWaitlistQuery = "";
+  state.adminWaitlistPage = 1;
+  state.isAdminWaitlistLoading = false;
+  state.adminWaitlistErrorMessage = "";
+  state.hasLoadedAdminCharacters = false;
+  state.hasLoadedAdminWaitlist = false;
+  state.activeBattle = null;
+  state.energyCurrent = DEFAULT_DASHBOARD_ENERGY_CURRENT;
+  state.isFightPreparing = false;
+  state.fightPreparingCharacterId = "";
+  state.dashboardDemoImageById = {};
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
   setWalletStatus("");
   connectTrigger.textContent = "Connect wallet";
   if (adminSearchInput) adminSearchInput.value = "";
+  clearArenaAnimation();
+  updateEnergyUi();
   hideWalletMenu();
   updateAdminAccessUi();
   updateCreatePetMenuState();
@@ -615,15 +887,17 @@ function syncTypeSelectionWithRecord(record) {
 function syncStateWithPayload(payload = {}) {
   if (Array.isArray(payload.characters)) {
     state.characters = payload.characters.map(normalizeCharacterRecord);
+    state.dashboardDemoImageById = buildDashboardDemoImageMap(state.characters);
+    state.characters = state.characters.map(applyDashboardDemoImage);
     state.hasHydratedCharacters = true;
   }
 
   if ("draft" in payload) {
-    state.draft = normalizeCharacterRecord(payload.draft);
+    state.draft = applyDashboardDemoImage(normalizeCharacterRecord(payload.draft));
   }
 
   if ("character" in payload) {
-    state.character = normalizeCharacterRecord(payload.character);
+    state.character = applyDashboardDemoImage(normalizeCharacterRecord(payload.character));
     if (payload.character) {
       state.draft = null;
     }
@@ -683,6 +957,16 @@ function openDashboardFromMenu() {
   window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
 }
 
+function syncDashboardTabs(step = state.step) {
+  if (!dashboardTabMyPets || !dashboardTabArena) return;
+
+  const isArena = step === "arena";
+  dashboardTabMyPets.classList.toggle("active", !isArena);
+  dashboardTabArena.classList.toggle("active", isArena);
+  dashboardTabMyPets.setAttribute("aria-selected", isArena ? "false" : "true");
+  dashboardTabArena.setAttribute("aria-selected", isArena ? "true" : "false");
+}
+
 function openAdminPanelFromMenu() {
   hideWalletMenu();
   window.location.href = new URL(ADMIN_ROUTE, window.location.origin).toString();
@@ -696,7 +980,11 @@ function redirectToLandingAuthPrompt() {
 
 function getRequestedScreen() {
   const screen = new URLSearchParams(window.location.search).get("screen");
-  return ["type", "cabinet", "admin"].includes(screen) ? screen : "";
+  if (!ENABLE_ARENA && screen === "arena") {
+    return "";
+  }
+
+  return ["type", "cabinet", "admin", "arena"].includes(screen) ? screen : "";
 }
 
 function getPageMode() {
@@ -707,8 +995,13 @@ function getPageMode() {
 
   const requestedScreen = getRequestedScreen();
   if (requestedScreen === "cabinet") return "dashboard";
+  if (requestedScreen === "arena") return "dashboard";
   if (requestedScreen === "admin") return "admin";
   return "creation";
+}
+
+function buildBattleReplayUrl(battleId) {
+  return new URL(`${BATTLE_ROUTE}${encodeURIComponent(battleId)}`, window.location.origin).toString();
 }
 
 function setProcessCopy(title, text) {
@@ -742,7 +1035,13 @@ async function restoreCharacterState() {
 
     if ((pageMode === "dashboard" || pageMode === "admin") && data?.hasCharacter && data.character) {
       syncStateWithPayload(data);
-      moveTo(pageMode === "admin" || requestedScreen === "admin" ? "admin" : "cabinet");
+      moveTo(
+        pageMode === "admin" || requestedScreen === "admin"
+          ? "admin"
+          : requestedScreen === "arena"
+            ? "arena"
+            : "cabinet"
+      );
       return true;
     }
 
@@ -759,7 +1058,7 @@ async function restoreCharacterState() {
     }
 
     if (pageMode === "dashboard") {
-      moveTo("cabinet");
+      moveTo(requestedScreen === "arena" ? "arena" : "cabinet");
       return true;
     }
 
@@ -886,8 +1185,9 @@ function resetStepScroll() {
 }
 
 function showScreen(targetId) {
-  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenAdmin].forEach(
+  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenArena, screenAdmin].forEach(
     (screen) => {
+      if (!screen) return;
       screen.classList.toggle("hidden", screen.id !== targetId);
     }
   );
@@ -897,20 +1197,20 @@ function showScreen(targetId) {
 
 function setProgress(step) {
   if (progressWrap) {
-    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet" || step === "admin");
+    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet" || step === "arena" || step === "admin");
   }
 
   barType.classList.toggle("active", ["type", "process"].includes(step));
   barPowers.classList.toggle("active", step === "powers");
-  barAttrs.classList.toggle("active", ["attrs", "success", "cabinet"].includes(step));
+  barAttrs.classList.toggle("active", ["attrs", "success", "cabinet", "arena"].includes(step));
 
-  barType.classList.toggle("completed", ["powers", "attrs", "success", "cabinet"].includes(step));
-  barPowers.classList.toggle("completed", ["attrs", "success", "cabinet"].includes(step));
+  barType.classList.toggle("completed", ["powers", "attrs", "success", "cabinet", "arena"].includes(step));
+  barPowers.classList.toggle("completed", ["attrs", "success", "cabinet", "arena"].includes(step));
   barAttrs.classList.remove("completed");
 
   labelType.classList.toggle("active", step === "type" || step === "process");
   labelPowers.classList.toggle("active", step === "powers");
-  labelAttrs.classList.toggle("active", step === "attrs" || step === "success" || step === "cabinet");
+  labelAttrs.classList.toggle("active", step === "attrs" || step === "success" || step === "cabinet" || step === "arena");
 }
 
 function getResolvedType() {
@@ -961,6 +1261,135 @@ function preloadAttrsAssets() {
     const img = new Image();
     img.src = url;
   });
+}
+
+function getFightButtonMarkup({ isLoading = false, label = "Fight" } = {}) {
+  if (isLoading) {
+    return `
+      <span class="fight-btn-spinner" aria-hidden="true"></span>
+      <span>Preparing...</span>
+    `;
+  }
+
+  return `
+    <img src="/assets/dashboard/fight-bolt-white.svg" alt="" width="20" height="20" />
+    <span>${label}</span>
+  `;
+}
+
+function loadImageAsset(src) {
+  const tryLoad = (crossOriginValue) =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+
+      if (crossOriginValue) {
+        image.crossOrigin = crossOriginValue;
+      }
+
+      image.decoding = "async";
+      image.onload = async () => {
+        if (typeof image.decode === "function") {
+          try {
+            await image.decode();
+          } catch (_error) {
+            // Ignore decode failures and keep the loaded image.
+          }
+        }
+
+        resolve(image);
+      };
+      image.onerror = () => reject(new Error(`Unable to load image: ${src}`));
+      image.src = src;
+    });
+
+  if (!/^https?:\/\//i.test(src)) {
+    return tryLoad("");
+  }
+
+  return tryLoad("anonymous").catch(() => tryLoad(""));
+}
+
+async function downscaleArenaImage(image, fallbackSrc) {
+  const maxSide = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
+  if (maxSide <= ARENA_IMAGE_TARGET_SIZE) {
+    return fallbackSrc;
+  }
+
+  try {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return fallbackSrc;
+    }
+
+    canvas.width = ARENA_IMAGE_TARGET_SIZE;
+    canvas.height = ARENA_IMAGE_TARGET_SIZE;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    return await new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(fallbackSrc);
+            return;
+          }
+
+          resolve(URL.createObjectURL(blob));
+        },
+        "image/webp",
+        0.86
+      );
+    });
+  } catch (_error) {
+    return fallbackSrc;
+  }
+}
+
+function preloadAndOptimizeArenaImage(src) {
+  const normalizedSrc = src || DEFAULT_CHARACTER_IMAGE;
+
+  if (!arenaImagePromises.has(normalizedSrc)) {
+    const imagePromise = loadImageAsset(normalizedSrc)
+      .then((image) => downscaleArenaImage(image, normalizedSrc))
+      .catch(() => normalizedSrc);
+
+    arenaImagePromises.set(normalizedSrc, imagePromise);
+  }
+
+  return arenaImagePromises.get(normalizedSrc);
+}
+
+async function prepareArenaRecordImage(record) {
+  const safeRecord = cloneBattleRecord(record);
+  const preparedImageUrl = await preloadAndOptimizeArenaImage(safeRecord.imageUrl);
+
+  return {
+    ...safeRecord,
+    imageUrl: preparedImageUrl || safeRecord.imageUrl,
+  };
+}
+
+async function preloadArenaFightAssets(initiator, opponentPool) {
+  const preparedInitiatorPromise = prepareArenaRecordImage(initiator);
+  const preparedPoolPromise = Promise.all(opponentPool.map((record) => prepareArenaRecordImage(record)));
+  const [preparedInitiator, preparedPool] = await Promise.all([preparedInitiatorPromise, preparedPoolPromise]);
+
+  return {
+    preparedInitiator,
+    preparedPool,
+  };
+}
+
+async function loadRealArenaOpponents(attackerPetId) {
+  const query = new URLSearchParams({
+    attackerPetId: String(attackerPetId || ""),
+  });
+  const payload = await apiRequest(`/api/battles/opponents?${query.toString()}`, undefined, "GET");
+
+  return Array.isArray(payload?.opponents)
+    ? payload.opponents.map((record) => cloneBattleRecord(normalizeCharacterRecord(record)))
+    : [];
 }
 
 function applyChipIcon(chip, visualState) {
@@ -1166,9 +1595,473 @@ function suppressRewardsTooltip() {
   suppressRewardsTooltipTimeout = window.setTimeout(clearSuppression, 300);
 }
 
+function getRecordDisplayName(record) {
+  return record?.name || record?.displayName || record?.creatureType || "Unknown pet";
+}
+
+function cloneBattleRecord(record) {
+  if (!record) return null;
+
+  return {
+    ...record,
+    level: getRecordLevel(record),
+    experience: getRecordExperience(record),
+    experienceForNextLevel: getRecordExperienceForNextLevel(record),
+    imageUrl: record.imageUrl || DEFAULT_CHARACTER_IMAGE,
+    attributes: {
+      ...createEmptyAttrs(),
+      ...(record.attributes || {}),
+    },
+    selectedPower: record.selectedPower
+      ? { ...record.selectedPower }
+      : { description: "Power not selected yet" },
+  };
+}
+
+function updateEnergyUi() {
+  if (!dashboardEnergy || !dashboardEnergyCurrent || !dashboardEnergyMax) return;
+
+  dashboardEnergyCurrent.textContent = String(state.energyCurrent);
+  dashboardEnergyMax.textContent = `of ${state.energyMax}`;
+  dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent} of ${state.energyMax}`);
+}
+
+function clearArenaAnimation() {
+  if (arenaAnimationFrameId) {
+    window.cancelAnimationFrame(arenaAnimationFrameId);
+    arenaAnimationFrameId = 0;
+  }
+
+  arenaTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  arenaTimeoutIds = [];
+  arenaFocusedSequenceIndex = -1;
+
+  if (arenaVersus) {
+    arenaVersus.classList.remove("is-revealed");
+  }
+}
+
+function scheduleArenaTimeout(callback, delay) {
+  const timeoutId = window.setTimeout(() => {
+    arenaTimeoutIds = arenaTimeoutIds.filter((item) => item !== timeoutId);
+    callback();
+  }, delay);
+
+  arenaTimeoutIds.push(timeoutId);
+  return timeoutId;
+}
+
+function getArenaStarterRecord() {
+  if (!state.characters.length) return null;
+  return state.characters[state.characters.length - 1] || state.characters[0] || null;
+}
+
+function buildArenaSequence(pool) {
+  const sequence = [];
+
+  for (let repeat = 0; repeat < ARENA_ROULETTE_REPEAT_COUNT; repeat += 1) {
+    pool.forEach((record) => {
+      sequence.push({
+        ...cloneBattleRecord(record),
+        sequenceId: `${repeat}-${record.id}`,
+      });
+    });
+  }
+
+  return sequence;
+}
+
+function setArenaFocusImage(record) {
+  if (!arenaRouletteFocusImage) return;
+
+  arenaRouletteFocusImage.src = record?.imageUrl || DEFAULT_CHARACTER_IMAGE;
+  arenaRouletteFocusImage.alt = record ? `${getRecordDisplayName(record)} preview` : "";
+}
+
+function renderArenaStageTitle(phase) {
+  if (!arenaStageTitle) return;
+
+  const titleText = phase === "versus" ? "Preparing fight" : "Looking for your opponent";
+  arenaStageTitle.innerHTML = `
+    <span class="arena-stage-title-text">${titleText}</span>
+    <span class="arena-stage-dots" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </span>
+  `;
+}
+
+function buildBattleCardMarkup(record, extraClassName = "") {
+  const safeRecord = cloneBattleRecord(record);
+  const rarity = getRarityMeta(safeRecord?.rarity);
+  const name = escapeHtml(getRecordDisplayName(safeRecord));
+  const powerText = escapeHtml(getSelectedPowerDescription(safeRecord));
+  const level = getRecordLevel(safeRecord);
+  const statsMarkup = ATTRS.map((attr) => {
+    const value = safeRecord?.attributes?.[attr.key] ?? 0;
+
+    return `
+      <div class="success-card-stat">
+        <img src="${attr.icon}" alt="" width="16" height="16" />
+        <span>${value}</span>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <article class="success-card arena-card ${extraClassName}">
+      <div class="success-card-title">${name}</div>
+      <div class="success-card-image-wrap">
+        <img
+          class="success-card-image"
+          src="${safeRecord?.imageUrl || DEFAULT_CHARACTER_IMAGE}"
+          alt="${escapeHtml(safeRecord?.creatureType || "Pet")} character"
+          width="248"
+          height="248"
+        />
+        <span class="success-card-level">Lvl. ${level}</span>
+        <span class="success-card-rarity" style="background-color: ${rarity.color};">${rarity.label}</span>
+      </div>
+      <div class="success-card-stats">${statsMarkup}</div>
+      <div class="success-card-power">
+        <img class="success-card-power-icon" src="${SUCCESS_POWER_ICON}" alt="" width="20" height="20" />
+        <p class="success-card-power-text">${powerText}</p>
+      </div>
+    </article>
+  `;
+}
+
+async function launchArenaBattleReplay(battle) {
+  if (!battle || battle.isCreatingBattle) {
+    return;
+  }
+
+  battle.isCreatingBattle = true;
+  renderArena();
+
+  try {
+    const payload = await apiRequest("/api/battles", {
+      attackerPetId: battle.initiator.id,
+      defenderPetId: battle.opponent.id,
+    });
+
+    if (!payload?.battleId) {
+      throw new Error("Battle id was not returned.");
+    }
+
+    window.location.href = buildBattleReplayUrl(payload.battleId);
+  } catch (error) {
+    if (!state.activeBattle || state.activeBattle.id !== battle.id) {
+      return;
+    }
+
+    state.activeBattle = null;
+    state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
+    updateEnergyUi();
+    renderCabinet();
+    renderArena();
+    showToast(error.message || "Couldn't prepare the battle. Please try again.");
+  }
+}
+
+function renderArenaRouletteTrack(battle) {
+  if (!arenaRouletteTrack || !battle) return;
+
+  if (arenaRouletteTrack.dataset.battleId === battle.id) {
+    return;
+  }
+
+  arenaRouletteTrack.dataset.battleId = battle.id;
+  arenaRouletteTrack.innerHTML = battle.sequence
+    .map(
+      (record, index) => `
+        <div class="arena-roulette-thumb" data-sequence-index="${index}">
+          <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="160" height="160" />
+        </div>
+      `
+    )
+    .join("");
+}
+
+function syncArenaThumbStates(battle) {
+  if (!arenaRouletteTrack || !battle) return;
+
+  const thumbs = arenaRouletteTrack.querySelectorAll(".arena-roulette-thumb");
+  thumbs.forEach((thumb, index) => {
+    thumb.classList.toggle("is-selected", index === battle.targetSequenceIndex);
+  });
+
+  if (arenaRoulette) {
+    arenaRoulette.classList.toggle("is-settled", battle.phase !== "roulette");
+  }
+}
+
+function updateArenaFocusByTrackPosition(battle, currentX) {
+  if (!arenaRoulette || !battle?.sequence?.length) return;
+
+  const focusCenter = arenaRoulette.clientWidth / 2;
+  const centeredIndex = Math.max(
+    0,
+    Math.min(
+      battle.sequence.length - 1,
+      Math.round((focusCenter - currentX - ARENA_ROULETTE_ITEM_SIZE / 2) / ARENA_ROULETTE_STEP)
+    )
+  );
+
+  if (centeredIndex === arenaFocusedSequenceIndex) return;
+
+  arenaFocusedSequenceIndex = centeredIndex;
+  setArenaFocusImage(battle.sequence[centeredIndex]);
+}
+
+function finishArenaRoulette(battle, finalX) {
+  if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+
+  state.activeBattle.trackX = finalX;
+  state.activeBattle.phase = "focus";
+  renderArena();
+}
+
+function runArenaRoulette(battle) {
+  if (!arenaRouletteTrack || !arenaRoulette || !battle?.sequence?.length) return;
+
+  const focusCenter = arenaRoulette.clientWidth / 2;
+  const finalX = focusCenter - battle.targetSequenceIndex * ARENA_ROULETTE_STEP - ARENA_ROULETTE_ITEM_SIZE / 2;
+  const startX = finalX + ARENA_ROULETTE_STEP * ARENA_ROULETTE_TRAVEL_ITEMS;
+  const startedAt = performance.now();
+
+  battle.trackX = startX;
+  arenaRouletteTrack.style.transform = `translate3d(${startX}px, 0, 0)`;
+  updateArenaFocusByTrackPosition(battle, startX);
+
+  const animate = (now) => {
+    if (!state.activeBattle || state.activeBattle.id !== battle.id) {
+      arenaAnimationFrameId = 0;
+      return;
+    }
+
+    const progress = Math.min((now - startedAt) / ARENA_ROULETTE_DURATION, 1);
+    const eased = 1 - (1 - progress) ** 4;
+    const currentX = startX + (finalX - startX) * eased;
+
+    state.activeBattle.trackX = currentX;
+    arenaRouletteTrack.style.transform = `translate3d(${currentX}px, 0, 0)`;
+    updateArenaFocusByTrackPosition(battle, currentX);
+
+    if (progress < 1) {
+      arenaAnimationFrameId = window.requestAnimationFrame(animate);
+      return;
+    }
+
+    arenaAnimationFrameId = 0;
+    finishArenaRoulette(battle, finalX);
+  };
+
+  arenaAnimationFrameId = window.requestAnimationFrame(animate);
+}
+
+function renderArena() {
+  if (!screenArena || !arenaIdleState || !arenaBattleState || !arenaStartFightBtn) return;
+
+  const battle = state.activeBattle;
+  const hasStarter = Boolean(getArenaStarterRecord());
+  const isPreparingFight = state.isFightPreparing && !battle;
+  const canStartFight = hasStarter && state.energyCurrent > 0 && !state.isFightPreparing;
+  const idleCopy = arenaIdleState.querySelector(".arena-panel-copy p");
+
+  arenaStartFightBtn.disabled = !canStartFight;
+  arenaStartFightBtn.classList.toggle("disabled", !canStartFight);
+  arenaStartFightBtn.classList.toggle("enabled", canStartFight);
+  arenaStartFightBtn.classList.toggle("is-loading", isPreparingFight);
+  arenaStartFightBtn.innerHTML = isPreparingFight
+    ? getFightButtonMarkup({ isLoading: true })
+    : "<span>Start Fight</span>";
+
+  if (idleCopy) {
+    idleCopy.textContent = hasStarter
+      ? "Select any pet in My Pets or start with your latest one to match a real opponent."
+      : "Create your first pet to unlock the battle preparation flow.";
+  }
+
+  arenaIdleState.classList.toggle("hidden", Boolean(battle));
+  arenaBattleState.classList.toggle("hidden", !battle);
+
+  if (!battle) {
+    return;
+  }
+
+  renderArenaRouletteTrack(battle);
+  syncArenaThumbStates(battle);
+
+  if (typeof battle.trackX === "number" && arenaRouletteTrack) {
+    arenaRouletteTrack.style.transform = `translate3d(${battle.trackX}px, 0, 0)`;
+    updateArenaFocusByTrackPosition(battle, battle.trackX);
+  } else {
+    setArenaFocusImage(battle.opponent);
+  }
+
+  renderArenaStageTitle(battle.phase);
+
+  if (arenaRoulette) {
+    arenaRoulette.classList.toggle("is-fading-out", battle.phase === "versus");
+  }
+
+  if (arenaRouletteFocus) {
+    arenaRouletteFocus.classList.toggle("is-hidden", battle.phase !== "roulette");
+  }
+
+  if (battle.phase === "roulette") {
+    if (arenaFocusCard) {
+      arenaFocusCard.classList.add("hidden");
+    }
+    if (arenaVersus) {
+      arenaVersus.classList.add("hidden");
+      arenaVersus.classList.remove("is-revealed");
+      arenaVersus.setAttribute("aria-hidden", "true");
+    }
+
+    if (!battle.rouletteStarted) {
+      battle.rouletteStarted = true;
+      window.requestAnimationFrame(() => runArenaRoulette(battle));
+    }
+
+    return;
+  }
+
+  if (arenaFocusCard) {
+    arenaFocusCard.innerHTML = buildBattleCardMarkup(battle.opponent, "arena-card--focus");
+    arenaFocusCard.classList.toggle("hidden", battle.phase === "versus");
+  }
+
+  if (battle.phase === "focus") {
+    if (arenaVersus) {
+      arenaVersus.classList.add("hidden");
+      arenaVersus.classList.remove("is-revealed");
+      arenaVersus.setAttribute("aria-hidden", "true");
+    }
+
+    if (!battle.focusScheduled) {
+      battle.focusScheduled = true;
+      scheduleArenaTimeout(() => {
+        if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+        state.activeBattle.phase = "versus";
+        renderArena();
+      }, ARENA_FOCUS_CARD_DELAY);
+    }
+
+    return;
+  }
+
+  if (arenaOpponentCard) {
+    arenaOpponentCard.innerHTML = buildBattleCardMarkup(battle.opponent, "arena-card--versus");
+  }
+
+  if (arenaPlayerCard) {
+    arenaPlayerCard.innerHTML = buildBattleCardMarkup(battle.initiator, "arena-card--versus");
+  }
+
+  if (arenaFocusCard) {
+    arenaFocusCard.classList.add("hidden");
+  }
+  if (arenaVersus) {
+    arenaVersus.classList.remove("hidden");
+    arenaVersus.setAttribute("aria-hidden", "false");
+  }
+
+  if (!battle.versusRendered) {
+    battle.versusRendered = true;
+    if (arenaVersus) {
+      arenaVersus.classList.remove("is-revealed");
+    }
+    scheduleArenaTimeout(() => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      if (arenaVersus) {
+        arenaVersus.classList.add("is-revealed");
+      }
+    }, 40);
+  }
+
+  if (!battle.battleLaunchScheduled) {
+    battle.battleLaunchScheduled = true;
+    scheduleArenaTimeout(() => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      launchArenaBattleReplay(battle);
+    }, ARENA_BATTLE_LAUNCH_DELAY);
+  }
+}
+
+async function startFightFlow(characterId) {
+  if (state.isFightPreparing) {
+    return;
+  }
+
+  const sourceRecord =
+    state.characters.find((record) => String(record.id) === String(characterId)) || getArenaStarterRecord();
+  const initiator = cloneBattleRecord(sourceRecord);
+
+  if (!initiator) {
+    showToast("Create a pet before starting a fight.");
+    return;
+  }
+
+  if (state.energyCurrent <= 0) {
+    showToast("You need more energy before starting the next fight.");
+    return;
+  }
+
+  clearArenaAnimation();
+
+  state.energyCurrent = Math.max(0, state.energyCurrent - 1);
+  state.isFightPreparing = true;
+  state.fightPreparingCharacterId = String(initiator.id || characterId || "");
+  updateEnergyUi();
+  renderCabinet();
+  renderArena();
+
+  try {
+    const opponentPool = await loadRealArenaOpponents(initiator.id);
+    if (!opponentPool.length) {
+      throw new Error("No real opponents are available yet. Create pets from another wallet and try again.");
+    }
+
+    const opponentIndex = Math.floor(Math.random() * opponentPool.length);
+    const [{ preparedInitiator, preparedPool }] = await Promise.all([
+      preloadArenaFightAssets(initiator, opponentPool),
+      wait(ARENA_PREPARE_MIN_SPINNER_DURATION),
+    ]);
+
+    state.isFightPreparing = false;
+    state.fightPreparingCharacterId = "";
+    state.activeBattle = {
+      id: `arena-${Date.now()}`,
+      initiator: preparedInitiator,
+      opponent: preparedPool[opponentIndex],
+      pool: preparedPool,
+      sequence: buildArenaSequence(preparedPool),
+      targetSequenceIndex: preparedPool.length * 2 + opponentIndex,
+      phase: "roulette",
+      trackX: null,
+      rouletteStarted: false,
+      focusScheduled: false,
+      versusRendered: false,
+    };
+
+    moveTo("arena");
+  } catch (error) {
+    state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
+    state.isFightPreparing = false;
+    state.fightPreparingCharacterId = "";
+    updateEnergyUi();
+    renderCabinet();
+    renderArena();
+    showToast(error.message || "Couldn't prepare the fight. Please try again.");
+    console.error(error);
+  }
+}
+
 function renderCabinet() {
   const records = [...state.characters].reverse();
   const canCreateAnother = hasCharacterCreationCapacity();
+  const canFight = ENABLE_ARENA && state.energyCurrent > 0 && !state.isFightPreparing;
   if (!state.hasHydratedCharacters) {
     if (cabinetCount) {
       cabinetCount.textContent = "Loading...";
@@ -1209,39 +2102,81 @@ function renderCabinet() {
   cabinetCard.innerHTML = records
     .map((record) => {
       const rarity = getRarityMeta(record.rarity);
+      const isPreparingThisFight =
+        state.isFightPreparing && String(state.fightPreparingCharacterId) === String(record.id);
       const statsMarkup = ATTRS.map((attr) => {
         const value = record.attributes[attr.key];
         return `
           <div class="success-card-stat">
-            <img src="${attr.icon}" alt="" width="20" height="20" />
+            <img src="${attr.icon}" alt="" width="16" height="16" />
             <span>${value}</span>
           </div>
         `;
       }).join("");
 
       return `
-        <article class="cabinet-character">
+        <article class="cabinet-character" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
             <div class="success-card-image-wrap">
               <img class="success-card-image" src="${record.imageUrl}" alt="${record.creatureType} character" width="248" height="248" />
-              <span class="success-card-level">Lvl. 1</span>
+              <span class="success-card-level">Lvl. ${getRecordLevel(record)}</span>
               <span class="success-card-rarity" style="background-color: ${rarity.color};">${rarity.label}</span>
               <span class="success-card-exp-label">Experience</span>
-              <span class="success-card-exp-value">0/500</span>
+              <span class="success-card-exp-value">${getRecordExperience(record)}/${getRecordExperienceForNextLevel(record)}</span>
               <span class="success-card-exp-track"></span>
-              <span class="success-card-exp-progress"></span>
+              <span class="success-card-exp-progress" style="width: ${getRecordExperienceProgress(record)}%;"></span>
             </div>
             <div class="success-card-stats">${statsMarkup}</div>
             <div class="success-card-power">
               <img class="success-card-power-icon" src="${SUCCESS_POWER_ICON}" alt="" width="20" height="20" />
               <p class="success-card-power-text">${getSelectedPowerDescription(record)}</p>
             </div>
+            ${
+              canFight
+                ? `
+            <button
+              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}"
+              type="button"
+              data-character-id="${record.id}"
+              ${isPreparingThisFight ? 'disabled aria-disabled="true"' : ""}
+            >
+              ${getFightButtonMarkup({ isLoading: isPreparingThisFight })}
+            </button>
+            `
+                : ""
+            }
           </div>
         </article>
       `;
     })
     .join("");
+}
+
+function getAdminActiveQuery() {
+  return state.adminSection === "waitlist" ? state.adminWaitlistQuery : state.adminWalletQuery;
+}
+
+function setAdminActiveQuery(value) {
+  if (state.adminSection === "waitlist") {
+    state.adminWaitlistQuery = value;
+    return;
+  }
+
+  state.adminWalletQuery = value;
+}
+
+function getAdminActivePage() {
+  return state.adminSection === "waitlist" ? state.adminWaitlistPage : state.adminPage;
+}
+
+function setAdminActivePage(value) {
+  if (state.adminSection === "waitlist") {
+    state.adminWaitlistPage = value;
+    return;
+  }
+
+  state.adminPage = value;
 }
 
 function getFilteredAdminCharacters() {
@@ -1257,13 +2192,34 @@ function getFilteredAdminCharacters() {
   );
 }
 
-function getAdminPaginationState(records = getFilteredAdminCharacters()) {
+function getFilteredAdminWaitlistEntries() {
+  const query = state.adminWaitlistQuery.trim().toLowerCase();
+  if (!query) {
+    return state.adminWaitlistEntries;
+  }
+
+  return state.adminWaitlistEntries.filter((entry) =>
+    [entry.email, entry.source, entry.pagePath, entry.userAgent].some((field) =>
+      String(field || "")
+        .toLowerCase()
+        .includes(query)
+    )
+  );
+}
+
+function getAdminCurrentRecords() {
+  return state.adminSection === "waitlist"
+    ? getFilteredAdminWaitlistEntries()
+    : getFilteredAdminCharacters();
+}
+
+function getAdminPaginationState(records = getAdminCurrentRecords()) {
   const totalItems = records.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / ADMIN_PAGE_SIZE));
-  const currentPage = Math.min(Math.max(1, state.adminPage), totalPages);
+  const currentPage = Math.min(Math.max(1, getAdminActivePage()), totalPages);
   const startIndex = (currentPage - 1) * ADMIN_PAGE_SIZE;
 
-  state.adminPage = currentPage;
+  setAdminActivePage(currentPage);
 
   return {
     totalItems,
@@ -1278,7 +2234,12 @@ function getAdminPaginationState(records = getFilteredAdminCharacters()) {
 function renderAdminPagination(records) {
   if (!adminPagination || !adminPageInfo || !adminPrevBtn || !adminNextBtn) return;
 
-  if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
+  const isLoading =
+    state.adminSection === "waitlist" ? state.isAdminWaitlistLoading : state.isAdminLoading;
+  const hasLoaded =
+    state.adminSection === "waitlist" ? state.hasLoadedAdminWaitlist : state.hasLoadedAdminCharacters;
+
+  if (isLoading && !hasLoaded) {
     adminPagination.classList.add("hidden");
     return;
   }
@@ -1377,6 +2338,18 @@ function createAdminDetailsMarkup(record) {
 function updateAdminCount(records) {
   if (!adminCount) return;
 
+  if (state.adminSection === "waitlist") {
+    if (state.isAdminWaitlistLoading && !state.hasLoadedAdminWaitlist) {
+      adminCount.textContent = "Loading waitlist entries...";
+      return;
+    }
+
+    const total = records.length;
+    const baseLabel = `${total} waitlist entr${total === 1 ? "y" : "ies"}`;
+    adminCount.textContent = state.adminWaitlistQuery.trim() ? `${baseLabel} found` : baseLabel;
+    return;
+  }
+
   if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
     adminCount.textContent = "Loading characters...";
     return;
@@ -1390,6 +2363,62 @@ function updateAdminCount(records) {
 }
 
 function renderAdminStats() {
+  const statLabels = [
+    adminStatLabel1,
+    adminStatLabel2,
+    adminStatLabel3,
+    adminStatLabel4,
+    adminStatLabel5,
+    adminStatLabel6,
+  ];
+  const statValues = [
+    adminUsersCount,
+    adminCharactersCount,
+    adminRarityCommon,
+    adminRarityRare,
+    adminRarityEpic,
+    adminRarityLegendary,
+  ];
+
+  if (
+    (state.adminSection === "characters" && state.isAdminLoading && !state.hasLoadedAdminCharacters) ||
+    (state.adminSection === "waitlist" &&
+      state.isAdminWaitlistLoading &&
+      !state.hasLoadedAdminWaitlist)
+  ) {
+    statValues.forEach((node) => {
+      if (node) node.textContent = "—";
+    });
+    return;
+  }
+
+  if (state.adminSection === "waitlist") {
+    const records = state.adminWaitlistEntries;
+    const now = Date.now();
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const uniqueEmails = new Set(records.map((entry) => String(entry.email || "").trim()).filter(Boolean)).size;
+    const todayCount = records.filter((entry) => Date.parse(entry.createdAt || 0) >= dayAgo).length;
+    const weekCount = records.filter((entry) => Date.parse(entry.createdAt || 0) >= weekAgo).length;
+    const monthCount = records.filter((entry) => Date.parse(entry.createdAt || 0) >= monthAgo).length;
+    const landingCount = records.filter((entry) => String(entry.source || "") === "landing").length;
+
+    const labels = ["Entries", "Unique Emails", "Today", "7 Days", "30 Days", "Landing"];
+    const values = [records.length, uniqueEmails, todayCount, weekCount, monthCount, landingCount];
+
+    statLabels.forEach((node, index) => {
+      if (node) node.textContent = labels[index];
+    });
+    statValues.forEach((node, index) => {
+      if (node) {
+        node.textContent = String(values[index]);
+        node.style.color = "#101828";
+      }
+    });
+    return;
+  }
+
   if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
     if (adminUsersCount) adminUsersCount.textContent = "—";
     if (adminCharactersCount) adminCharactersCount.textContent = "—";
@@ -1427,6 +2456,19 @@ function renderAdminStats() {
   if (adminRarityRare) adminRarityRare.textContent = String(rarityCounts.rare);
   if (adminRarityEpic) adminRarityEpic.textContent = String(rarityCounts.epic);
   if (adminRarityLegendary) adminRarityLegendary.textContent = String(rarityCounts.legendary);
+  if (adminUsersCount) adminUsersCount.style.color = "";
+  if (adminCharactersCount) adminCharactersCount.style.color = "";
+  if (adminRarityCommon) adminRarityCommon.style.color = "";
+  if (adminRarityRare) adminRarityRare.style.color = "";
+  if (adminRarityEpic) adminRarityEpic.style.color = "";
+  if (adminRarityLegendary) adminRarityLegendary.style.color = "";
+
+  if (adminStatLabel1) adminStatLabel1.textContent = "Users";
+  if (adminStatLabel2) adminStatLabel2.textContent = "Characters";
+  if (adminStatLabel3) adminStatLabel3.textContent = "Common";
+  if (adminStatLabel4) adminStatLabel4.textContent = "Rare";
+  if (adminStatLabel5) adminStatLabel5.textContent = "Epic";
+  if (adminStatLabel6) adminStatLabel6.textContent = "Legendary";
 }
 
 function setAdminEmptyState(message, shouldShow) {
@@ -1447,15 +2489,110 @@ function syncDeletedCharacterLocally(creatorWallet, characterId) {
   }
 }
 
+function copyAdminText(value, successMessage = "Copied.") {
+  const text = String(value || "").trim();
+  if (!text) return;
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => showToast(successMessage))
+      .catch(() => window.prompt("Copy value:", text));
+    return;
+  }
+
+  window.prompt("Copy value:", text);
+}
+
+function renderAdminWaitlistTable(records) {
+  const { pageRecords } = getAdminPaginationState(records);
+
+  if (adminTableHeadRow) {
+    adminTableHeadRow.innerHTML = `
+      <th scope="col">Email</th>
+      <th scope="col">Source</th>
+      <th scope="col">Page</th>
+      <th scope="col">Submitted</th>
+      <th scope="col">Action</th>
+    `;
+  }
+
+  pageRecords.forEach((entry) => {
+    const row = document.createElement("tr");
+    row.className = "admin-row";
+
+    const emailCell = document.createElement("td");
+    emailCell.className = "admin-wallet-cell";
+    emailCell.textContent = entry.email || "—";
+
+    const sourceCell = document.createElement("td");
+    sourceCell.textContent = entry.source || "—";
+
+    const pageCell = document.createElement("td");
+    pageCell.textContent = entry.pagePath || "/";
+
+    const createdCell = document.createElement("td");
+    createdCell.textContent = formatDateTime(entry.createdAt);
+
+    const actionCell = document.createElement("td");
+    actionCell.className = "admin-action-cell";
+    const actionStack = document.createElement("div");
+    actionStack.className = "admin-action-stack";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "admin-detail-btn";
+    copyBtn.textContent = "Copy email";
+    copyBtn.addEventListener("click", () => {
+      copyAdminText(entry.email, "Email copied.");
+    });
+
+    actionStack.appendChild(copyBtn);
+    actionCell.appendChild(actionStack);
+    row.append(emailCell, sourceCell, pageCell, createdCell, actionCell);
+    adminTableBody.appendChild(row);
+  });
+}
+
 function renderAdminTable() {
   if (!adminTableBody) return;
 
-  const records = getFilteredAdminCharacters();
-  const { pageRecords } = getAdminPaginationState(records);
+  const records = getAdminCurrentRecords();
   renderAdminStats();
   updateAdminCount(records);
   renderAdminPagination(records);
   adminTableBody.innerHTML = "";
+
+  if (adminSearchInput) {
+    adminSearchInput.placeholder =
+      state.adminSection === "waitlist"
+        ? "Search by email, source, page or user agent"
+        : "Search by wallet address";
+    adminSearchInput.value = getAdminActiveQuery();
+  }
+
+  if (adminSearchLabel) {
+    adminSearchLabel.textContent =
+      state.adminSection === "waitlist"
+        ? "Search by email, source, page or user agent"
+        : "Search by wallet";
+  }
+
+  if (adminNavCharacters) {
+    const isActive = state.adminSection === "characters";
+    adminNavCharacters.classList.toggle("active", isActive);
+    adminNavCharacters.setAttribute("aria-selected", isActive ? "true" : "false");
+  }
+
+  if (adminNavWaitlist) {
+    const isActive = state.adminSection === "waitlist";
+    adminNavWaitlist.classList.toggle("active", isActive);
+    adminNavWaitlist.setAttribute("aria-selected", isActive ? "true" : "false");
+  }
+
+  if (adminExportBtn) {
+    adminExportBtn.classList.toggle("hidden", state.adminSection !== "waitlist");
+  }
 
   if (!state.isAdmin) {
     setAdminEmptyState("Admin access is not available for this wallet.", true);
@@ -1463,28 +2600,62 @@ function renderAdminTable() {
     return;
   }
 
-  if (state.isAdminLoading) {
+  if (state.adminSection === "characters" && state.isAdminLoading) {
     setAdminEmptyState("Loading created characters...", true);
     if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
-  if (state.adminErrorMessage) {
+  if (state.adminSection === "waitlist" && state.isAdminWaitlistLoading) {
+    setAdminEmptyState("Loading waitlist entries...", true);
+    if (adminPagination) adminPagination.classList.add("hidden");
+    return;
+  }
+
+  if (state.adminSection === "characters" && state.adminErrorMessage) {
     setAdminEmptyState(state.adminErrorMessage, true);
     if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
+  if (state.adminSection === "waitlist" && state.adminWaitlistErrorMessage) {
+    setAdminEmptyState(state.adminWaitlistErrorMessage, true);
+    if (adminPagination) adminPagination.classList.add("hidden");
+    return;
+  }
+
   if (!records.length) {
-    const message = state.adminWalletQuery.trim()
-      ? "No characters found for this wallet search."
-      : "No created characters yet.";
+    const message =
+      state.adminSection === "waitlist"
+        ? state.adminWaitlistQuery.trim()
+          ? "No waitlist entries found for this search."
+          : "No waitlist entries yet."
+        : state.adminWalletQuery.trim()
+          ? "No characters found for this wallet search."
+          : "No created characters yet.";
     setAdminEmptyState(message, true);
     if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
 
   setAdminEmptyState("", false);
+
+  if (state.adminSection === "waitlist") {
+    renderAdminWaitlistTable(records);
+    return;
+  }
+
+  const { pageRecords } = getAdminPaginationState(records);
+
+  if (adminTableHeadRow) {
+    adminTableHeadRow.innerHTML = `
+      <th scope="col">Character</th>
+      <th scope="col">Type</th>
+      <th scope="col">Creator wallet</th>
+      <th scope="col">Created</th>
+      <th scope="col">Action</th>
+    `;
+  }
 
   pageRecords.forEach((record) => {
     const row = document.createElement("tr");
@@ -1619,6 +2790,51 @@ async function loadAdminCharacters({ force = false } = {}) {
   }
 }
 
+async function loadAdminWaitlist({ force = false } = {}) {
+  if (!state.isAdmin) return;
+  if (state.isAdminWaitlistLoading) return;
+  if (!force && state.adminWaitlistEntries.length) {
+    renderAdminTable();
+    return;
+  }
+
+  state.isAdminWaitlistLoading = true;
+  state.adminWaitlistErrorMessage = "";
+  renderAdminTable();
+
+  try {
+    const data = await apiRequest("/api/admin/waitlist", {}, "GET");
+    state.adminWaitlistEntries = Array.isArray(data.entries) ? data.entries : [];
+    state.adminWaitlistPage = 1;
+  } catch (error) {
+    state.adminWaitlistEntries = [];
+    state.adminWaitlistErrorMessage =
+      typeof error?.message === "string" ? error.message : "Failed to load waitlist.";
+  } finally {
+    state.isAdminWaitlistLoading = false;
+    state.hasLoadedAdminWaitlist = true;
+    renderAdminTable();
+  }
+}
+
+function switchAdminSection(section) {
+  const nextSection = section === "waitlist" ? "waitlist" : "characters";
+  if (state.adminSection === nextSection) {
+    renderAdminTable();
+    return;
+  }
+
+  state.adminSection = nextSection;
+  renderAdminTable();
+
+  if (nextSection === "waitlist") {
+    loadAdminWaitlist();
+    return;
+  }
+
+  loadAdminCharacters();
+}
+
 async function deleteAdminCharacter(record) {
   if (!record?.id || state.deletingAdminCharacterId) {
     return;
@@ -1708,6 +2924,10 @@ function fireSuccessConfetti() {
 }
 
 function moveTo(step) {
+  if (!ENABLE_ARENA && step === "arena") {
+    step = "cabinet";
+  }
+
   if (step === "admin" && !state.isAdmin) {
     step = state.isAuthenticated ? "cabinet" : "type";
   }
@@ -1740,12 +2960,17 @@ function moveTo(step) {
     showScreen("screenCabinet");
     renderCabinet();
   }
+  if (step === "arena") {
+    showScreen("screenArena");
+    renderArena();
+  }
   if (step === "admin") {
     showScreen("screenAdmin");
     renderAdminTable();
     loadAdminCharacters();
   }
 
+  syncDashboardTabs(step);
   document.body.classList.remove("app-booting");
   resetStepScroll();
 }
@@ -1811,6 +3036,12 @@ async function savePowerSelectionAndContinue() {
 
   state.isSavingPower = true;
   renderPowersStep();
+  reportClientIssue("power_select_submit");
+  const slowRequestTimer = window.setTimeout(() => {
+    reportClientIssue("power_select_slow", {
+      message: "select-power request still pending after 8s",
+    });
+  }, 8000);
 
   try {
     const data = await apiRequest("/api/character/select-power", {
@@ -1820,6 +3051,9 @@ async function savePowerSelectionAndContinue() {
     syncStateWithPayload(data);
     moveTo("attrs");
   } catch (error) {
+    reportClientIssue("power_select_error", {
+      message: typeof error?.message === "string" ? error.message : "Unable to save superpower.",
+    });
     if (/already exists/i.test(error.message)) {
       await restoreCharacterState();
       return;
@@ -1827,6 +3061,7 @@ async function savePowerSelectionAndContinue() {
     handleFlowError(error, "Unable to save superpower.");
     renderPowersStep();
   } finally {
+    window.clearTimeout(slowRequestTimer);
     state.isSavingPower = false;
     if (state.step === "powers") {
       renderPowersStep();
@@ -1870,6 +3105,7 @@ function init() {
   preloadPowersAssets();
   preloadAttrsAssets();
   setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
+  updateEnergyUi();
 
   const chips = [...document.querySelectorAll(".type-chip")];
   chips.forEach((chip) => {
@@ -1961,6 +3197,33 @@ function init() {
     openDashboardFromMenu();
   });
 
+  if (dashboardTabMyPets) {
+    dashboardTabMyPets.addEventListener("click", () => {
+      moveTo("cabinet");
+    });
+  }
+
+  if (dashboardTabArena) {
+    dashboardTabArena.addEventListener("click", () => {
+      moveTo("arena");
+    });
+  }
+
+  if (arenaStartFightBtn) {
+    arenaStartFightBtn.addEventListener("click", () => {
+      startFightFlow();
+    });
+  }
+
+  if (cabinetCard) {
+    cabinetCard.addEventListener("click", (event) => {
+      const fightButton = event.target.closest(".cabinet-fight-btn");
+      if (!fightButton) return;
+      if (fightButton.disabled) return;
+      startFightFlow(fightButton.dataset.characterId);
+    });
+  }
+
   if (walletMenuAdmin) {
     walletMenuAdmin.addEventListener("click", () => {
       openAdminPanelFromMenu();
@@ -1993,6 +3256,24 @@ function init() {
     }
   });
 
+  window.addEventListener("error", (event) => {
+    reportClientIssue("window_error", {
+      message: event?.message || "Unknown window error",
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason =
+      typeof event?.reason === "string"
+        ? event.reason
+        : typeof event?.reason?.message === "string"
+          ? event.reason.message
+          : "Unhandled promise rejection";
+    reportClientIssue("unhandled_rejection", {
+      message: reason,
+    });
+  });
+
   if (claimRewardsBtn) {
     claimRewardsBtn.addEventListener("click", () => {
       claimRewardsBtn.blur();
@@ -2001,15 +3282,42 @@ function init() {
 
   if (adminSearchInput) {
     adminSearchInput.addEventListener("input", (event) => {
-      state.adminWalletQuery = event.target.value || "";
-      state.adminPage = 1;
+      setAdminActiveQuery(event.target.value || "");
+      setAdminActivePage(1);
       renderAdminTable();
+    });
+  }
+
+  if (adminNavCharacters) {
+    adminNavCharacters.addEventListener("click", () => {
+      switchAdminSection("characters");
+    });
+  }
+
+  if (adminNavWaitlist) {
+    adminNavWaitlist.addEventListener("click", () => {
+      switchAdminSection("waitlist");
     });
   }
 
   if (adminRefreshBtn) {
     adminRefreshBtn.addEventListener("click", async () => {
+      if (state.adminSection === "waitlist") {
+        await loadAdminWaitlist({ force: true });
+        return;
+      }
       await loadAdminCharacters({ force: true });
+    });
+  }
+
+  if (adminExportBtn) {
+    adminExportBtn.addEventListener("click", () => {
+      const query = getAdminActiveQuery().trim();
+      const url = new URL("/api/admin/waitlist-export", window.location.origin);
+      if (query) {
+        url.searchParams.set("q", query);
+      }
+      window.location.href = url.toString();
     });
   }
 
@@ -2021,8 +3329,9 @@ function init() {
 
   if (adminPrevBtn) {
     adminPrevBtn.addEventListener("click", () => {
-      if (state.adminPage <= 1) return;
-      state.adminPage -= 1;
+      const currentPage = getAdminActivePage();
+      if (currentPage <= 1) return;
+      setAdminActivePage(currentPage - 1);
       renderAdminTable();
     });
   }
@@ -2030,8 +3339,9 @@ function init() {
   if (adminNextBtn) {
     adminNextBtn.addEventListener("click", () => {
       const { totalPages } = getAdminPaginationState();
-      if (state.adminPage >= totalPages) return;
-      state.adminPage += 1;
+      const currentPage = getAdminActivePage();
+      if (currentPage >= totalPages) return;
+      setAdminActivePage(currentPage + 1);
       renderAdminTable();
     });
   }
@@ -2067,7 +3377,7 @@ function init() {
   restoreWalletSession();
   closeWalletModal();
   if (getPageMode() === "dashboard") {
-    moveTo("cabinet");
+    moveTo(getRequestedScreen() === "arena" ? "arena" : "cabinet");
     return;
   }
 
