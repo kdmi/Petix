@@ -23,7 +23,8 @@ const VARIABLE_HEADERS = [
   "FACIAL_FEATURES",
   "SIDE_DETAILS",
 ];
-const VARIABLES_CACHE_TTL_MS = 5 * 60 * 1000;
+const MIN_ACTIVE_VARIABLE_COUNT = 2;
+const MAX_ACTIVE_VARIABLE_COUNT = 6;
 const FALLBACK_VARIABLES_CSV_PATH = path.join(
   process.cwd(),
   "api",
@@ -38,13 +39,10 @@ const FALLBACK_RARITY_CHANCES_CSV_PATH = path.join(
 );
 const IMAGE_GENERATION_ERROR_MESSAGE =
   "Character image generation failed. Please restart the creation.";
-const DEFAULT_VARIABLES_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/12SapHXfn-4U73z0SHk_fF79ECvAGYQYVVbF085uvBw8/gviz/tq?tqx=out:csv";
-const DEFAULT_RARITY_CHANCES_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1HIVAo3q3E0WW1n7cLgW6JW1w9t-SopAd7w4DzmLLAwM/gviz/tq?tqx=out:csv";
 const SHEET_FETCH_TIMEOUT_MS = 6000;
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
 const GEMINI_IMAGE_TIMEOUT_MS = 45000;
+const LEVEL_UP_EXPERIENCE = 500;
 const LOCAL_FALLBACK_IMAGE_PATH = path.join(
   process.cwd(),
   "assets",
@@ -55,7 +53,31 @@ const LOCAL_FALLBACK_IMAGE_PATH = path.join(
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",
   "",
-  "High-quality stylized hand-painted 3D game asset illustration of a cute creature, isolated on a very light, soft pastel mono-color background that complements the overall palette. The aesthetic is that of a collectible toy with clean lines, soft gradients, and hand-drawn details. The main body is a simple, rounded cube with absolutely no legs, lower appendages, or distinct feet, presenting a pure cubic form featuring a [CREATURE_TYPE] design. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. The creature uses a cohesive color palette that naturally fits its element and overall design, with integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS]. The camera is at a moderate front-above angle (a gentle 3/4 front view), displaying the creature's full face and a portion of the top, with the creature facing towards the left. The main cubic body maintains a consistent larger size relative to the canvas.",
+  "High-quality stylized hand-painted 3D game asset illustration of a cute creature, isolated on a very light, soft pastel mono-color background that complements the overall palette. The aesthetic is that of a collectible toy with clean lines, soft gradients, and hand-drawn details.",
+  "",
+  "The main body is a simple, rounded cube with absolutely no legs, lower appendages, or distinct feet, presenting a pure cubic form featuring a [CREATURE_TYPE] design.",
+  "",
+  "[IF ELEMENT]The creature is themed after [ELEMENT].[/IF]",
+  "[IF PROFESSION_STYLE]The creature is dressed in the style of [PROFESSION_STYLE].[/IF]",
+  "[IF BODY_COLOR]Its body color and material treatment should clearly reflect [BODY_COLOR].[/IF]",
+  "[IF TOP_ITEM]On its top, it has [TOP_ITEM].[/IF]",
+  "[IF ELEMENT_EFFECTS]It is surrounded by stylized [ELEMENT_EFFECTS].[/IF]",
+  "[IF FACIAL_FEATURES]Its face includes [FACIAL_FEATURES].[/IF]",
+  "[IF SIDE_DETAILS]Additional visible detail: [SIDE_DETAILS].[/IF]",
+  "",
+  "Use a cohesive color palette and keep the design readable, charming, and not overloaded with too many details.",
+  "",
+  "The camera is at a moderate front-above angle (a gentle 3/4 front view), displaying the creature's full face and a portion of the top.",
+  "IMPORTANT ORIENTATION RULE: the creature must face LEFT from the viewer's perspective.",
+  "The final image must be clearly left-facing.",
+  "The creature's face, muzzle, eyes, and body angle must point to the LEFT.",
+  "Do not show the creature facing right, turning right, angled right, mirrored, flipped, or in a right-facing 3/4 view.",
+  "If there is any ambiguity, choose a clearly LEFT-facing pose.",
+  "LEFT-facing orientation is mandatory and higher priority than stylistic interpretation.",
+  "",
+  "The main cubic body maintains a consistent larger size relative to the canvas.",
+  "",
+  "FINAL DIRECTION REQUIREMENT: the character is facing LEFT. The face points LEFT. The body points LEFT. Never face RIGHT.",
 ].join("\n");
 
 const POWERS_PROMPT_TEMPLATE = [
@@ -67,18 +89,22 @@ const POWERS_PROMPT_TEMPLATE = [
   "- every power must fit on one line and be 60 characters or fewer",
   "- no numbering, no markdown, no extra keys, no explanations",
   "- each string must be a plain superpower description only",
+  "- every power must be an attacking superpower used to damage, strike, blast, stab, slam, burn, shock, crush, or otherwise hit an enemy",
+  "- do not generate defense, shielding, healing, buffing, reviving, blocking, dodging, protecting, or support abilities",
+  "- every power should read like a direct offensive action during an attack turn",
   "- do not use a title, label, colon, dash, or title + description format",
   "- if a line is too long, rewrite it shorter instead of truncating",
   "- make powers practical for fighting and visually tied to the character",
   "",
   "Character profile:",
   "- Creature type: [CREATURE_TYPE]",
-  "- Element: [ELEMENT]",
-  "- Profession style: [PROFESSION_STYLE]",
-  "- Top item: [TOP_ITEM]",
-  "- Element effects: [ELEMENT_EFFECTS]",
-  "- Facial features: [FACIAL_FEATURES]",
-  "- Side details: [SIDE_DETAILS]",
+  "[IF ELEMENT]- Element: [ELEMENT][/IF]",
+  "[IF PROFESSION_STYLE]- Profession style: [PROFESSION_STYLE][/IF]",
+  "[IF TOP_ITEM]- Top item: [TOP_ITEM][/IF]",
+  "[IF ELEMENT_EFFECTS]- Element effects: [ELEMENT_EFFECTS][/IF]",
+  "[IF BODY_COLOR]- Body color: [BODY_COLOR][/IF]",
+  "[IF FACIAL_FEATURES]- Facial features: [FACIAL_FEATURES][/IF]",
+  "[IF SIDE_DETAILS]- Side details: [SIDE_DETAILS][/IF]",
 ].join("\n");
 
 const NAME_PROMPT_TEMPLATE = [
@@ -92,11 +118,17 @@ const NAME_PROMPT_TEMPLATE = [
   "- if your first idea is longer than 20 characters, rewrite it shorter",
   "",
   "Character profile:",
-  "My creature is [CREATURE_TYPE]. The creature is themed after the [ELEMENT] element and is dressed in the style of a [PROFESSION_STYLE]. On its top, it has [TOP_ITEM] and a plume of stylized [ELEMENT_EFFECTS]. It has integrated [FACIAL_FEATURES] and potentially [SIDE_DETAILS].",
+  "My creature is [CREATURE_TYPE].",
+  "[IF ELEMENT]The creature is themed after the [ELEMENT] element.[/IF]",
+  "[IF PROFESSION_STYLE]The creature is dressed in the style of a [PROFESSION_STYLE].[/IF]",
+  "[IF BODY_COLOR]Its body color and material treatment reflect [BODY_COLOR].[/IF]",
+  "[IF TOP_ITEM]On its top, it has [TOP_ITEM].[/IF]",
+  "[IF ELEMENT_EFFECTS]It has stylized [ELEMENT_EFFECTS].[/IF]",
+  "[IF FACIAL_FEATURES]It has integrated [FACIAL_FEATURES].[/IF]",
+  "[IF SIDE_DETAILS]It also features [SIDE_DETAILS].[/IF]",
 ].join("\n");
 
 let variablesCache = null;
-let variablesCacheExpiresAt = 0;
 let rarityChancesCache = null;
 let rarityChancesCacheExpiresAt = 0;
 
@@ -122,7 +154,19 @@ function normalizeCreatureType(input) {
 }
 
 function fillTemplate(template, values) {
-  return template.replace(/\[([A-Z_]+)\]/g, (_, key) => String(values[key] || "").trim());
+  const conditionalRendered = template.replace(
+    /\[IF ([A-Z_]+)\]([\s\S]*?)\[\/IF\]/g,
+    (_, key, block) => {
+      const value = String(values[key] || "").trim();
+      return value ? block : "";
+    }
+  );
+
+  return conditionalRendered
+    .replace(/\[([A-Z_]+)\]/g, (_, key) => String(values[key] || "").trim())
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function shouldUseLiveCharacterGeneration() {
@@ -130,11 +174,19 @@ function shouldUseLiveCharacterGeneration() {
     return true;
   }
 
-  return (
-    String(process.env.ENABLE_LIVE_CHARACTER_GENERATION || "")
-      .trim()
-      .toLowerCase() === "true"
-  );
+  const override = String(process.env.ENABLE_LIVE_CHARACTER_GENERATION || "")
+    .trim()
+    .toLowerCase();
+
+  if (override === "false") {
+    return false;
+  }
+
+  if (override === "true") {
+    return true;
+  }
+
+  return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
 }
 
 async function fetchWithTimeout(url, options, timeoutMs, label) {
@@ -316,38 +368,12 @@ async function loadFallbackRarityChancesTable() {
 }
 
 async function loadVariablesTable() {
-  const now = Date.now();
-  if (variablesCache && variablesCacheExpiresAt > now) {
+  if (variablesCache) {
     return variablesCache;
   }
 
-  const sheetUrl = process.env.CHARACTER_VARIABLES_SHEET_CSV_URL || DEFAULT_VARIABLES_SHEET_URL;
-
-  try {
-    const response = await fetchWithTimeout(
-      sheetUrl,
-      {
-      headers: {
-        accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
-      },
-      },
-      SHEET_FETCH_TIMEOUT_MS,
-      "Variables sheet request"
-    );
-
-    if (!response.ok) {
-      throw new Error(`Variables sheet request failed with ${response.status}.`);
-    }
-
-    const csvText = await response.text();
-    variablesCache = buildVariablesTable(csvText);
-    variablesCacheExpiresAt = now + VARIABLES_CACHE_TTL_MS;
-    return variablesCache;
-  } catch {
-    variablesCache = await loadFallbackVariablesTable();
-    variablesCacheExpiresAt = now + VARIABLES_CACHE_TTL_MS;
-    return variablesCache;
-  }
+  variablesCache = await loadFallbackVariablesTable();
+  return variablesCache;
 }
 
 async function loadRarityChancesTable() {
@@ -356,39 +382,29 @@ async function loadRarityChancesTable() {
     return rarityChancesCache;
   }
 
-  const sheetUrl =
-    process.env.RARITY_CHANCES_SHEET_CSV_URL || DEFAULT_RARITY_CHANCES_SHEET_URL;
-
-  try {
-    const response = await fetchWithTimeout(
-      sheetUrl,
-      {
-      headers: {
-        accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
-      },
-      },
-      SHEET_FETCH_TIMEOUT_MS,
-      "Rarity sheet request"
-    );
-
-    if (!response.ok) {
-      throw new Error(`Rarity chances sheet request failed with ${response.status}.`);
-    }
-
-    const csvText = await response.text();
-    rarityChancesCache = buildRarityChancesTable(csvText);
-    rarityChancesCacheExpiresAt = now + VARIABLES_CACHE_TTL_MS;
-    return rarityChancesCache;
-  } catch {
-    rarityChancesCache = await loadFallbackRarityChancesTable();
-    rarityChancesCacheExpiresAt = now + VARIABLES_CACHE_TTL_MS;
-    return rarityChancesCache;
-  }
+  rarityChancesCache = await loadFallbackRarityChancesTable();
+  rarityChancesCacheExpiresAt = now + 5 * 60 * 1000;
+  return rarityChancesCache;
 }
 
 function pickVariables(table) {
+  const maxActiveCount = Math.min(MAX_ACTIVE_VARIABLE_COUNT, VARIABLE_HEADERS.length);
+  const minActiveCount = Math.min(MIN_ACTIVE_VARIABLE_COUNT, maxActiveCount);
+  const activeCount = crypto.randomInt(minActiveCount, maxActiveCount + 1);
+  const shuffledHeaders = [...VARIABLE_HEADERS];
+
+  for (let index = shuffledHeaders.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(0, index + 1);
+    [shuffledHeaders[index], shuffledHeaders[swapIndex]] = [
+      shuffledHeaders[swapIndex],
+      shuffledHeaders[index],
+    ];
+  }
+
+  const activeHeaders = new Set(shuffledHeaders.slice(0, activeCount));
+
   return VARIABLE_HEADERS.reduce((acc, header) => {
-    acc[header] = pickRandom(table[header]);
+    acc[header] = activeHeaders.has(header) ? pickRandom(table[header]) : "";
     return acc;
   }, {});
 }
@@ -514,15 +530,15 @@ function buildFallbackName(context) {
 function buildFallbackPowerLines(context) {
   const lines = [
     `Unleashes a ${context.ELEMENT.toLowerCase()} blast on one target`,
-    `Uses ${context.TOP_ITEM.toLowerCase()} to block the next hit`,
-    `${context.ELEMENT_EFFECTS} blind nearby enemies`,
+    `${context.TOP_ITEM.toLowerCase()} smashes into the nearest enemy`,
+    `${context.ELEMENT_EFFECTS} explode across nearby enemies`,
     `${context.SIDE_DETAILS} crashes through the front line`,
-    `${context.FACIAL_FEATURES} weaken an enemy's attack`,
+    `${context.FACIAL_FEATURES} unleash a vicious strike`,
   ];
   const reserveLines = [
-    "Hits harder after taking damage",
+    "Lunges forward with a heavy finishing blow",
     "Stuns the nearest enemy with one quick strike",
-    "Raises a shield before the next attack lands",
+    "Slams the ground to damage enemies ahead",
   ];
 
   const unique = [];
@@ -883,6 +899,15 @@ function normalizeAttributes(stats) {
   }, {});
 }
 
+function normalizeCharacterProgress(record) {
+  return {
+    level: Math.max(1, Math.floor(Number(record?.level) || 1)),
+    experience: Math.max(0, Math.floor(Number(record?.experience) || 0)),
+    softCurrency: Math.max(0, Math.floor(Number(record?.softCurrency) || 0)),
+    attributePointsAvailable: Math.max(0, Math.floor(Number(record?.attributePointsAvailable) || 0)),
+  };
+}
+
 function getAttributePointBudget(record) {
   const explicitBudget = Number(record?.attributePoints);
   if (Number.isInteger(explicitBudget) && explicitBudget > 0) {
@@ -904,7 +929,9 @@ function serializeCharacterRecord(record) {
   if (!record) return null;
 
   const rarity = getRarityConfig(record.rarity);
-  const selectedPower = record.powers.find((power) => power.id === record.selectedPowerId) || null;
+  const powers = Array.isArray(record.powers) ? record.powers : [];
+  const selectedPower = powers.find((power) => power.id === record.selectedPowerId) || null;
+  const progress = normalizeCharacterProgress(record);
   const version = encodeURIComponent(record.updatedAt || record.createdAt || Date.now());
   const characterId = encodeURIComponent(record.id);
   const imageUrl = record.image?.url || `/api/character/image?id=${characterId}&v=${version}`;
@@ -916,13 +943,18 @@ function serializeCharacterRecord(record) {
     name: record.name || record.displayName || record.creatureType,
     displayName: record.displayName || record.name || record.creatureType,
     rarity: rarity.label,
+    level: progress.level,
+    experience: progress.experience,
+    experienceForNextLevel: LEVEL_UP_EXPERIENCE,
+    softCurrency: progress.softCurrency,
+    attributePointsAvailable: progress.attributePointsAvailable,
     attributePoints: getAttributePointBudget(record),
     variables: record.variables,
     prompts: record.prompts,
     generation: record.generation,
     imageUrl,
     imageProvider: record.image?.provider || "placeholder",
-    powers: record.powers,
+    powers,
     selectedPowerId: record.selectedPowerId || "",
     selectedPower,
     attributes: normalizeAttributes(record.attributes),
@@ -938,7 +970,9 @@ module.exports = {
   TOTAL_ATTRIBUTE_POINTS,
   buildCharacterDraft,
   getAttributePointBudget,
+  LEVEL_UP_EXPERIENCE,
   normalizeAttributes,
+  normalizeCharacterProgress,
   normalizeCreatureType,
   serializeCharacterRecord,
   validateSkillAllocation,
