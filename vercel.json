@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/battle/:battleId([^.]*)",
+      "destination": "/battle/index.html"
+    }
+  ]
+}

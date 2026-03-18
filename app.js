@@ -59,6 +59,8 @@ const continueBtn = document.getElementById("continueBtn");
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 const shouldOpenAuthModal = new URLSearchParams(window.location.search).get("auth") === "1";
+const shouldRedirectAuthenticatedVisitor =
+  document.body?.dataset?.authRedirectMode !== "manual";
 let isAuthenticated = false;
 let isAdmin = false;
 let characterCount = 0;
@@ -786,7 +788,9 @@ async function restoreSession() {
       isAdmin: data.isAdmin,
     });
     const characterData = await refreshCharacterCapacity();
-    redirectAuthenticatedUser(characterData);
+    if (shouldRedirectAuthenticatedVisitor) {
+      redirectAuthenticatedUser(characterData);
+    }
   } catch {
     showAuthState();
   }

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Petix - Profile Card Reference</title>
+    <meta name="description" content="Petix success card content inside the Vue Bits card effect" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/pet-creation/effect-test/styles.css?v=20260312e" />
+  </head>
+  <body>
+    <main class="demo-shell">
+      <div
+        class="pc-card-wrapper"
+        id="profileCardWrap"
+        style="
+          --icon: none;
+          --grain: url('/assets/effect-test/grain.webp');
+          --behind-gradient: none;
+          --inner-gradient: linear-gradient(145deg, #ffffff 0%, #eef5ff 100%);
+        "
+      >
+        <section class="pc-card" id="profileCard">
+          <div class="pc-inside">
+            <div class="pc-shine"></div>
+            <div class="pc-glare"></div>
+
+            <div class="pc-content petix-card-content" aria-hidden="true">
+              <div class="petix-card-title">Riche Lich</div>
+
+              <div class="petix-card-image-wrap">
+                <img
+                  class="petix-card-image"
+                  src="/assets/character/current-pet.jpg"
+                  alt="Undead character"
+                  loading="lazy"
+                  width="248"
+                  height="248"
+                />
+                <span class="petix-card-level">Lvl. 1</span>
+                <span class="petix-card-rarity">Legendary</span>
+                <span class="petix-card-exp-label">Experience</span>
+                <span class="petix-card-exp-value">0/500</span>
+                <span class="petix-card-exp-track"></span>
+                <span class="petix-card-exp-progress"></span>
+              </div>
+
+              <div class="petix-card-stats">
+                <div class="petix-card-stat">
+                  <img src="/assets/attrs-step/stamina.svg" alt="" width="20" height="20" />
+                  <span>5</span>
+                </div>
+                <div class="petix-card-stat">
+                  <img src="/assets/attrs-step/agility.svg" alt="" width="20" height="20" />
+                  <span>3</span>
+                </div>
+                <div class="petix-card-stat">
+                  <img src="/assets/attrs-step/strength.svg" alt="" width="20" height="20" />
+                  <span>4</span>
+                </div>
+                <div class="petix-card-stat">
+                  <img src="/assets/attrs-step/intelligence.svg" alt="" width="20" height="20" />
+                  <span>3</span>
+                </div>
+              </div>
+
+              <div class="petix-card-power">
+                <img src="/assets/character/power-sparkle.svg" alt="" width="20" height="20" />
+                <p>At the beginning of the battle, summons a skeleton warrior</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="/pet-creation/effect-test/app.js?v=20260312e"></script>
+  </body>
+</html>

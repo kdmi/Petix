@@ -68,16 +68,9 @@ const IMAGE_PROMPT_TEMPLATE = [
   "Use a cohesive color palette and keep the design readable, charming, and not overloaded with too many details.",
   "",
   "The camera is at a moderate front-above angle (a gentle 3/4 front view), displaying the creature's full face and a portion of the top.",
-  "IMPORTANT ORIENTATION RULE: the creature must face LEFT from the viewer's perspective.",
-  "The final image must be clearly left-facing.",
-  "The creature's face, muzzle, eyes, and body angle must point to the LEFT.",
-  "Do not show the creature facing right, turning right, angled right, mirrored, flipped, or in a right-facing 3/4 view.",
-  "If there is any ambiguity, choose a clearly LEFT-facing pose.",
-  "LEFT-facing orientation is mandatory and higher priority than stylistic interpretation.",
-  "",
   "The main cubic body maintains a consistent larger size relative to the canvas.",
   "",
-  "FINAL DIRECTION REQUIREMENT: the character is facing LEFT. The face points LEFT. The body points LEFT. Never face RIGHT.",
+  "creature facing towards the left",
 ].join("\n");
 
 const POWERS_PROMPT_TEMPLATE = [

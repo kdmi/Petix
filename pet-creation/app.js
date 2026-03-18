@@ -117,6 +117,178 @@ const POWER_ICONS = {
   active: "/assets/powers-step/power-icon-active.svg",
 };
 const SUCCESS_POWER_ICON = "/assets/character/power-sparkle.svg";
+const SUCCESS_SHARE_BACKGROUND = "/assets/cuddly-share/images/share_bg.png";
+const SUCCESS_SHARE_INTENT_URL = "https://x.com/intent/tweet";
+const SUCCESS_SHARE_WIDTH = 1600;
+const SUCCESS_SHARE_HEIGHT = 1200;
+const SUCCESS_SHARE_SCALE = 2;
+const SUCCESS_SHARE_STAT_OFFSETS = [0, 65.33333587646484, 129.6666717529297, 194];
+const SUCCESS_SHARE_BACKGROUND_BASE_WIDTH = 800;
+const SUCCESS_SHARE_BACKGROUND_BASE_HEIGHT = 600;
+const SUCCESS_SHARE_BACKGROUND_GRID_STEP = 122;
+const SUCCESS_SHARE_BACKGROUND_GRID_COLOR = "rgba(208, 213, 221, 0.72)";
+const SUCCESS_SHARE_BACKGROUND_GROUPS = [
+  {
+    items: [
+      {
+        src: "https://www.figma.com/api/mcp/asset/21c31f37-eaa1-4b06-a706-17711621ff47",
+        x: 88.640625,
+        y: 37.5,
+        width: 141.50942993164062,
+        height: 81.70051574707031,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/6d8afcb2-8965-46d1-b46c-3407386eac58",
+        x: 88.640625,
+        y: 78.0177001953125,
+        width: 70.75471496582031,
+        height: 60.28662109375,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/bb64b399-5c54-49de-90ab-42d2793bd2b1",
+        x: 159.39453125,
+        y: 77.830078125,
+        width: 70.75470733642578,
+        height: 60.47410202026367,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/0ea3203e-a95e-426f-b654-9607c0a5dfcc",
+        x: 106.330078125,
+        y: 0,
+        width: 108.25472259521484,
+        height: 108.25472259521484,
+      },
+    ],
+  },
+  {
+    items: [
+      {
+        src: "https://www.figma.com/api/mcp/asset/58b13886-0604-4787-9f88-d30a74f936e2",
+        x: 583,
+        y: 90.4716796875,
+        width: 141.50942993164062,
+        height: 81.70051574707031,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/37de6413-e3b5-4dfe-9f0a-45e9d8d804c3",
+        x: 583,
+        y: 130.9892578125,
+        width: 70.75471496582031,
+        height: 48.96586608886719,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/93f3b3cf-47d8-45a6-a606-910f5ba6891e",
+        x: 653.755859375,
+        y: 130.8017578125,
+        width: 70.75470733642578,
+        height: 49.153343200683594,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/52b182e7-3846-4781-ad56-e3a70af15907",
+        x: 602.810546875,
+        y: 58.632080078125,
+        width: 101.88679504394531,
+        height: 101.88679504394531,
+      },
+    ],
+  },
+  {
+    items: [
+      {
+        src: "https://www.figma.com/api/mcp/asset/26172055-47a8-4c72-a50f-b0bbc3cfd5a3",
+        x: 17.669921875,
+        y: 291.01904296875,
+        width: 141.50942993164062,
+        height: 81.70051574707031,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/3e96650b-7814-4ac4-ac9e-9bbaaf8b49c8",
+        x: 17.669921875,
+        y: 332.056640625,
+        width: 70.75471496582031,
+        height: 173.49417114257812,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/518ea7b7-e489-41b8-a628-c74ee0bac9f8",
+        x: 88.42578125,
+        y: 331.8692626953125,
+        width: 70.75470733642578,
+        height: 173.681640625,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/fde56130-b541-4bf9-8f08-076679550e97",
+        x: 20.5,
+        y: 233,
+        width: 135.14151000976562,
+        height: 135.14151000976562,
+      },
+    ],
+  },
+  {
+    items: [
+      {
+        src: "https://www.figma.com/api/mcp/asset/8df2af08-8d64-48c0-9d63-3f0c224b00dc",
+        x: 654.4140625,
+        y: 330.234619140625,
+        width: 141.50942993164062,
+        height: 81.70051574707031,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/0f4e6fc6-1cd2-4a74-87d7-868dc3bae169",
+        x: 654.4140625,
+        y: 371.2723388671875,
+        width: 141.50942993164062,
+        height: 94.24888610839844,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/919e1627-24ca-494d-b221-d610a1b2ce92",
+        x: 725.169921875,
+        y: 371.0849609375,
+        width: 70.75470733642578,
+        height: 94.43637084960938,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/d57a3ec2-d70d-4810-9a6c-41b9cbca3870",
+        x: 670.6875,
+        y: 292.547119140625,
+        width: 101.88679504394531,
+        height: 101.88679504394531,
+      },
+    ],
+  },
+  {
+    items: [
+      {
+        src: "https://www.figma.com/api/mcp/asset/fa6c7b6d-9192-4fcc-ad3a-eefef122f39b",
+        x: 371,
+        y: 527.6791839599609,
+        width: 141.50942993164062,
+        height: 81.70051574707031,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/22f35fde-7cc0-452b-9006-5d5848236f05",
+        x: 371,
+        y: 568.1967849731445,
+        width: 70.75471496582031,
+        height: 60.28662109375,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/9bb0c6cf-2e43-406a-98c6-f910151fec36",
+        x: 441.75390625,
+        y: 568.00927734375,
+        width: 70.75470733642578,
+        height: 60.47410202026367,
+      },
+      {
+        src: "https://www.figma.com/api/mcp/asset/fb2a3e4b-a55f-4090-aab9-3640f70e9e92",
+        x: 390.103515625,
+        y: 486.641357421875,
+        width: 106.132080078125,
+        height: 106.132080078125,
+      },
+    ],
+  },
+];
 const ARENA_ROULETTE_ITEM_SIZE = 160;
 const ARENA_ROULETTE_GAP = 24;
 const ARENA_ROULETTE_STEP = ARENA_ROULETTE_ITEM_SIZE + ARENA_ROULETTE_GAP;
@@ -289,6 +461,13 @@ const successPetName = document.getElementById("successPetName");
 const successCardRarity = document.querySelector(".success-card-rarity");
 const successStats = document.getElementById("successStats");
 const successPowerText = document.getElementById("successPowerText");
+const shareSuccessBtn = document.getElementById("shareSuccessBtn");
+const shareModalOverlay = document.getElementById("shareModalOverlay");
+const shareModalPreviewImage = document.getElementById("shareModalPreviewImage");
+const shareModalText = document.getElementById("shareModalText");
+const shareModalClose = document.getElementById("shareModalClose");
+const shareModalCopyBtn = document.getElementById("shareModalCopyBtn");
+const shareModalShareBtn = document.getElementById("shareModalShareBtn");
 const cabinetCard = document.getElementById("cabinetCard");
 const cabinetCount = document.getElementById("cabinetCount");
 const createAnotherBtn = document.getElementById("createAnotherBtn");
@@ -369,6 +548,8 @@ const labelAttrs = document.getElementById("labelAttrs");
 
 let suppressRewardsTooltipTimeout = null;
 let attrsRowsBudget = 0;
+let lastAttrTouchEndAt = 0;
+let lastAttrsScreenTouchEndAt = 0;
 let toastTimeoutId = 0;
 let creatureTypeLimitToastAt = 0;
 let adminImageLightbox = null;
@@ -378,6 +559,7 @@ let arenaAnimationFrameId = 0;
 let arenaTimeoutIds = [];
 let arenaFocusedSequenceIndex = -1;
 const arenaImagePromises = new Map();
+const shareAssetPromises = new Map();
 
 const state = {
   step: "type",
@@ -388,10 +570,18 @@ const state = {
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
+  isSharing: false,
+  isShareModalOpen: false,
+  isCopyingShareImage: false,
   pendingStartAfterAuth: false,
   walletAddress: "",
   draft: null,
   character: null,
+  sharePreviewCacheKey: "",
+  sharePreviewBlob: null,
+  sharePreviewUrl: "",
+  sharePreviewFileName: "",
+  sharePreviewText: "",
   characters: [],
   hasHydratedCharacters: false,
   adminSection: "characters",
@@ -905,6 +1095,8 @@ function syncStateWithPayload(payload = {}) {
     state.character = state.characters[state.characters.length - 1] || null;
   }
 
+  invalidateSuccessSharePreview(state.character);
+
   const activeRecord = state.draft || state.character;
   state.selectedPowerId = activeRecord?.selectedPowerId || "";
   state.attrs = {
@@ -926,6 +1118,8 @@ function syncStateWithPayload(payload = {}) {
 }
 
 function resetCharacterState({ keepTypeSelection = false, keepCharacters = false } = {}) {
+  closeSuccessShareModal({ restoreFocus: false });
+  clearSuccessSharePreview();
   state.draft = null;
   state.character = null;
   if (!keepCharacters) {
@@ -1381,6 +1575,696 @@ async function preloadArenaFightAssets(initiator, opponentPool) {
   };
 }
 
+function preloadShareAsset(src) {
+  const normalizedSrc = src || "";
+  if (!normalizedSrc) {
+    return Promise.reject(new Error("Share asset is missing."));
+  }
+
+  if (!shareAssetPromises.has(normalizedSrc)) {
+    shareAssetPromises.set(normalizedSrc, loadImageAsset(normalizedSrc));
+  }
+
+  return shareAssetPromises.get(normalizedSrc);
+}
+
+function roundRectPath(context, x, y, width, height, radius) {
+  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+function fillRoundRect(context, x, y, width, height, radius, fillStyle) {
+  context.save();
+  context.fillStyle = fillStyle;
+  roundRectPath(context, x, y, width, height, radius);
+  context.fill();
+  context.restore();
+}
+
+function strokeRoundRect(context, x, y, width, height, radius, strokeStyle, lineWidth) {
+  context.save();
+  context.strokeStyle = strokeStyle;
+  context.lineWidth = lineWidth;
+  roundRectPath(context, x, y, width, height, radius);
+  context.stroke();
+  context.restore();
+}
+
+function drawCoverImage(context, image, x, y, width, height, radius = 0) {
+  const sourceWidth = image.naturalWidth || image.width || width;
+  const sourceHeight = image.naturalHeight || image.height || height;
+  const sourceRatio = sourceWidth / sourceHeight;
+  const targetRatio = width / height;
+
+  let sx = 0;
+  let sy = 0;
+  let sw = sourceWidth;
+  let sh = sourceHeight;
+
+  if (sourceRatio > targetRatio) {
+    sw = sourceHeight * targetRatio;
+    sx = (sourceWidth - sw) / 2;
+  } else if (sourceRatio < targetRatio) {
+    sh = sourceWidth / targetRatio;
+    sy = (sourceHeight - sh) / 2;
+  }
+
+  context.save();
+  if (radius > 0) {
+    roundRectPath(context, x, y, width, height, radius);
+    context.clip();
+  }
+  context.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+  context.restore();
+}
+
+function fitCanvasFontSize(context, text, initialSize, minSize, maxWidth, weight = 700) {
+  let fontSize = initialSize;
+
+  while (fontSize > minSize) {
+    context.font = `${weight} ${fontSize}px "Figtree", Arial, sans-serif`;
+    if (context.measureText(text).width <= maxWidth) {
+      return fontSize;
+    }
+    fontSize -= 2;
+  }
+
+  return minSize;
+}
+
+function trimCanvasLine(context, value, maxWidth) {
+  const text = String(value || "");
+  if (!text) return "";
+
+  let trimmed = text;
+  while (trimmed.length > 1 && context.measureText(`${trimmed}...`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+
+  return `${trimmed}...`;
+}
+
+function wrapCanvasText(context, value, maxWidth, maxLines = Infinity) {
+  const words = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!words.length) {
+    return [""];
+  }
+
+  const lines = [];
+  let currentLine = words.shift() || "";
+
+  words.forEach((word) => {
+    const nextLine = `${currentLine} ${word}`.trim();
+    if (context.measureText(nextLine).width <= maxWidth) {
+      currentLine = nextLine;
+      return;
+    }
+
+    lines.push(currentLine);
+    currentLine = word;
+  });
+
+  lines.push(currentLine);
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const limitedLines = lines.slice(0, maxLines);
+  limitedLines[maxLines - 1] = trimCanvasLine(context, lines.slice(maxLines - 1).join(" "), maxWidth);
+  return limitedLines;
+}
+
+function getCanvasLineTopOffset(fontSize, lineHeight) {
+  return Math.max(0, (lineHeight - fontSize) / 2);
+}
+
+function getSuccessShareText(record = state.character) {
+  const petName = getRecordDisplayName(record);
+  return `Meet my pet ${petName}!\nHe is already prepared for battles on the @petixfun AI-driven battleground!`;
+}
+
+function getSuccessShareFileName(record = state.character) {
+  const normalizedName = getRecordDisplayName(record)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+  return `${normalizedName || "pet"}-petix-share.png`;
+}
+
+function getSuccessShareCacheKey(record = state.character) {
+  if (!record) return "";
+
+  return JSON.stringify({
+    id: record.id || "",
+    name: getRecordDisplayName(record),
+    imageUrl: record.imageUrl || "",
+    level: getRecordLevel(record),
+    experience: getRecordExperience(record),
+    experienceForNextLevel: getRecordExperienceForNextLevel(record),
+    rarity: record.rarity || "",
+    attributes: record.attributes || {},
+    power: getSelectedPowerDescription(record),
+  });
+}
+
+function syncSuccessShareModalContent() {
+  if (shareModalPreviewImage) {
+    if (state.sharePreviewUrl) {
+      shareModalPreviewImage.src = state.sharePreviewUrl;
+    } else {
+      shareModalPreviewImage.removeAttribute("src");
+    }
+  }
+
+  if (shareModalText) {
+    shareModalText.textContent = state.sharePreviewText || "";
+  }
+}
+
+function syncSuccessShareModalState() {
+  const hasPreview = Boolean(state.sharePreviewBlob && state.sharePreviewText);
+
+  if (shareModalCopyBtn) {
+    shareModalCopyBtn.disabled = !hasPreview || state.isSharing || state.isCopyingShareImage;
+    shareModalCopyBtn.setAttribute("aria-busy", state.isCopyingShareImage ? "true" : "false");
+    const label = shareModalCopyBtn.querySelector("span:last-child");
+    if (label) {
+      label.textContent = state.isCopyingShareImage ? "Copying..." : "Copy image";
+    }
+  }
+
+  if (shareModalShareBtn) {
+    shareModalShareBtn.disabled = !state.sharePreviewText || state.isSharing || state.isCopyingShareImage;
+  }
+}
+
+function setSuccessSharePreview({
+  cacheKey = "",
+  blob = null,
+  url = "",
+  fileName = "",
+  text = "",
+} = {}) {
+  if (state.sharePreviewUrl && state.sharePreviewUrl !== url) {
+    URL.revokeObjectURL(state.sharePreviewUrl);
+  }
+
+  state.sharePreviewCacheKey = cacheKey;
+  state.sharePreviewBlob = blob;
+  state.sharePreviewUrl = url;
+  state.sharePreviewFileName = fileName;
+  state.sharePreviewText = text;
+
+  syncSuccessShareModalContent();
+  syncSuccessShareModalState();
+}
+
+function clearSuccessSharePreview() {
+  setSuccessSharePreview();
+}
+
+function invalidateSuccessSharePreview(record = state.character) {
+  if (!state.sharePreviewCacheKey) {
+    return;
+  }
+
+  const nextCacheKey = getSuccessShareCacheKey(record);
+  if (!nextCacheKey || nextCacheKey !== state.sharePreviewCacheKey) {
+    clearSuccessSharePreview();
+  }
+}
+
+function syncSuccessShareState() {
+  if (shareSuccessBtn) {
+    shareSuccessBtn.disabled = !state.character || state.isSharing;
+    shareSuccessBtn.setAttribute("aria-busy", state.isSharing ? "true" : "false");
+
+    const label = shareSuccessBtn.querySelector("span");
+    if (label) {
+      label.textContent = state.isSharing ? "Preparing..." : "Share";
+    }
+  }
+
+  syncSuccessShareModalState();
+}
+
+function drawSuccessShareGrid(context) {
+  const spacing = SUCCESS_SHARE_BACKGROUND_GRID_STEP * SUCCESS_SHARE_SCALE;
+
+  context.save();
+  context.strokeStyle = SUCCESS_SHARE_BACKGROUND_GRID_COLOR;
+  context.lineWidth = 2;
+
+  for (let offset = -SUCCESS_SHARE_HEIGHT; offset <= SUCCESS_SHARE_WIDTH + SUCCESS_SHARE_HEIGHT; offset += spacing) {
+    context.beginPath();
+    context.moveTo(offset, 0);
+    context.lineTo(offset + SUCCESS_SHARE_HEIGHT, SUCCESS_SHARE_HEIGHT);
+    context.stroke();
+  }
+
+  for (let offset = 0; offset <= SUCCESS_SHARE_WIDTH + SUCCESS_SHARE_HEIGHT; offset += spacing) {
+    context.beginPath();
+    context.moveTo(offset, 0);
+    context.lineTo(offset - SUCCESS_SHARE_HEIGHT, SUCCESS_SHARE_HEIGHT);
+    context.stroke();
+  }
+
+  context.restore();
+}
+
+function drawSuccessShareBackground(context, assets) {
+  const scaleX = SUCCESS_SHARE_WIDTH / SUCCESS_SHARE_BACKGROUND_BASE_WIDTH;
+  const scaleY = SUCCESS_SHARE_HEIGHT / SUCCESS_SHARE_BACKGROUND_BASE_HEIGHT;
+
+  context.fillStyle = "#f9fafb";
+  context.fillRect(0, 0, SUCCESS_SHARE_WIDTH, SUCCESS_SHARE_HEIGHT);
+  drawSuccessShareGrid(context);
+
+  SUCCESS_SHARE_BACKGROUND_GROUPS.forEach((group, groupIndex) => {
+    group.items.forEach((item, itemIndex) => {
+      const asset = assets.backgroundItems[groupIndex]?.[itemIndex];
+      if (!asset) {
+        return;
+      }
+
+      context.drawImage(
+        asset,
+        Math.round(item.x * scaleX),
+        Math.round(item.y * scaleY),
+        Math.round(item.width * scaleX),
+        Math.round(item.height * scaleY)
+      );
+    });
+  });
+
+  context.drawImage(assets.logo, Math.round((SUCCESS_SHARE_WIDTH - 226) / 2), 48, 226, 78);
+}
+
+function drawSuccessShareCard(context, record, assets) {
+  const cardWidth = 264 * SUCCESS_SHARE_SCALE;
+  const cardHeight = 400 * SUCCESS_SHARE_SCALE;
+  const cardX = Math.round((SUCCESS_SHARE_WIDTH - cardWidth) / 2);
+  const cardY = Math.round((SUCCESS_SHARE_HEIGHT - cardHeight) / 2);
+  const imageX = cardX + 8 * SUCCESS_SHARE_SCALE;
+  const imageY = cardY + 48 * SUCCESS_SHARE_SCALE;
+  const imageSize = 248 * SUCCESS_SHARE_SCALE;
+  const expTrackWidth = 224 * SUCCESS_SHARE_SCALE;
+  const rarity = getRarityMeta(record?.rarity);
+
+  context.save();
+  context.shadowColor = "rgba(16, 24, 40, 0.14)";
+  context.shadowBlur = 64;
+  context.shadowOffsetY = 32;
+  fillRoundRect(context, cardX, cardY, cardWidth, cardHeight, 48, "#ffffff");
+  context.restore();
+
+  fillRoundRect(context, cardX, cardY, cardWidth, cardHeight, 48, "#ffffff");
+  drawCoverImage(context, assets.character, imageX, imageY, imageSize, imageSize, 32);
+  strokeRoundRect(context, imageX, imageY, imageSize, imageSize, 32, "#eaecf0", 4);
+  strokeRoundRect(context, imageX + 2, imageY + 2, imageSize - 4, imageSize - 4, 30, "#ffffff", 2);
+
+  context.save();
+  context.fillStyle = "#101828";
+  context.textAlign = "center";
+  context.textBaseline = "top";
+  const name = getRecordDisplayName(record);
+  const titleFontSize = fitCanvasFontSize(
+    context,
+    name,
+    32,
+    24,
+    cardWidth - 40 * SUCCESS_SHARE_SCALE,
+    700
+  );
+  context.font = `700 ${titleFontSize}px "Figtree", Arial, sans-serif`;
+  context.fillText(
+    name,
+    cardX + cardWidth / 2,
+    cardY + 12 * SUCCESS_SHARE_SCALE + getCanvasLineTopOffset(titleFontSize, 24 * SUCCESS_SHARE_SCALE)
+  );
+  context.restore();
+
+  context.save();
+  context.fillStyle = "#101828";
+  context.textAlign = "left";
+  context.textBaseline = "top";
+  const metaFontSize = 14 * SUCCESS_SHARE_SCALE;
+  const metaLineHeight = 20 * SUCCESS_SHARE_SCALE;
+  const metaTopOffset = getCanvasLineTopOffset(metaFontSize, metaLineHeight);
+  context.font = `600 ${metaFontSize}px "Figtree", Arial, sans-serif`;
+  context.fillText(
+    `Lvl. ${getRecordLevel(record)}`,
+    imageX + 12 * SUCCESS_SHARE_SCALE,
+    imageY + 14 * SUCCESS_SHARE_SCALE + metaTopOffset
+  );
+  context.fillText(
+    "Experience",
+    imageX + 12 * SUCCESS_SHARE_SCALE,
+    imageY + 204 * SUCCESS_SHARE_SCALE + metaTopOffset
+  );
+  context.textAlign = "right";
+  context.fillText(
+    `${getRecordExperience(record)}/${getRecordExperienceForNextLevel(record)}`,
+    imageX + 236 * SUCCESS_SHARE_SCALE,
+    imageY + 204 * SUCCESS_SHARE_SCALE + metaTopOffset
+  );
+  context.restore();
+
+  context.save();
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  const badgeText = rarity.label;
+  context.font = `600 ${18 * SUCCESS_SHARE_SCALE}px "Figtree", Arial, sans-serif`;
+  const badgePaddingX = 12 * SUCCESS_SHARE_SCALE;
+  const badgeWidth = Math.ceil(context.measureText(badgeText).width + badgePaddingX * 2);
+  const badgeHeight = 32 * SUCCESS_SHARE_SCALE;
+  const badgeX = imageX + imageSize - badgeWidth - 8 * SUCCESS_SHARE_SCALE;
+  const badgeY = imageY + 8 * SUCCESS_SHARE_SCALE;
+  fillRoundRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 16 * SUCCESS_SHARE_SCALE, rarity.color);
+  strokeRoundRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 16 * SUCCESS_SHARE_SCALE, "#ffffff", 4);
+  context.fillStyle = "#ffffff";
+  context.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 1);
+  context.restore();
+
+  fillRoundRect(
+    context,
+    imageX + 12 * SUCCESS_SHARE_SCALE,
+    imageY + 228 * SUCCESS_SHARE_SCALE,
+    expTrackWidth,
+    8 * SUCCESS_SHARE_SCALE,
+    8 * SUCCESS_SHARE_SCALE,
+    "#ffffff"
+  );
+  strokeRoundRect(
+    context,
+    imageX + 12 * SUCCESS_SHARE_SCALE,
+    imageY + 228 * SUCCESS_SHARE_SCALE,
+    expTrackWidth,
+    8 * SUCCESS_SHARE_SCALE,
+    8 * SUCCESS_SHARE_SCALE,
+    "#eaecf0",
+    2
+  );
+  fillRoundRect(
+    context,
+    imageX + 12 * SUCCESS_SHARE_SCALE,
+    imageY + 228 * SUCCESS_SHARE_SCALE,
+    Math.max(12 * SUCCESS_SHARE_SCALE, (expTrackWidth * getRecordExperienceProgress(record)) / 100),
+    8 * SUCCESS_SHARE_SCALE,
+    8 * SUCCESS_SHARE_SCALE,
+    "#101828"
+  );
+
+  const statsBaseX = cardX + 16 * SUCCESS_SHARE_SCALE;
+  const statsBaseY = cardY + 312 * SUCCESS_SHARE_SCALE;
+
+  ATTRS.forEach((attr, index) => {
+    const icon = assets.attrIcons[index];
+    const slotOffset = SUCCESS_SHARE_STAT_OFFSETS[index] ?? SUCCESS_SHARE_STAT_OFFSETS[0];
+    const slotX = statsBaseX + slotOffset * SUCCESS_SHARE_SCALE;
+    const value = Math.max(0, Math.floor(Number(record?.attributes?.[attr.key]) || 0));
+
+    if (icon) {
+      context.drawImage(icon, slotX, statsBaseY, 20 * SUCCESS_SHARE_SCALE, 20 * SUCCESS_SHARE_SCALE);
+    }
+
+    context.save();
+    context.fillStyle = "#101828";
+    context.textAlign = "left";
+    context.textBaseline = "top";
+    const statFontSize = 16 * SUCCESS_SHARE_SCALE;
+    const statLineHeight = 20 * SUCCESS_SHARE_SCALE;
+    context.font = `600 ${statFontSize}px "Figtree", Arial, sans-serif`;
+    context.fillText(
+      String(value),
+      slotX + 28 * SUCCESS_SHARE_SCALE,
+      statsBaseY + getCanvasLineTopOffset(statFontSize, statLineHeight)
+    );
+    context.restore();
+  });
+
+  const powerX = cardX + 8 * SUCCESS_SHARE_SCALE;
+  const powerY = cardY + 344 * SUCCESS_SHARE_SCALE;
+  const powerWidth = 248 * SUCCESS_SHARE_SCALE;
+  const powerHeight = 48 * SUCCESS_SHARE_SCALE;
+  const powerGradient = context.createLinearGradient(powerX, powerY, powerX + powerWidth, powerY);
+  powerGradient.addColorStop(0, "rgba(255, 182, 215, 0.15)");
+  powerGradient.addColorStop(0.44712, "rgba(255, 60, 255, 0.15)");
+  powerGradient.addColorStop(1, "rgba(68, 227, 255, 0.15)");
+  fillRoundRect(context, powerX, powerY, powerWidth, powerHeight, 20, powerGradient);
+
+  context.drawImage(
+    assets.powerIcon,
+    powerX + 12 * SUCCESS_SHARE_SCALE,
+    powerY + 14 * SUCCESS_SHARE_SCALE,
+    20 * SUCCESS_SHARE_SCALE,
+    20 * SUCCESS_SHARE_SCALE
+  );
+
+  context.save();
+  context.fillStyle = "#101828";
+  context.textAlign = "left";
+  context.textBaseline = "top";
+  const powerFontSize = 12 * SUCCESS_SHARE_SCALE;
+  const powerLineHeight = 16 * SUCCESS_SHARE_SCALE;
+  const powerTopOffset = getCanvasLineTopOffset(powerFontSize, powerLineHeight);
+  context.font = `400 ${powerFontSize}px "Figtree", Arial, sans-serif`;
+  const powerLines = wrapCanvasText(
+    context,
+    getSelectedPowerDescription(record),
+    196 * SUCCESS_SHARE_SCALE,
+    2
+  );
+  powerLines.forEach((line, index) => {
+    context.fillText(
+      line,
+      powerX + 40 * SUCCESS_SHARE_SCALE,
+      powerY + 8 * SUCCESS_SHARE_SCALE + powerTopOffset + index * powerLineHeight
+    );
+  });
+  context.restore();
+}
+
+async function createSuccessShareBlob(record) {
+  if (!record) {
+    throw new Error("Character data is not ready yet.");
+  }
+
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready;
+    } catch (_error) {
+      // Ignore font loading failures and continue with fallback fonts.
+    }
+  }
+
+  const [background, character, powerIcon, ...attrIcons] = await Promise.all([
+    preloadShareAsset(SUCCESS_SHARE_BACKGROUND),
+    preloadShareAsset(record.imageUrl || DEFAULT_CHARACTER_IMAGE),
+    preloadShareAsset(SUCCESS_POWER_ICON),
+    ...ATTRS.map((attr) => preloadShareAsset(attr.icon)),
+  ]);
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas is not available in this browser.");
+  }
+
+  canvas.width = SUCCESS_SHARE_WIDTH;
+  canvas.height = SUCCESS_SHARE_HEIGHT;
+
+  drawCoverImage(context, background, 0, 0, canvas.width, canvas.height);
+
+  drawSuccessShareCard(context, record, {
+    character,
+    powerIcon,
+    attrIcons,
+  });
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Unable to generate the share image."));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/png",
+      1
+    );
+  });
+}
+
+async function ensureSuccessSharePreview(record = state.character) {
+  if (!record) {
+    throw new Error("Character data is not ready yet.");
+  }
+
+  const cacheKey = getSuccessShareCacheKey(record);
+  if (cacheKey && state.sharePreviewCacheKey === cacheKey && state.sharePreviewBlob && state.sharePreviewUrl) {
+    return {
+      blob: state.sharePreviewBlob,
+      fileName: state.sharePreviewFileName,
+      text: state.sharePreviewText,
+      url: state.sharePreviewUrl,
+    };
+  }
+
+  const shareText = getSuccessShareText(record);
+  const shareBlob = await createSuccessShareBlob(record);
+  const fileName = getSuccessShareFileName(record);
+  const previewUrl = URL.createObjectURL(shareBlob);
+
+  setSuccessSharePreview({
+    cacheKey,
+    blob: shareBlob,
+    url: previewUrl,
+    fileName,
+    text: shareText,
+  });
+
+  return {
+    blob: shareBlob,
+    fileName,
+    text: shareText,
+    url: previewUrl,
+  };
+}
+
+async function copyShareImageToClipboard(blob) {
+  if (
+    !navigator.clipboard?.write ||
+    typeof window.ClipboardItem !== "function" ||
+    !blob ||
+    blob.type !== "image/png"
+  ) {
+    return false;
+  }
+
+  await navigator.clipboard.write([new window.ClipboardItem({ [blob.type]: blob })]);
+  return true;
+}
+
+function openSuccessShareIntent(text) {
+  const intentUrl = `${SUCCESS_SHARE_INTENT_URL}?${new URLSearchParams({ text }).toString()}`;
+  const popup = window.open(intentUrl, "_blank", "noopener,noreferrer");
+  return Boolean(popup);
+}
+
+function openSuccessShareModal() {
+  if (!shareModalOverlay) {
+    return;
+  }
+
+  state.isShareModalOpen = true;
+  shareModalOverlay.classList.remove("hidden");
+  shareModalOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("share-modal-open");
+  syncSuccessShareModalContent();
+  syncSuccessShareModalState();
+  window.requestAnimationFrame(() => {
+    shareModalClose?.focus();
+  });
+}
+
+function closeSuccessShareModal({ restoreFocus = true } = {}) {
+  if (!shareModalOverlay) {
+    return;
+  }
+
+  state.isShareModalOpen = false;
+  shareModalOverlay.classList.add("hidden");
+  shareModalOverlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("share-modal-open");
+
+  if (restoreFocus) {
+    window.requestAnimationFrame(() => {
+      shareSuccessBtn?.focus();
+    });
+  }
+}
+
+async function shareSuccessCharacter() {
+  if (state.isSharing || !state.character) {
+    return;
+  }
+
+  state.isSharing = true;
+  syncSuccessShareState();
+
+  try {
+    await ensureSuccessSharePreview(state.character);
+    openSuccessShareModal();
+  } catch (error) {
+    const message =
+      typeof error?.message === "string" ? error.message : "Couldn't prepare the share image.";
+    showToast(message);
+  } finally {
+    state.isSharing = false;
+    syncSuccessShareState();
+  }
+}
+
+async function copySuccessShareImage() {
+  if (state.isCopyingShareImage) {
+    return;
+  }
+
+  state.isCopyingShareImage = true;
+  syncSuccessShareModalState();
+
+  try {
+    const { blob } = await ensureSuccessSharePreview(state.character);
+    const copied = await copyShareImageToClipboard(blob);
+
+    if (!copied) {
+      showToast("Image copy isn't supported in this browser.");
+      return;
+    }
+
+    showToast("Image copied. Paste it into your X post.");
+  } catch (error) {
+    const message =
+      typeof error?.message === "string" ? error.message : "Couldn't copy the share image.";
+    showToast(message);
+  } finally {
+    state.isCopyingShareImage = false;
+    syncSuccessShareModalState();
+  }
+}
+
+function shareSuccessToX() {
+  const shareText = state.sharePreviewText || getSuccessShareText(state.character);
+  if (!shareText) {
+    showToast("Couldn't prepare the tweet text.");
+    return;
+  }
+
+  const composerOpened = openSuccessShareIntent(shareText);
+  if (!composerOpened) {
+    showToast("Couldn't open X. Please allow popups and try again.");
+    return;
+  }
+
+  showToast("X composer opened in a new tab.");
+}
+
 async function loadRealArenaOpponents(attackerPetId) {
   const query = new URLSearchParams({
     attackerPetId: String(attackerPetId || ""),
@@ -1484,7 +2368,55 @@ function updateAttrsButtonState() {
   }
 }
 
+function suppressAttrsScreenDoubleTapZoom() {
+  if (!screenAttrs || screenAttrs.dataset.doubleTapGuard === "true") return;
+
+  screenAttrs.dataset.doubleTapGuard = "true";
+  screenAttrs.style.touchAction = "manipulation";
+
+  screenAttrs.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+  });
+
+  screenAttrs.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastAttrsScreenTouchEndAt < 350) {
+        event.preventDefault();
+      }
+      lastAttrsScreenTouchEndAt = now;
+    },
+    { passive: false }
+  );
+}
+
+function suppressAttributeDoubleTapZoom(button) {
+  if (!button || button.dataset.doubleTapGuard === "true") return;
+
+  button.dataset.doubleTapGuard = "true";
+  button.style.touchAction = "manipulation";
+
+  button.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+  });
+
+  button.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastAttrTouchEndAt < 350) {
+        event.preventDefault();
+      }
+      lastAttrTouchEndAt = now;
+    },
+    { passive: false }
+  );
+}
+
 function ensureAttrsRows() {
+  suppressAttrsScreenDoubleTapZoom();
+
   const totalSegments = DEFAULT_ATTRIBUTE_POINTS;
   if (attrsRowsBudget === totalSegments) return;
 
@@ -1524,6 +2456,9 @@ function ensureAttrsRows() {
 
     const minusBtn = row.querySelector('[data-action="minus"]');
     const plusBtn = row.querySelector('[data-action="plus"]');
+
+    suppressAttributeDoubleTapZoom(minusBtn);
+    suppressAttributeDoubleTapZoom(plusBtn);
 
     minusBtn.addEventListener("click", () => {
       if (state.attrs[attr.key] <= 0 || state.isCreating) return;
@@ -2487,6 +3422,8 @@ function syncDeletedCharacterLocally(creatorWallet, characterId) {
   if (state.character?.id === characterId) {
     state.character = state.characters[state.characters.length - 1] || null;
   }
+
+  invalidateSuccessSharePreview(state.character);
 }
 
 function copyAdminText(value, successMessage = "Copied.") {
@@ -2871,7 +3808,11 @@ async function deleteAdminCharacter(record) {
 
 function renderSuccessStep() {
   const record = state.character;
-  if (!record) return;
+  if (!record) {
+    closeSuccessShareModal({ restoreFocus: false });
+    syncSuccessShareState();
+    return;
+  }
 
   syncDisplayedRarity(record);
 
@@ -2894,6 +3835,9 @@ function renderSuccessStep() {
   if (successPowerText) {
     successPowerText.textContent = getSelectedPowerDescription(record);
   }
+
+  syncSuccessShareModalContent();
+  syncSuccessShareState();
 }
 
 function fireSuccessConfetti() {
@@ -2930,6 +3874,10 @@ function moveTo(step) {
 
   if (step === "admin" && !state.isAdmin) {
     step = state.isAuthenticated ? "cabinet" : "type";
+  }
+
+  if (step !== "success" && state.isShareModalOpen) {
+    closeSuccessShareModal({ restoreFocus: false });
   }
 
   state.step = step;
@@ -3106,6 +4054,7 @@ function init() {
   preloadAttrsAssets();
   setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
   updateEnergyUi();
+  syncSuccessShareState();
 
   const chips = [...document.querySelectorAll(".type-chip")];
   chips.forEach((chip) => {
@@ -3180,6 +4129,38 @@ function init() {
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
     window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
   });
+
+  if (shareSuccessBtn) {
+    shareSuccessBtn.addEventListener("click", () => {
+      shareSuccessCharacter();
+    });
+  }
+
+  if (shareModalClose) {
+    shareModalClose.addEventListener("click", () => {
+      closeSuccessShareModal();
+    });
+  }
+
+  if (shareModalOverlay) {
+    shareModalOverlay.addEventListener("click", (event) => {
+      if (event.target === shareModalOverlay) {
+        closeSuccessShareModal();
+      }
+    });
+  }
+
+  if (shareModalCopyBtn) {
+    shareModalCopyBtn.addEventListener("click", () => {
+      copySuccessShareImage();
+    });
+  }
+
+  if (shareModalShareBtn) {
+    shareModalShareBtn.addEventListener("click", () => {
+      shareSuccessToX();
+    });
+  }
 
   createAnotherBtn.addEventListener("click", () => {
     if (!hasCharacterCreationCapacity()) {
@@ -3358,6 +4339,9 @@ function init() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && walletOverlay.getAttribute("aria-hidden") === "false") {
       closeWalletModal();
+    }
+    if (event.key === "Escape" && state.isShareModalOpen) {
+      closeSuccessShareModal();
     }
     if (event.key === "Escape") closeAdminImageLightbox();
     if (event.key === "Escape") hideWalletMenu();

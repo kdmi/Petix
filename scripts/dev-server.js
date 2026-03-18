@@ -42,6 +42,11 @@ function isSafeResolvedPath(filePath) {
 
 async function resolveStaticPath(urlPath) {
   const decodedPath = decodeURIComponent(urlPath);
+  if (/^\/battle\/[^/.]+\/?$/.test(decodedPath)) {
+    const battleIndexPath = path.resolve(ROOT, "./battle/index.html");
+    return (await pathExists(battleIndexPath)) ? battleIndexPath : null;
+  }
+
   const relativePath = decodedPath === "/" ? "/index.html" : decodedPath;
   const directPath = path.resolve(ROOT, `.${relativePath}`);
 
@@ -68,14 +73,45 @@ async function resolveStaticPath(urlPath) {
   return null;
 }
 
+async function resolveApiPath(pathname) {
+  const directPath = path.resolve(ROOT, `.${pathname}.js`);
+  if (isSafeResolvedPath(directPath) && (await pathExists(directPath))) {
+    return directPath;
+  }
+
+  const directoryIndexPath = path.resolve(ROOT, `.${pathname}`, "index.js");
+  if (isSafeResolvedPath(directoryIndexPath) && (await pathExists(directoryIndexPath))) {
+    return directoryIndexPath;
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (!segments.length) {
+    return null;
+  }
+
+  const directoryPath = path.resolve(ROOT, `.${path.join("/", ...segments.slice(0, -1))}`);
+  if (!isSafeResolvedPath(directoryPath) || !(await pathExists(directoryPath))) {
+    return null;
+  }
+
+  const entries = await fs.readdir(directoryPath).catch(() => []);
+  const dynamicEntry = entries.find((entry) => /^\[[^/]+\]\.js$/.test(entry));
+  if (!dynamicEntry) {
+    return null;
+  }
+
+  const dynamicPath = path.join(directoryPath, dynamicEntry);
+  return isSafeResolvedPath(dynamicPath) ? dynamicPath : null;
+}
+
 function clearModuleCache(modulePath) {
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
 }
 
 async function handleApi(req, res, pathname) {
-  const filePath = path.resolve(ROOT, `.${pathname}.js`);
-  if (!isSafeResolvedPath(filePath) || !(await pathExists(filePath))) {
+  const filePath = await resolveApiPath(pathname);
+  if (!filePath) {
     res.statusCode = 404;
     res.end("Not found.");
     return;

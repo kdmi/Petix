@@ -34,6 +34,7 @@ const EMPTY_DB = {
 const EMPTY_WALLET_PROFILE = {
   draft: null,
   characters: [],
+  notifications: [],
 };
 
 let writeQueue = Promise.resolve();
@@ -57,6 +58,9 @@ function cloneWalletProfile(profile) {
     characters: Array.isArray(profile?.characters)
       ? profile.characters.map((record) => cloneRecord(record))
       : [],
+    notifications: Array.isArray(profile?.notifications)
+      ? profile.notifications.map((record) => cloneRecord(record))
+      : [],
   };
 }
 
@@ -65,7 +69,7 @@ function normalizeWalletProfile(rawValue) {
     return cloneWalletProfile(EMPTY_WALLET_PROFILE);
   }
 
-  if (Array.isArray(rawValue.characters) || "draft" in rawValue) {
+  if (Array.isArray(rawValue.characters) || "draft" in rawValue || Array.isArray(rawValue.notifications)) {
     return cloneWalletProfile(rawValue);
   }
 
@@ -73,6 +77,7 @@ function normalizeWalletProfile(rawValue) {
     return {
       draft: cloneRecord(rawValue),
       characters: [],
+      notifications: [],
     };
   }
 
@@ -80,6 +85,7 @@ function normalizeWalletProfile(rawValue) {
     return {
       draft: null,
       characters: [cloneRecord(rawValue)],
+      notifications: [],
     };
   }
 

@@ -1,0 +1,520 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  align-items: center;
+  background: #0b0b0b;
+  display: flex;
+  font-family: "Figtree", sans-serif;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.demo-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.pc-card-wrapper {
+  --pointer-x: 50%;
+  --pointer-y: 50%;
+  --pointer-from-center: 0;
+  --pointer-from-top: 0.5;
+  --pointer-from-left: 0.5;
+  --card-opacity: 0;
+  --rotate-x: 0deg;
+  --rotate-y: 0deg;
+  --background-x: 50%;
+  --background-y: 50%;
+  --grain: none;
+  --icon: none;
+  --behind-gradient: none;
+  --inner-gradient: none;
+  --sunpillar-1: hsl(2, 100%, 73%);
+  --sunpillar-2: hsl(53, 100%, 69%);
+  --sunpillar-3: hsl(93, 100%, 69%);
+  --sunpillar-4: hsl(176, 100%, 76%);
+  --sunpillar-5: hsl(228, 100%, 74%);
+  --sunpillar-6: hsl(283, 100%, 73%);
+  --sunpillar-clr-1: var(--sunpillar-1);
+  --sunpillar-clr-2: var(--sunpillar-2);
+  --sunpillar-clr-3: var(--sunpillar-3);
+  --sunpillar-clr-4: var(--sunpillar-4);
+  --sunpillar-clr-5: var(--sunpillar-5);
+  --sunpillar-clr-6: var(--sunpillar-6);
+  --card-radius: 30px;
+  perspective: 500px;
+  position: relative;
+  touch-action: none;
+  transform: translate3d(0, 0, 0.1px);
+}
+
+.pc-card-wrapper::before {
+  background-image: var(--behind-gradient);
+  background-position: inherit;
+  background-size: 100% 100%;
+  border-radius: inherit;
+  content: "";
+  filter: contrast(2) saturate(2) blur(36px);
+  inset: -10px;
+  position: absolute;
+  transform: scale(0.8) translate3d(0, 0, 0.1px);
+  transition: all 0.5s ease;
+}
+
+.pc-card-wrapper:hover,
+.pc-card-wrapper.active {
+  --card-opacity: 1;
+}
+
+.pc-card-wrapper:hover::before,
+.pc-card-wrapper.active::before {
+  filter: contrast(1) saturate(2) blur(40px) opacity(1);
+  transform: scale(0.9) translate3d(0, 0, 0.1px);
+}
+
+.pc-card {
+  animation: glow-bg 12s linear infinite;
+  aspect-ratio: 264 / 400;
+  background-blend-mode: color-dodge, normal, normal, normal;
+  background-image:
+    radial-gradient(
+      farthest-side circle at var(--pointer-x) var(--pointer-y),
+      hsla(266, 100%, 90%, var(--card-opacity)) 4%,
+      hsla(266, 50%, 80%, calc(var(--card-opacity) * 0.75)) 10%,
+      hsla(266, 25%, 70%, calc(var(--card-opacity) * 0.5)) 50%,
+      hsla(266, 0%, 60%, 0) 100%
+    ),
+    radial-gradient(35% 52% at 55% 20%, #00ffaac4 0%, #073aff00 100%),
+    radial-gradient(100% 100% at 50% 50%, #00c1ffff 1%, #073aff00 76%),
+    conic-gradient(from 124deg at 50% 50%, #c137ffff 0%, #07c6ffff 40%, #07c6ffff 60%, #c137ffff 100%);
+  background-position: 0 0, 0 0, 50% 50%, 0 0;
+  background-size: 100% 100%;
+  border-radius: var(--card-radius);
+  box-shadow:
+    rgba(0, 0, 0, 0.8) calc((var(--pointer-from-left) * 10px) - 3px)
+    calc((var(--pointer-from-top) * 20px) - 6px)
+    20px -5px;
+  display: grid;
+  height: 400px;
+  overflow: hidden;
+  position: relative;
+  transform: translate3d(0, 0, 0.1px) rotateX(0deg) rotateY(0deg);
+  transition: transform 1s ease;
+  width: 264px;
+}
+
+.pc-card:hover,
+.pc-card.active {
+  transform: translate3d(0, 0, 0.1px) rotateX(var(--rotate-y)) rotateY(var(--rotate-x));
+  transition: none;
+}
+
+.pc-inside {
+  background-color: #ffffff;
+  background-image: var(--inner-gradient);
+  display: grid;
+  inset: 1px;
+  position: absolute;
+  transform: translate3d(0, 0, 0.01px);
+}
+
+.pc-inside > .pc-shine,
+.pc-inside > .pc-glare,
+.pc-inside > .pc-content {
+  border-radius: var(--card-radius);
+  display: grid;
+  grid-area: 1 / -1;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0.1px);
+}
+
+.pc-shine {
+  -webkit-mask-image: var(--icon);
+  -webkit-mask-mode: luminance;
+  -webkit-mask-position: top calc(200% - (var(--background-y) * 5)) left calc(100% - var(--background-x));
+  -webkit-mask-repeat: repeat;
+  -webkit-mask-size: 150%;
+  animation: holo-bg 18s linear infinite;
+  filter: brightness(0.66) contrast(1.33) saturate(0.33) opacity(0.5);
+  mask-image: var(--icon);
+  mask-mode: luminance;
+  mask-position: top calc(200% - (var(--background-y) * 5)) left calc(100% - var(--background-x));
+  mask-repeat: repeat;
+  mask-size: 150%;
+  mix-blend-mode: color-dodge;
+  transition: filter 0.6s ease;
+  z-index: 3;
+}
+
+.pc-shine,
+.pc-shine::after {
+  --space: 5%;
+  --angle: -45deg;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      var(--sunpillar-clr-1) calc(var(--space) * 1),
+      var(--sunpillar-clr-2) calc(var(--space) * 2),
+      var(--sunpillar-clr-3) calc(var(--space) * 3),
+      var(--sunpillar-clr-4) calc(var(--space) * 4),
+      var(--sunpillar-clr-5) calc(var(--space) * 5),
+      var(--sunpillar-clr-6) calc(var(--space) * 6),
+      var(--sunpillar-clr-1) calc(var(--space) * 7)
+    ),
+    repeating-linear-gradient(
+      var(--angle),
+      #0e152e 0%,
+      hsl(180, 10%, 60%) 3.8%,
+      hsl(180, 29%, 66%) 4.5%,
+      hsl(180, 10%, 60%) 5.2%,
+      #0e152e 10%,
+      #0e152e 12%
+    ),
+    radial-gradient(
+      farthest-corner circle at var(--pointer-x) var(--pointer-y),
+      hsla(0, 0%, 0%, 0.1) 12%,
+      hsla(0, 0%, 0%, 0.15) 20%,
+      hsla(0, 0%, 0%, 0.25) 120%
+    );
+  background-blend-mode: color, hard-light;
+  background-position: 0 var(--background-y), var(--background-x) var(--background-y), center;
+  background-repeat: repeat;
+  background-size: 500% 500%, 300% 300%, 200% 200%;
+  overflow: hidden;
+  transform: translate3d(0, 0, 1px);
+}
+
+.pc-shine::before,
+.pc-shine::after {
+  background-position: center;
+  background-size: cover;
+  content: "";
+  grid-area: 1 / 1;
+  opacity: 0;
+}
+
+.pc-card:hover .pc-shine,
+.pc-card.active .pc-shine {
+  animation: none;
+  filter: brightness(0.85) contrast(1.5) saturate(0.5);
+}
+
+.pc-card:hover .pc-shine::before,
+.pc-card.active .pc-shine::before,
+.pc-card:hover .pc-shine::after,
+.pc-card.active .pc-shine::after {
+  opacity: 1;
+}
+
+.pc-shine::before {
+  background-image:
+    linear-gradient(45deg, var(--sunpillar-4), var(--sunpillar-5), var(--sunpillar-6), var(--sunpillar-1), var(--sunpillar-2), var(--sunpillar-3)),
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), hsl(0, 0%, 70%) 0%, hsla(0, 0%, 30%, 0.2) 90%),
+    var(--grain);
+  background-blend-mode: color-dodge;
+  background-position: var(--pointer-x) var(--pointer-y), center, calc(var(--pointer-x) * 0.01) calc(var(--pointer-y) * 0.01);
+  background-size: 250% 250%, 100% 100%, 220px 220px;
+  filter: brightness(calc(2 - var(--pointer-from-center))) contrast(calc(var(--pointer-from-center) + 2))
+    saturate(calc(0.5 + var(--pointer-from-center)));
+  mix-blend-mode: luminosity;
+}
+
+.pc-shine::after {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      var(--sunpillar-clr-1) calc(5% * 1),
+      var(--sunpillar-clr-2) calc(5% * 2),
+      var(--sunpillar-clr-3) calc(5% * 3),
+      var(--sunpillar-clr-4) calc(5% * 4),
+      var(--sunpillar-clr-5) calc(5% * 5),
+      var(--sunpillar-clr-6) calc(5% * 6),
+      var(--sunpillar-clr-1) calc(5% * 7)
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      #0e152e 0%,
+      hsl(180, 10%, 60%) 3.8%,
+      hsl(180, 29%, 66%) 4.5%,
+      hsl(180, 10%, 60%) 5.2%,
+      #0e152e 10%,
+      #0e152e 12%
+    ),
+    radial-gradient(
+      farthest-corner circle at var(--pointer-x) var(--pointer-y),
+      hsla(0, 0%, 0%, 0.1) 12%,
+      hsla(0, 0%, 0%, 0.15) 20%,
+      hsla(0, 0%, 0%, 0.25) 120%
+    );
+  background-position: 0 var(--background-y), calc(var(--background-x) * 0.4) calc(var(--background-y) * 0.5), center;
+  background-size: 200% 300%, 700% 700%, 100% 100%;
+  filter: brightness(0.8) contrast(1.5);
+  mix-blend-mode: difference;
+}
+
+.pc-glare {
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    hsl(248, 25%, 80%) 12%,
+    hsla(207, 40%, 30%, 0.8) 90%
+  );
+  filter: brightness(0.8) contrast(1.2);
+  mix-blend-mode: overlay;
+  overflow: hidden;
+  transform: translate3d(0, 0, 1.1px);
+  z-index: 4;
+}
+
+.pc-content {
+  max-height: 100%;
+  mix-blend-mode: luminosity;
+  overflow: hidden;
+  position: relative;
+  text-align: center;
+  transform:
+    translate3d(
+      calc(var(--pointer-from-left) * -6px + 3px),
+      calc(var(--pointer-from-top) * -6px + 3px),
+      0.1px
+    ) !important;
+  z-index: 5;
+}
+
+.petix-card-content {
+  inset: 0;
+  mix-blend-mode: normal;
+  overflow: visible;
+  position: absolute;
+}
+
+.petix-card-title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  left: 50%;
+  line-height: 24px;
+  position: absolute;
+  top: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.petix-card-image-wrap {
+  border-radius: 16px;
+  height: 248px;
+  left: 8px;
+  overflow: hidden;
+  position: absolute;
+  top: 48px;
+  width: 248px;
+  z-index: 2;
+}
+
+.petix-card-image-wrap::before,
+.petix-card-image-wrap::after {
+  border-radius: 16px;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.petix-card-image-wrap::before {
+  border: 1px solid #eaecf0;
+}
+
+.petix-card-image-wrap::after {
+  border: 1px solid #fff;
+}
+
+.petix-card-image {
+  border-radius: 16px;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.petix-card-level,
+.petix-card-exp-label,
+.petix-card-exp-value {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  position: absolute;
+  z-index: 3;
+}
+
+.petix-card-level {
+  left: 12px;
+  top: 14px;
+}
+
+.petix-card-rarity {
+  align-items: center;
+  background: #f79009;
+  border: 2px solid #fff;
+  border-radius: 16px;
+  color: #fff;
+  display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  height: 32px;
+  justify-content: center;
+  line-height: 24px;
+  padding: 4px 12px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.petix-card-exp-label {
+  left: 12px;
+  top: 204px;
+}
+
+.petix-card-exp-value {
+  right: 12px;
+  text-align: right;
+  top: 204px;
+}
+
+.petix-card-exp-track,
+.petix-card-exp-progress {
+  border-radius: 4px;
+  height: 8px;
+  left: 12px;
+  position: absolute;
+  top: 228px;
+}
+
+.petix-card-exp-track {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  width: 224px;
+}
+
+.petix-card-exp-progress {
+  background: #101828;
+  width: 12px;
+}
+
+.petix-card-stats {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  left: 16px;
+  position: absolute;
+  top: 312px;
+  width: 232px;
+  z-index: 5;
+}
+
+.petix-card-stat {
+  align-items: center;
+  color: #101828;
+  display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  gap: 8px;
+  line-height: 20px;
+}
+
+.petix-card-stat img {
+  display: block;
+  flex: 0 0 20px;
+  height: 20px;
+  width: 20px;
+}
+
+.petix-card-power {
+  align-items: center;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 182, 215, 0.15) 0%,
+    rgba(255, 60, 255, 0.15) 44.712%,
+    rgba(68, 227, 255, 0.15) 100%
+  );
+  border-radius: 8px 8px 16px 16px;
+  display: flex;
+  gap: 8px;
+  left: 8px;
+  min-height: 48px;
+  padding: 8px 12px;
+  position: absolute;
+  top: 344px;
+  width: 248px;
+  z-index: 5;
+}
+
+.petix-card-power img {
+  display: block;
+  flex: 0 0 20px;
+  height: 20px;
+  width: 20px;
+}
+
+.petix-card-power p {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  margin: 0;
+  text-align: left;
+}
+
+@keyframes glow-bg {
+  0% {
+    --bgrotate: 0deg;
+  }
+
+  100% {
+    --bgrotate: 360deg;
+  }
+}
+
+@keyframes holo-bg {
+  0% {
+    background-position: 0 var(--background-y), 0 0, center;
+  }
+
+  100% {
+    background-position: 0 var(--background-y), 90% 90%, center;
+  }
+}
+
+@media (max-width: 480px) {
+  .pc-card-wrapper {
+    transform: scale(0.94);
+  }
+}
+
+@media (max-width: 320px) {
+  .pc-card-wrapper {
+    transform: scale(0.86);
+  }
+}

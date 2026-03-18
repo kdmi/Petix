@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Petix - Dashboard</title>
-    <meta name="description" content="View your Petix characters dashboard" />
+    <title>Petix - My Pets</title>
+    <meta name="description" content="View your Petix characters" />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,7 +27,7 @@
         display: flex !important;
       }
     </style>
-    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260310f" />
+    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260318a" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -39,7 +39,7 @@
           <button class="connect-trigger" id="connectTrigger" type="button">Connect wallet</button>
           <div class="wallet-menu hidden" id="walletMenu">
             <button class="wallet-menu-item" id="walletMenuCreatePet" type="button">Create pet</button>
-            <button class="wallet-menu-item" id="walletMenuDashboard" type="button">Dashboard</button>
+            <button class="wallet-menu-item" id="walletMenuDashboard" type="button">My Pets</button>
             <button class="wallet-menu-item hidden" id="walletMenuAdmin" type="button">Admin panel</button>
             <button class="wallet-menu-item" id="walletMenuLogout" type="button">Log Out</button>
           </div>
@@ -239,14 +239,58 @@
         </div>
 
         <h1>Your Pet successfully created!</h1>
-        <p>Track progress and upgrade skills on the dashboard. Get ready for adventures!</p>
-        <button class="primary-btn success-dashboard-btn enabled" id="openCabinetBtn" type="button">Go to dashboard</button>
+        <p>Track progress and upgrade skills in My Pets. Get ready for adventures!</p>
+        <div class="success-actions">
+          <button class="success-share-btn" id="shareSuccessBtn" type="button">
+            <img src="/assets/cuddly-share/icons-x-logo-2023.svg" alt="" width="20" height="20" aria-hidden="true" />
+            <span>Share</span>
+          </button>
+          <button class="primary-btn success-dashboard-btn enabled" id="openCabinetBtn" type="button">Go to My Pets</button>
+        </div>
       </section>
+
+      <div class="share-modal-overlay hidden" id="shareModalOverlay" aria-hidden="true">
+        <section class="share-modal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+          <button class="share-modal-close" id="shareModalClose" type="button" aria-label="Close share dialog">
+            <img src="/assets/wallets/modal-close.svg" alt="" width="16" height="16" aria-hidden="true" />
+          </button>
+          <h2 class="share-modal-title" id="shareModalTitle">Share your Pet!</h2>
+          <div class="share-modal-preview-frame">
+            <img
+              class="share-modal-preview-image"
+              id="shareModalPreviewImage"
+              src=""
+              alt="Preview of the share image for your pet"
+            />
+          </div>
+          <p class="share-modal-text" id="shareModalText"></p>
+          <div class="share-modal-actions">
+            <button class="share-modal-copy-btn" id="shareModalCopyBtn" type="button">
+              <span class="share-modal-copy-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+                  <path
+                    d="M8 8.75V7.6c0-.84 0-1.26.163-1.581a1.5 1.5 0 0 1 .656-.656C9.14 5.2 9.56 5.2 10.4 5.2h6c.84 0 1.26 0 1.581.163.282.144.512.374.656.656.163.321.163.741.163 1.581v6c0 .84 0 1.26-.163 1.581a1.5 1.5 0 0 1-.656.656c-.321.163-.741.163-1.581.163h-1.15m-4.8 2.95h-6c-.84 0-1.26 0-1.581-.163a1.5 1.5 0 0 1-.656-.656C2.05 17.81 2.05 17.39 2.05 16.55v-6c0-.84 0-1.26.163-1.581.144-.282.374-.512.656-.656.321-.163.741-.163 1.581-.163h6c.84 0 1.26 0 1.581.163.282.144.512.374.656.656.163.321.163.741.163 1.581v6c0 .84 0 1.26-.163 1.581a1.5 1.5 0 0 1-.656.656c-.321.163-.741.163-1.581.163Z"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <span>Copy image</span>
+            </button>
+            <button class="share-modal-share-btn" id="shareModalShareBtn" type="button">
+              <img src="/assets/cuddly-share/icons-x-logo-2023.svg" alt="" width="24" height="24" aria-hidden="true" />
+              <span>Share</span>
+            </button>
+          </div>
+        </section>
+      </div>
 
       <section class="screen" id="screenCabinet">
         <div class="cabinet-header">
           <div>
-            <h1>Dashboard</h1>
+            <h1>My Pets</h1>
             <p id="cabinetCount">Loading...</p>
           </div>
           <button class="primary-btn cabinet-create-btn enabled" id="createAnotherBtn" type="button">
@@ -267,12 +311,22 @@
               <button class="admin-secondary-btn" id="adminBackToDashboardBtn" type="button">
                 Back to dashboard
               </button>
+              <button class="admin-secondary-btn hidden" id="adminExportBtn" type="button">Export CSV</button>
               <button class="admin-secondary-btn" id="adminRefreshBtn" type="button">Refresh</button>
             </div>
           </div>
 
+          <div class="admin-nav" role="tablist" aria-label="Admin sections">
+            <button class="admin-nav-btn active" id="adminNavCharacters" type="button" role="tab" aria-selected="true">
+              Characters
+            </button>
+            <button class="admin-nav-btn" id="adminNavWaitlist" type="button" role="tab" aria-selected="false">
+              Waitlist
+            </button>
+          </div>
+
           <label class="admin-search">
-            <span class="visually-hidden">Search by wallet</span>
+            <span class="visually-hidden" id="adminSearchLabel">Search admin data</span>
             <input
               id="adminSearchInput"
               type="search"
@@ -284,27 +338,27 @@
 
           <div class="admin-stats-grid" id="adminStatsGrid">
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Users</span>
+              <span class="admin-stat-label" id="adminStatLabel1">Users</span>
               <strong class="admin-stat-value" id="adminUsersCount">—</strong>
             </article>
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Characters</span>
+              <span class="admin-stat-label" id="adminStatLabel2">Characters</span>
               <strong class="admin-stat-value" id="adminCharactersCount">—</strong>
             </article>
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Common</span>
+              <span class="admin-stat-label" id="adminStatLabel3">Common</span>
               <strong class="admin-stat-value" id="adminRarityCommon">—</strong>
             </article>
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Rare</span>
+              <span class="admin-stat-label" id="adminStatLabel4">Rare</span>
               <strong class="admin-stat-value" id="adminRarityRare">—</strong>
             </article>
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Epic</span>
+              <span class="admin-stat-label" id="adminStatLabel5">Epic</span>
               <strong class="admin-stat-value" id="adminRarityEpic">—</strong>
             </article>
             <article class="admin-stat-card">
-              <span class="admin-stat-label">Legendary</span>
+              <span class="admin-stat-label" id="adminStatLabel6">Legendary</span>
               <strong class="admin-stat-value" id="adminRarityLegendary">—</strong>
             </article>
           </div>
@@ -312,7 +366,7 @@
           <div class="admin-table-wrap">
             <table class="admin-table">
               <thead>
-                <tr>
+                <tr id="adminTableHeadRow">
                   <th scope="col">Character</th>
                   <th scope="col">Type</th>
                   <th scope="col">Creator wallet</th>
@@ -378,6 +432,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-    <script src="/pet-creation/app.js?v=20260310e"></script>
+    <script src="/pet-creation/app.js?v=20260318a"></script>
   </body>
 </html>
