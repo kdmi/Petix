@@ -1196,6 +1196,13 @@ function isFreshCreationRequested() {
   return ["1", "true", "yes"].includes(value);
 }
 
+function isDraftResumeRequested() {
+  const value = String(new URLSearchParams(window.location.search).get("resume") || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes"].includes(value);
+}
+
 function getPageMode() {
   const explicitPage = String(document.body?.dataset?.page || "").trim().toLowerCase();
   if (["creation", "dashboard", "admin"].includes(explicitPage)) {
@@ -1235,7 +1242,9 @@ async function restoreCharacterState() {
     const data = await apiRequest("/api/character/me", {}, "GET");
     const requestedScreen = getRequestedScreen();
     const pageMode = getPageMode();
-    const shouldStartFresh = pageMode === "creation" && isFreshCreationRequested();
+    const shouldStartFresh =
+      pageMode === "creation" &&
+      (isFreshCreationRequested() || (state.isAdmin && !isDraftResumeRequested()));
 
     if (!shouldStartFresh && pageMode === "creation" && data?.hasDraft && data.draft) {
       syncStateWithPayload(data);
