@@ -1244,7 +1244,7 @@
 	  })();
 	</script>
 	<script src="/assets/vendor/tweetnacl-fast.min.js"></script>
-	<script src="/app.js?v=20260319a"></script>
+	<script src="/app.js?v=20260410b"></script>
 	<script>
 	  (() => {
 	    const connectTrigger = document.getElementById("connectTrigger");
@@ -1267,13 +1267,21 @@
 	          credentials: "include",
 	        });
 	        if (!response.ok) {
-	          return new URL("/pet-creation/", window.location.origin).toString();
+	          const freshCreationUrl = new URL("/pet-creation/", window.location.origin);
+	          freshCreationUrl.searchParams.set("new", "1");
+	          return freshCreationUrl.toString();
 	        }
 	        const data = await response.json();
 	        const targetPath = data?.hasCharacter ? "/dashboard/" : "/pet-creation/";
-	        return new URL(targetPath, window.location.origin).toString();
+	        const targetUrl = new URL(targetPath, window.location.origin);
+	        if (targetPath === "/pet-creation/") {
+	          targetUrl.searchParams.set("new", "1");
+	        }
+	        return targetUrl.toString();
 	      } catch {
-	        return new URL("/pet-creation/", window.location.origin).toString();
+	        const freshCreationUrl = new URL("/pet-creation/", window.location.origin);
+	        freshCreationUrl.searchParams.set("new", "1");
+	        return freshCreationUrl.toString();
 	      }
 	    }
 

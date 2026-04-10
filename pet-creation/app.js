@@ -1137,13 +1137,21 @@ function resetCharacterState({ keepTypeSelection = false, keepCharacters = false
   }
 }
 
+function getCreatePetUrl({ fresh = false } = {}) {
+  const url = new URL(CREATION_ROUTE, window.location.origin);
+  if (fresh) {
+    url.searchParams.set("new", "1");
+  }
+  return url.toString();
+}
+
 function openCreatePetFromMenu() {
   hideWalletMenu();
   if (!hasCharacterCreationCapacity()) {
     showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
     return;
   }
-  window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
+  window.location.href = getCreatePetUrl({ fresh: true });
 }
 
 function openDashboardFromMenu() {
@@ -1179,6 +1187,13 @@ function getRequestedScreen() {
   }
 
   return ["type", "cabinet", "admin", "arena"].includes(screen) ? screen : "";
+}
+
+function isFreshCreationRequested() {
+  const value = String(new URLSearchParams(window.location.search).get("new") || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes"].includes(value);
 }
 
 function getPageMode() {
@@ -1220,8 +1235,9 @@ async function restoreCharacterState() {
     const data = await apiRequest("/api/character/me", {}, "GET");
     const requestedScreen = getRequestedScreen();
     const pageMode = getPageMode();
+    const shouldStartFresh = pageMode === "creation" && isFreshCreationRequested();
 
-    if (pageMode === "creation" && data?.hasDraft && data.draft) {
+    if (!shouldStartFresh && pageMode === "creation" && data?.hasDraft && data.draft) {
       syncStateWithPayload(data);
       moveTo(data.draft.selectedPowerId ? "attrs" : "powers");
       return true;
@@ -1257,6 +1273,7 @@ async function restoreCharacterState() {
     }
 
     if (pageMode === "creation") {
+      state.draft = null;
       state.character = null;
       state.selectedPowerId = "";
       state.attrs = createEmptyAttrs();
@@ -4169,7 +4186,7 @@ function init() {
       showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
       return;
     }
-    window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
+    window.location.href = getCreatePetUrl({ fresh: true });
   });
 
   walletMenuCreatePet.addEventListener("click", () => {

@@ -656,7 +656,11 @@ function openPetCreation(target = "type") {
     return;
   }
 
-  window.location.href = new URL("/pet-creation/", window.location.origin).toString();
+  const targetUrl = new URL("/pet-creation/", window.location.origin);
+  if (target === "type") {
+    targetUrl.searchParams.set("new", "1");
+  }
+  window.location.href = targetUrl.toString();
 }
 
 ensureWalletMenuItems();
