@@ -29,12 +29,14 @@ module.exports = async (req, res) => {
 
   try {
     const body = await parseJsonBody(req);
+    const draftId = String(body.draftId || "").trim();
     const selectedPowerId = String(body.selectedPowerId || "").trim();
     const stats = body.stats || {};
     console.log(
       "[character:create:request]",
       JSON.stringify({
         wallet: session.wallet,
+        draftId,
         selectedPowerId,
       })
     );
@@ -42,6 +44,10 @@ module.exports = async (req, res) => {
     const profile = await updateWalletProfile(session.wallet, async (current) => {
       if (!current.draft) {
         throw new Error("Character draft not found. Start again.");
+      }
+
+      if (draftId && String(current.draft.id || "") !== draftId) {
+        throw new Error("Character draft changed. Start again.");
       }
 
       const attributePointBudget = getAttributePointBudget(current.draft);

@@ -980,7 +980,7 @@ function bytesToBase64(bytes) {
 }
 
 function getActiveRecord() {
-  return state.character || state.draft;
+  return state.draft || state.character;
 }
 
 function getPowerOptions() {
@@ -3993,6 +3993,7 @@ async function savePowerSelectionAndContinue() {
 
   try {
     const data = await apiRequest("/api/character/select-power", {
+      draftId: state.draft?.id || "",
       selectedPowerId: state.selectedPowerId,
     });
 
@@ -4025,6 +4026,7 @@ async function completeCharacterCreation() {
 
   try {
     const data = await apiRequest("/api/character/create", {
+      draftId: state.draft?.id || "",
       stats: state.attrs,
     });
 
