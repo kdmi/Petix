@@ -19,6 +19,22 @@ function resolveRecordById(profile, characterId) {
   return profile.characters.find((record) => record.id === characterId) || null;
 }
 
+function canAccessCharacterImage({ record, ownerWallet, sessionWallet, isAdmin }) {
+  if (!record) {
+    return false;
+  }
+
+  if (isAdmin) {
+    return true;
+  }
+
+  if (ownerWallet && ownerWallet === sessionWallet) {
+    return true;
+  }
+
+  return record.status === "completed";
+}
+
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
 
@@ -45,9 +61,21 @@ module.exports = async (req, res) => {
     const requestUrl = new URL(req.url, "http://localhost");
     const characterId = String(requestUrl.searchParams.get("id") || "").trim();
     let record = null;
+    const isAdmin = isAdminSession(session);
 
-    if (characterId && isAdminSession(session)) {
-      record = (await findCharacterRecordById(characterId))?.character || null;
+    if (characterId) {
+      const globalMatch = await findCharacterRecordById(characterId);
+      if (
+        globalMatch &&
+        canAccessCharacterImage({
+          record: globalMatch.character,
+          ownerWallet: globalMatch.wallet,
+          sessionWallet: session.wallet,
+          isAdmin,
+        })
+      ) {
+        record = globalMatch.character;
+      }
     }
 
     if (!record) {

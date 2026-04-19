@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Petix - Battle Result Mobile Scene</title>
+    <meta name="description" content="Static mobile battle result scene without authentication" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bangers&family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260416-mobile-result-preview" />
+  </head>
+  <body data-page="dashboard" class="battle-mobile-result-preview-page--expanded-rounds">
+    <main class="creation-page">
+      <header class="topbar dashboard-topbar is-battle-header">
+        <div class="brand">
+          <img src="/assets/petix-logo.svg" alt="Petix logo" width="118" height="40" />
+        </div>
+        <nav class="dashboard-tabs" aria-label="Dashboard pages">
+          <button class="dashboard-tab" type="button">My Pets</button>
+          <button class="dashboard-tab active" type="button">Arena</button>
+        </nav>
+        <div class="topbar-actions">
+          <div class="dashboard-energy" aria-label="Energy 2 of 3">
+            <img src="/assets/dashboard/energy-bolt.svg" alt="" width="20" height="20" />
+            <p><span>2</span> <em>of 3</em></p>
+          </div>
+          <button class="connect-trigger" type="button">Awtq...ECi9</button>
+        </div>
+      </header>
+
+      <section class="screen" id="screenArena">
+        <div class="arena-battle is-live-battle">
+          <div class="arena-live-battle">
+            <div class="arena-live-shell is-result-final is-result-landing">
+              <div class="arena-live-overview">
+                <div class="arena-live-overview-side arena-live-overview-side--initiator">
+                  <div class="arena-live-overview-copy">
+                    <p class="arena-live-overview-name">Benny Bonnie</p>
+                    <p class="arena-live-overview-hp">18 HP</p>
+                  </div>
+                  <div class="arena-live-overview-track arena-live-overview-track--initiator">
+                    <span class="arena-live-overview-fill arena-live-overview-fill--initiator" style="width: 28%;"></span>
+                  </div>
+                </div>
+                <div class="arena-live-round-indicator">
+                  <p class="arena-live-round-value">5</p>
+                  <p class="arena-live-round-label">ROUND</p>
+                </div>
+                <div class="arena-live-overview-side arena-live-overview-side--opponent">
+                  <div class="arena-live-overview-copy">
+                    <p class="arena-live-overview-hp">31 HP</p>
+                    <p class="arena-live-overview-name">Sweet Bombino</p>
+                  </div>
+                  <div class="arena-live-overview-track arena-live-overview-track--opponent">
+                    <span class="arena-live-overview-fill arena-live-overview-fill--opponent" style="width: 48%;"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="arena-live-controls">
+                <button class="arena-live-control-btn arena-live-control-btn--restart" type="button" aria-label="Restart fight">
+                  <img src="/assets/battle/control-restart.svg" alt="" width="24" height="24" />
+                </button>
+                <button class="arena-live-skip-btn" type="button">Speed Up</button>
+                <button class="arena-live-control-btn arena-live-control-btn--pause" type="button" aria-label="Pause fight">
+                  <img src="/assets/battle/control-pause.svg" alt="" width="24" height="24" />
+                </button>
+              </div>
+
+              <div class="arena-live-result-layer" aria-hidden="false">
+                <p class="arena-live-result-title arena-live-result-title--winner">Winner</p>
+                <div class="arena-live-result-reward arena-live-result-reward--winner">
+                  <p class="arena-live-result-exp arena-live-result-exp--winner">+200 Exp.</p>
+                  <div class="arena-live-result-pill">
+                    <img class="arena-live-result-pill-icon" src="/assets/battle/result-level-up-icon.svg" alt="" width="12" height="12" />
+                    <span class="arena-live-result-pill-text">Lvl up</span>
+                  </div>
+                </div>
+
+                <div class="arena-live-result-trophy-stack" aria-hidden="true">
+                  <img class="arena-live-result-trophy arena-live-result-trophy--composite" src="/assets/battle/result-trophy-composite.png" alt="" width="215" height="219" />
+                </div>
+
+                <p class="arena-live-result-title arena-live-result-title--loser">Looser</p>
+                <div class="arena-live-result-reward arena-live-result-reward--loser">
+                  <p class="arena-live-result-exp arena-live-result-exp--loser">+25 Exp.</p>
+                </div>
+
+                <div class="arena-live-result-actions">
+                  <button class="arena-live-result-btn arena-live-result-btn--secondary" type="button">
+                    <img src="/assets/battle/result-replay-icon.svg" alt="" width="24" height="24" />
+                    <span>Replay</span>
+                  </button>
+                  <button class="arena-live-result-btn arena-live-result-btn--primary" type="button">
+                    <span>Go to My Pets</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="arena-live-stage">
+                <div
+                  class="arena-live-stage-card arena-live-stage-card--initiator is-result-winner"
+                  style="--arena-result-x:16.68px; --arena-result-y:74.33px; --arena-result-scale:0.644; --arena-result-rotate:-8.94deg; --arena-result-opacity:1;"
+                >
+                  <article class="arena-live-sidecard arena-live-sidecard--initiator">
+                    <p class="arena-live-sidecard-title">Benny Bonnie</p>
+                    <div class="arena-live-sidecard-image-wrap">
+                      <img class="arena-live-sidecard-image" src="/dashboard-demo/Image%20(Owl%20character).png" alt="Benny Bonnie character" width="248" height="248" />
+                      <span class="arena-live-sidecard-level">Lvl. 1</span>
+                      <span class="arena-live-sidecard-rarity" style="background-color:#0ba5ec;">Rare</span>
+                    </div>
+                    <div class="arena-live-sidecard-stats">
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/stamina.svg" alt="" width="16" height="16" /><span>4</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/agility.svg" alt="" width="16" height="16" /><span>6</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/strength.svg" alt="" width="16" height="16" /><span>5</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/intelligence.svg" alt="" width="16" height="16" /><span>5</span></div>
+                    </div>
+                    <div class="arena-live-sidecard-power">
+                      <img class="arena-live-sidecard-power-icon" src="/assets/battle/side-card-power.svg" alt="" width="20" height="20" />
+                      <p class="arena-live-sidecard-power-text">At the beginning of the battle, summons a skeleton warrior</p>
+                    </div>
+                  </article>
+                </div>
+
+                <div class="arena-live-rounds">
+                  <article class="arena-live-round-card arena-live-round-card--accent-right is-current">
+                    <div class="arena-live-round-main">
+                      <div class="arena-live-round-head">
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left"><img src="/assets/battle/round-swords.png" alt="" width="24" height="24" /></div>
+                        <div class="arena-live-round-pill">
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-left-default.svg" alt="" width="31" height="20" />
+                          <span class="arena-live-round-pill-label">ROUND 5</span>
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-right-default.svg" alt="" width="31" height="20" />
+                        </div>
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right"><img src="/assets/battle/round-shield.png" alt="" width="24" height="24" /></div>
+                      </div>
+                      <div class="arena-live-round-body">
+                        <p>Benny Bonnie Preparing attack charging the fist.<br />And then he grabs him by the head and hits him on the floor.</p>
+                      </div>
+                    </div>
+                    <div class="arena-live-round-accent arena-live-round-accent--right">
+                      <div class="arena-live-round-damage-line is-visible">
+                        <p class="arena-live-round-damage" aria-label="−21 HP">
+                          <span class="arena-live-round-text-shadow" aria-hidden="true">−21 HP</span>
+                          <span class="arena-live-round-text-face">−21 HP</span>
+                        </p>
+                        <img class="arena-live-round-skull" src="/assets/battle/round-skull.svg" alt="" width="15" height="15" />
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="arena-live-round-card arena-live-round-card--accent-left">
+                    <div class="arena-live-round-main">
+                      <div class="arena-live-round-head">
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left"><img src="/assets/battle/round-shield.png" alt="" width="24" height="24" /></div>
+                        <div class="arena-live-round-pill">
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-left-alt.svg" alt="" width="31" height="20" />
+                          <span class="arena-live-round-pill-label">ROUND 4</span>
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-right-alt.svg" alt="" width="31" height="20" />
+                        </div>
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right"><img src="/assets/battle/round-swords.png" alt="" width="24" height="24" /></div>
+                      </div>
+                      <div class="arena-live-round-body">
+                        <p>Benny Bonnie Preparing attack charging the fist.<br />And then he grabs him by the head and hits him on the floor.</p>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="arena-live-round-card arena-live-round-card--accent-left">
+                    <div class="arena-live-round-main">
+                      <div class="arena-live-round-head">
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left"><img src="/assets/battle/round-swords.png" alt="" width="24" height="24" /></div>
+                        <div class="arena-live-round-pill">
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-left-default.svg" alt="" width="31" height="20" />
+                          <span class="arena-live-round-pill-label">ROUND 3</span>
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-right-default.svg" alt="" width="31" height="20" />
+                        </div>
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right"><img src="/assets/battle/round-shield.png" alt="" width="24" height="24" /></div>
+                      </div>
+                      <div class="arena-live-round-body">
+                        <p>Benny Bonnie Preparing attack charging the fist.<br />And then he grabs him by the head and hits him on the floor.</p>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="arena-live-round-card arena-live-round-card--accent-left">
+                    <div class="arena-live-round-main">
+                      <div class="arena-live-round-head">
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left"><img src="/assets/battle/round-shield.png" alt="" width="24" height="24" /></div>
+                        <div class="arena-live-round-pill">
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-left-alt.svg" alt="" width="31" height="20" />
+                          <span class="arena-live-round-pill-label">ROUND 2</span>
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-right-alt.svg" alt="" width="31" height="20" />
+                        </div>
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right"><img src="/assets/battle/round-swords.png" alt="" width="24" height="24" /></div>
+                      </div>
+                      <div class="arena-live-round-body">
+                        <p>Benny Bonnie Preparing attack charging the fist.<br />And then he grabs him by the head and hits him on the floor.</p>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article class="arena-live-round-card arena-live-round-card--accent-right">
+                    <div class="arena-live-round-main">
+                      <div class="arena-live-round-head">
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left"><img src="/assets/battle/round-swords.png" alt="" width="24" height="24" /></div>
+                        <div class="arena-live-round-pill">
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-left-default.svg" alt="" width="31" height="20" />
+                          <span class="arena-live-round-pill-label">ROUND 1</span>
+                          <img class="arena-live-round-pill-ornament" src="/assets/battle/round-pill-right-default.svg" alt="" width="31" height="20" />
+                        </div>
+                        <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right"><img src="/assets/battle/round-shield.png" alt="" width="24" height="24" /></div>
+                      </div>
+                      <div class="arena-live-round-body">
+                        <p>Benny Bonnie Preparing attack charging the fist.<br />And then he grabs him by the head and hits him on the floor.</p>
+                      </div>
+                    </div>
+                    <div class="arena-live-round-accent arena-live-round-accent--right">
+                      <div class="arena-live-round-damage-line is-visible">
+                        <p class="arena-live-round-damage" aria-label="−21 HP">
+                          <span class="arena-live-round-text-shadow" aria-hidden="true">−21 HP</span>
+                          <span class="arena-live-round-text-face">−21 HP</span>
+                        </p>
+                        <img class="arena-live-round-skull" src="/assets/battle/round-skull.svg" alt="" width="15" height="15" />
+                      </div>
+                      <div class="arena-live-round-note is-visible">
+                        <span class="arena-live-round-note-text" aria-label="CRITICAL HIT!">
+                          <span class="arena-live-round-text-shadow" aria-hidden="true">CRITICAL HIT!</span>
+                          <span class="arena-live-round-text-face">CRITICAL HIT!</span>
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <div
+                  class="arena-live-stage-card arena-live-stage-card--opponent is-result-loser"
+                  style="--arena-result-x:156.28px; --arena-result-y:144.72px; --arena-result-scale:0.409; --arena-result-rotate:19.48deg; --arena-result-opacity:0.6;"
+                >
+                  <article class="arena-live-sidecard arena-live-sidecard--opponent">
+                    <p class="arena-live-sidecard-title">Sweet Bombino</p>
+                    <div class="arena-live-sidecard-image-wrap">
+                      <img class="arena-live-sidecard-image" src="/dashboard-demo/Image%20(Cat%20character).png" alt="Sweet Bombino character" width="248" height="248" />
+                      <span class="arena-live-sidecard-level">Lvl. 1</span>
+                      <span class="arena-live-sidecard-rarity" style="background-color:#98a2b3;">Common</span>
+                    </div>
+                    <div class="arena-live-sidecard-stats">
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/stamina.svg" alt="" width="16" height="16" /><span>4</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/agility.svg" alt="" width="16" height="16" /><span>6</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/strength.svg" alt="" width="16" height="16" /><span>5</span></div>
+                      <div class="arena-live-sidecard-stat"><img src="/assets/attrs-step/intelligence.svg" alt="" width="16" height="16" /><span>5</span></div>
+                    </div>
+                    <div class="arena-live-sidecard-power">
+                      <img class="arena-live-sidecard-power-icon" src="/assets/battle/side-card-power.svg" alt="" width="20" height="20" />
+                      <p class="arena-live-sidecard-power-text">At the beginning of the battle, summons a skeleton warrior</p>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

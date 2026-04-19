@@ -6,6 +6,7 @@ const HANDLERS = {
   me: require("../../server-routes/character/me"),
   "select-power": require("../../server-routes/character/select-power"),
   start: require("../../server-routes/character/start"),
+  upgrade: require("../../server-routes/character/upgrade"),
 };
 
 module.exports = async (req, res) => {

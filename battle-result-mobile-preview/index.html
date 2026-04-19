@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Petix - Battle Result Mobile Preview</title>
+    <meta name="description" content="Static mobile battle result preview without authentication" />
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        align-items: center;
+        background: #2f2f2f;
+        display: flex;
+        justify-content: center;
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+      }
+
+      .phone-frame {
+        background: #1f1f1f;
+        border-radius: 28px;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+        padding: 14px;
+      }
+
+      iframe {
+        background: #f7f8fc;
+        border: 0;
+        display: block;
+        height: 1058px;
+        width: 360px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="phone-frame">
+      <iframe src="/battle-result-mobile-scene/" title="Petix mobile battle result preview"></iframe>
+    </div>
+  </body>
+</html>

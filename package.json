@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "Petix static site with Solana wallet auth API",
-  "scripts": {},
+  "scripts": {
+    "test": "node --test tests/unit/*.test.js"
+  },
   "dependencies": {
     "@vercel/blob": "^2.3.1",
     "bs58": "^6.0.0",

@@ -24,27 +24,28 @@ module.exports = async (req, res) => {
 
   const battleId = getBattleIdFromRequest(req);
   if (!battleId) {
-    json(res, 400, { error: "Battle id is required." });
+    json(res, 400, {
+      error: "BATTLE_ID_REQUIRED",
+      message: "Battle id is required.",
+    });
     return;
   }
 
   const battle = await getBattleRecord(battleId);
   if (!battle) {
-    json(res, 404, { error: "Battle not found." });
+    json(res, 404, {
+      error: "BATTLE_NOT_FOUND",
+      message: "Battle replay is not available.",
+    });
     return;
   }
 
   const isAttacker = battle.attackerOwnerWallet === session.wallet;
   const isDefender = battle.defenderOwnerWallet === session.wallet;
   if (!isAttacker && !isDefender) {
-    json(res, 403, { error: "Forbidden." });
-    return;
-  }
-
-  if (battle.status === "generating") {
-    json(res, 200, {
-      id: battle.id,
-      status: "generating",
+    json(res, 403, {
+      error: "BATTLE_REPLAY_FORBIDDEN",
+      message: "This battle replay is not available to the current wallet.",
     });
     return;
   }

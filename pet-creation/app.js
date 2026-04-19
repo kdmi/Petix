@@ -1,15 +1,10 @@
 const TYPES = ["Dragon", "Phoenix", "Cat", "Owl", "Ape", "Panda", "Undead", "Other"];
 const DEFAULT_ATTRIBUTE_POINTS = 15;
 const DEFAULT_CHARACTER_IMAGE = "/assets/character/current-pet.jpg";
-const ENABLE_ARENA = false;
+const ENABLE_ARENA = true;
 const DEFAULT_DASHBOARD_ENERGY_MAX = 3;
 const DEFAULT_DASHBOARD_ENERGY_CURRENT = 3;
 const API_BASE_URL = window.PETIX_API_BASE_URL || "";
-const DASHBOARD_DEMO_IMAGE_PATHS = [
-  "/dashboard-demo/Image%20(Dragon%20character).png",
-  "/dashboard-demo/Image%20(Cat%20character).png",
-  "/dashboard-demo/Image%20(Owl%20character).png",
-];
 const RARITY_META = {
   legendary: { label: "Legendary", color: "#f79009", points: 15 },
   epic: { label: "Epic", color: "#7a5af8", points: 13 },
@@ -66,7 +61,6 @@ const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
-const BATTLE_ROUTE = "/battle/";
 const CLIENT_LOG_ENDPOINT = "/api/client-log";
 
 const TYPE_META = {
@@ -117,6 +111,14 @@ const POWER_ICONS = {
   active: "/assets/powers-step/power-icon-active.svg",
 };
 const SUCCESS_POWER_ICON = "/assets/character/power-sparkle.svg";
+const BATTLE_SIDE_CARD_POWER_ICON = "/assets/battle/side-card-power.svg";
+const BATTLE_ROUND_SKULL_ICON = "/assets/battle/round-skull.svg";
+const BATTLE_CONTROL_PAUSE_ICON = "/assets/battle/control-pause.svg";
+const BATTLE_CONTROL_PLAY_ICON = "/assets/battle/control-play.svg";
+const BATTLE_CONTROL_RESTART_ICON = "/assets/battle/control-restart.svg";
+const BATTLE_RESULT_REPLAY_ICON = "/assets/battle/result-replay-icon.svg";
+const BATTLE_RESULT_TROPHY_COMPOSITE = "/assets/battle/result-trophy-composite.png";
+const BATTLE_RESULT_LEVEL_UP_ICON = "/assets/battle/result-level-up-icon.svg";
 const SUCCESS_SHARE_BACKGROUND = "/assets/cuddly-share/images/share_bg.png";
 const SUCCESS_SHARE_INTENT_URL = "https://x.com/intent/tweet";
 const SUCCESS_SHARE_WIDTH = 1600;
@@ -292,13 +294,45 @@ const SUCCESS_SHARE_BACKGROUND_GROUPS = [
 const ARENA_ROULETTE_ITEM_SIZE = 160;
 const ARENA_ROULETTE_GAP = 24;
 const ARENA_ROULETTE_STEP = ARENA_ROULETTE_ITEM_SIZE + ARENA_ROULETTE_GAP;
-const ARENA_ROULETTE_REPEAT_COUNT = 5;
-const ARENA_ROULETTE_TRAVEL_ITEMS = 22;
-const ARENA_ROULETTE_DURATION = 4800;
+const ARENA_ROULETTE_MOBILE_ITEM_SIZE = 80;
+const ARENA_ROULETTE_MOBILE_GAP = 8;
+const ARENA_ROULETTE_REPEAT_COUNT = 8;
+const ARENA_ROULETTE_TRAVEL_ITEMS = 28;
+const ARENA_ROULETTE_DURATION = 5800;
 const ARENA_FOCUS_CARD_DELAY = 1100;
+const ARENA_BATTLE_SCREEN_DELAY = 3000;
+const ARENA_BATTLE_ENTER_DURATION = 900;
+const ARENA_BATTLE_FIRST_ROUND_APPEAR_DELAY = 80;
+const ARENA_BATTLE_FIRST_ROUND_APPEAR_DURATION = 520;
+const ARENA_BATTLE_TYPING_START_DELAY = 240;
+const ARENA_BATTLE_TEXT_CHAR_DELAY = 24;
+const ARENA_BATTLE_TEXT_SPACE_DELAY = 12;
+const ARENA_BATTLE_TEXT_PUNCTUATION_DELAY = 92;
+const ARENA_BATTLE_TEXT_LINEBREAK_DELAY = 180;
+const ARENA_BATTLE_AFTER_TEXT_DELAY = 180;
+const ARENA_BATTLE_AFTER_DAMAGE_DELAY = 380;
+const ARENA_BATTLE_AFTER_NOTE_DELAY = 520;
+const ARENA_BATTLE_NEXT_ROUND_DELAY = 520;
+const ARENA_BATTLE_RESULT_DELAY = 1000;
+const ARENA_BATTLE_RESULT_ENTER_DURATION = 920;
+const ARENA_BATTLE_FAST_FORWARD_FIRST_ROUND_APPEAR_DELAY = 16;
+const ARENA_BATTLE_FAST_FORWARD_FIRST_ROUND_APPEAR_DURATION = 180;
+const ARENA_BATTLE_FAST_FORWARD_TYPING_START_DELAY = 56;
+const ARENA_BATTLE_FAST_FORWARD_TEXT_CHAR_DELAY = 4;
+const ARENA_BATTLE_FAST_FORWARD_TEXT_SPACE_DELAY = 4;
+const ARENA_BATTLE_FAST_FORWARD_TEXT_PUNCTUATION_DELAY = 10;
+const ARENA_BATTLE_FAST_FORWARD_TEXT_LINEBREAK_DELAY = 16;
+const ARENA_BATTLE_FAST_FORWARD_AFTER_TEXT_DELAY = 72;
+const ARENA_BATTLE_FAST_FORWARD_AFTER_DAMAGE_DELAY = 96;
+const ARENA_BATTLE_FAST_FORWARD_AFTER_NOTE_DELAY = 120;
+const ARENA_BATTLE_FAST_FORWARD_NEXT_ROUND_DELAY = 120;
+const ARENA_BATTLE_FAST_FORWARD_RESULT_DELAY = 180;
 const ARENA_PREPARE_MIN_SPINNER_DURATION = 1600;
+const ARENA_BATTLE_POLL_INTERVAL = 350;
+const ARENA_BATTLE_POLL_ATTEMPTS = 40;
 const ARENA_IMAGE_TARGET_SIZE = 512;
-const ARENA_BATTLE_LAUNCH_DELAY = 900;
+const ARENA_OPPONENT_CACHE_TTL = 2 * 60 * 1000;
+const ARENA_OPPONENT_SELECTION_LIMIT = 10;
 
 const ARENA_OPPONENT_POOL = [
   {
@@ -416,25 +450,25 @@ const ATTRS = [
     key: "stamina",
     icon: "/assets/attrs-step/stamina.svg",
     label: "Stamina",
-    desc: "Increases endurance and ability to sustain prolonged activities.",
+    desc: "Increases max HP, helping your pet survive longer battles.",
   },
   {
     key: "agility",
     icon: "/assets/attrs-step/agility.svg",
     label: "Agility",
-    desc: "Enhances speed and dexterity, improving evasion and finesse.",
+    desc: "Raises bonus crit chance and counterattack chance.",
   },
   {
     key: "strength",
     icon: "/assets/attrs-step/strength.svg",
     label: "Strength",
-    desc: "Boosts physical power, affecting melee damage and carrying capacity.",
+    desc: "Increases base damage dealt by successful attacks.",
   },
   {
     key: "intelligence",
     icon: "/assets/attrs-step/intelligence.svg",
     label: "Intelligence",
-    desc: "Improves learning ability and effectiveness in magic or problem-solving.",
+    desc: "Boosts crit damage, counterattack damage, and superpower damage.",
   },
 ];
 
@@ -453,10 +487,26 @@ const powersGrid = document.getElementById("powersGrid");
 const powersContinueBtn = document.getElementById("powersContinueBtn");
 const powersTitle = document.getElementById("powersTitle");
 const powersRarityBadge = document.querySelector(".pet-rarity-badge");
+const backToPowersBtn = document.getElementById("backToPowersBtn");
+const attrsTitle = document.getElementById("attrsTitle");
+const attrsDescription = document.getElementById("attrsDescription");
 const attrsList = document.getElementById("attrsList");
+const attrsBlockedState = document.getElementById("attrsBlockedState");
+const attrsBlockedTitle = document.getElementById("attrsBlockedTitle");
+const attrsBlockedText = document.getElementById("attrsBlockedText");
+const attrsBlockedBtn = document.getElementById("attrsBlockedBtn");
+const attrsPetName = document.getElementById("attrsPetName");
+const attrsPetLevel = document.getElementById("attrsPetLevel");
 const pointsLeft = document.getElementById("pointsLeft");
+const attrsPointsLabel = document.getElementById("attrsPointsLabel");
 const attrsContinueBtn = document.getElementById("attrsContinueBtn");
-const attrsPetRarity = document.querySelector(".attrs-pet-rarity");
+const attrsPetRarity = document.getElementById("attrsPetRarity");
+const attrsExpValue = document.getElementById("attrsExpValue");
+const attrsExpProgress = document.getElementById("attrsExpProgress");
+const attrsUpgradeSummary = document.getElementById("attrsUpgradeSummary");
+const attrsUpgradeSummaryList = document.getElementById("attrsUpgradeSummaryList");
+const attrsHoldCopy = document.getElementById("attrsHoldCopy");
+const attrsRewardsWrap = document.getElementById("attrsRewardsWrap");
 const successPetName = document.getElementById("successPetName");
 const successCardRarity = document.querySelector(".success-card-rarity");
 const successStats = document.getElementById("successStats");
@@ -471,12 +521,16 @@ const shareModalShareBtn = document.getElementById("shareModalShareBtn");
 const cabinetCard = document.getElementById("cabinetCard");
 const cabinetCount = document.getElementById("cabinetCount");
 const createAnotherBtn = document.getElementById("createAnotherBtn");
+const dashboardTopbar = document.querySelector(".dashboard-topbar");
+const dashboardTabs = document.getElementById("dashboardTabs");
 const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
 const dashboardTabArena = document.getElementById("dashboardTabArena");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
 const dashboardEnergy = document.getElementById("dashboardEnergy");
 const dashboardEnergyCurrent = document.getElementById("dashboardEnergyCurrent");
 const dashboardEnergyMax = document.getElementById("dashboardEnergyMax");
+const dashboardEnergyTooltip = document.getElementById("dashboardEnergyTooltip");
+const arenaLayout = document.getElementById("arenaLayout");
 const arenaIdleState = document.getElementById("arenaIdleState");
 const arenaBattleState = document.getElementById("arenaBattleState");
 const arenaStageTitle = document.getElementById("arenaStageTitle");
@@ -488,6 +542,23 @@ const arenaFocusCard = document.getElementById("arenaFocusCard");
 const arenaVersus = document.getElementById("arenaVersus");
 const arenaOpponentCard = document.getElementById("arenaOpponentCard");
 const arenaPlayerCard = document.getElementById("arenaPlayerCard");
+const arenaLiveBattle = document.getElementById("arenaLiveBattle");
+const arenaReplayBanner = document.getElementById("arenaReplayBanner");
+const arenaReplayBannerTitle = document.getElementById("arenaReplayBannerTitle");
+const arenaReplayBackBtn = document.getElementById("arenaReplayBackBtn");
+const arenaPanelEyebrow = document.getElementById("arenaPanelEyebrow");
+const arenaPanelTitle = document.getElementById("arenaPanelTitle");
+const arenaPanelDescription = document.getElementById("arenaPanelDescription");
+const arenaIdleSecondaryBtn = document.getElementById("arenaIdleSecondaryBtn");
+const arenaHistoryPanel = document.getElementById("arenaHistoryPanel");
+const arenaHistoryCount = document.getElementById("arenaHistoryCount");
+const arenaHistoryFeedback = document.getElementById("arenaHistoryFeedback");
+const arenaHistoryList = document.getElementById("arenaHistoryList");
+const arenaHistoryLoadMoreBtn = document.getElementById("arenaHistoryLoadMoreBtn");
+const arenaBattleInitiator = document.getElementById("arenaBattleInitiator");
+const arenaBattleOpponent = document.getElementById("arenaBattleOpponent");
+const arenaBattleRoundValue = document.getElementById("arenaBattleRoundValue");
+const arenaBattleRounds = document.getElementById("arenaBattleRounds");
 const connectTrigger = document.getElementById("connectTrigger");
 const walletOverlay = document.getElementById("walletOverlay");
 const walletClose = document.getElementById("walletClose");
@@ -503,6 +574,9 @@ const loggedWalletAddress = document.getElementById("loggedWalletAddress");
 const continueBtn = document.getElementById("continueBtn");
 const claimRewardsBtn = document.getElementById("claimRewardsBtn");
 const attrsSidePanel = document.querySelector(".attrs-side-panel");
+const adminPanelStateHelpers = window.PetixAdminPanelState || {};
+const upgradeScreenStateHelpers = window.PetixUpgradeScreenState || {};
+const battleRoundDirectionHelpers = window.PetixBattleRoundDirection || {};
 const walletButtons = document.querySelectorAll(".wallet-item");
 const detectedBadges = document.querySelectorAll("[data-detected-for]");
 const progressWrap = document.querySelector(".progress-wrap");
@@ -513,6 +587,191 @@ const adminRarityCommon = document.getElementById("adminRarityCommon");
 const adminRarityRare = document.getElementById("adminRarityRare");
 const adminRarityEpic = document.getElementById("adminRarityEpic");
 const adminRarityLegendary = document.getElementById("adminRarityLegendary");
+
+const normalizeAdminSearchValue =
+  adminPanelStateHelpers.normalizeAdminSearchValue ||
+  function fallbackNormalizeAdminSearchValue(value) {
+    return String(value || "").trim();
+  };
+
+const filterAdminCharacters =
+  adminPanelStateHelpers.filterAdminCharacters ||
+  function fallbackFilterAdminCharacters(records, query) {
+    const normalizedQuery = normalizeAdminSearchValue(query).toLowerCase();
+    const source = Array.isArray(records) ? records : [];
+    if (!normalizedQuery) {
+      return source;
+    }
+
+    return source.filter((record) =>
+      String(record?.creatorWallet || "")
+        .toLowerCase()
+        .includes(normalizedQuery)
+    );
+  };
+
+const filterAdminWaitlistEntries =
+  adminPanelStateHelpers.filterAdminWaitlistEntries ||
+  function fallbackFilterAdminWaitlistEntries(records, query) {
+    const normalizedQuery = normalizeAdminSearchValue(query).toLowerCase();
+    const source = Array.isArray(records) ? records : [];
+    if (!normalizedQuery) {
+      return source;
+    }
+
+    return source.filter((entry) =>
+      [entry?.email, entry?.source, entry?.pagePath, entry?.userAgent].some((field) =>
+        String(field || "")
+          .toLowerCase()
+          .includes(normalizedQuery)
+      )
+    );
+  };
+
+const filterAdminBattles =
+  adminPanelStateHelpers.filterAdminBattles ||
+  function fallbackFilterAdminBattles(records, query) {
+    const normalizedQuery = normalizeAdminSearchValue(query).toLowerCase();
+    const source = Array.isArray(records) ? records : [];
+    if (!normalizedQuery) {
+      return source;
+    }
+
+    return source.filter((record) =>
+      [
+        record?.battleId,
+        record?.attackerPet?.name,
+        record?.attackerPet?.wallet,
+        record?.defenderPet?.name,
+        record?.defenderPet?.wallet,
+        record?.winnerPetId,
+      ].some((field) =>
+        String(field || "")
+          .toLowerCase()
+          .includes(normalizedQuery)
+      )
+    );
+  };
+
+const getAdminWalletPivotState =
+  adminPanelStateHelpers.getAdminWalletPivotState ||
+  function fallbackGetAdminWalletPivotState(wallet) {
+    return {
+      query: normalizeAdminSearchValue(wallet),
+      page: 1,
+    };
+  };
+
+const getLevelAwareUpgradeScaleBudget =
+  upgradeScreenStateHelpers.getLevelAwareUpgradeScaleBudget ||
+  function fallbackLevelAwareUpgradeScaleBudget(input = {}) {
+    const record = input && typeof input === "object" ? input : {};
+    const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+    const stagedIncrements =
+      record.stagedIncrements && typeof record.stagedIncrements === "object" ? record.stagedIncrements : {};
+    const level = Math.max(1, getRecordLevel(record));
+    const availablePoints = getRecordAttributePointsAvailable(record);
+    const baseMax = Math.max(
+      0,
+      ...ATTRS.map((attr) => Math.max(0, Math.floor(Number(attributes?.[attr.key]) || 0)))
+    );
+    const stagedTotal = ATTRS.reduce(
+      (total, attr) => total + Math.max(0, Math.floor(Number(stagedIncrements?.[attr.key]) || 0)),
+      0
+    );
+
+    return Math.max(15, 14 + level, baseMax + availablePoints, baseMax + stagedTotal);
+  };
+
+const getUpgradeCtaState =
+  upgradeScreenStateHelpers.getUpgradeCtaState ||
+  function fallbackUpgradeCtaState(input = {}) {
+    const remainingPoints = Math.max(0, Math.floor(Number(input.remainingPoints) || 0));
+    const availablePoints = Math.max(0, Math.floor(Number(input.availablePoints) || 0));
+    const isSaving = Boolean(input.isSaving);
+    const isMobileUpgradeViewport = Boolean(input.isMobileUpgradeViewport);
+    const hasStagedSpend = remainingPoints >= 0 && remainingPoints !== availablePoints;
+    const ready = isMobileUpgradeViewport
+      ? remainingPoints === 0 && hasStagedSpend && !isSaving
+      : hasStagedSpend && !isSaving;
+
+    if (isSaving) {
+      return { label: "Saving...", ready: false };
+    }
+
+    if (isMobileUpgradeViewport) {
+      return {
+        label: ready ? "Save" : `Points left: ${remainingPoints}`,
+        ready,
+      };
+    }
+
+    return {
+      label: "Save Upgrade",
+      ready,
+    };
+  };
+
+const buildArenaRoundVisualState =
+  battleRoundDirectionHelpers.buildArenaRoundVisualState ||
+  function fallbackBuildArenaRoundVisualState(input = {}) {
+    const record = input && typeof input === "object" ? input : {};
+    const initiatorId = String(record.initiatorId || "").trim();
+    const actorPetId = String(record.actorPetId || "").trim();
+    const targetPetId = String(record.targetPetId || "").trim();
+    const actorIsInitiator = actorPetId !== "" && actorPetId === initiatorId;
+    const targetIsInitiator = targetPetId !== "" && targetPetId === initiatorId;
+    const attackerSide = actorPetId
+      ? actorIsInitiator
+        ? "initiator"
+        : "opponent"
+      : targetPetId && targetIsInitiator
+        ? "opponent"
+        : "initiator";
+    const defenderSide = targetPetId
+      ? targetIsInitiator
+        ? "initiator"
+        : "opponent"
+      : attackerSide === "initiator"
+        ? "opponent"
+        : "initiator";
+
+    return {
+      attackerSide,
+      defenderSide,
+      pillDirection: attackerSide === "initiator" ? "right" : "left",
+      accentSide: defenderSide === "initiator" ? "left" : "right",
+      leftIcon: attackerSide === "initiator" ? "swords" : "shield",
+      rightIcon: attackerSide === "initiator" ? "shield" : "swords",
+    };
+  };
+
+const getArenaRoundPillAssets =
+  battleRoundDirectionHelpers.getArenaRoundPillAssets ||
+  function fallbackGetArenaRoundPillAssets(input = {}) {
+    const direction =
+      input && typeof input === "object" && typeof input.pillDirection === "string"
+        ? String(input.pillDirection).trim().toLowerCase()
+        : typeof input === "string"
+          ? String(input).trim().toLowerCase()
+          : input?.leftIcon === "swords"
+            ? "right"
+            : input?.rightIcon === "swords"
+              ? "left"
+              : "right";
+
+    if (direction === "left" || direction === "initiator") {
+      return {
+        left: "/assets/battle/round-pill-left-alt.svg",
+        right: "/assets/battle/round-pill-right-alt.svg",
+      };
+    }
+
+    return {
+      left: "/assets/battle/round-pill-left-default.svg",
+      right: "/assets/battle/round-pill-right-default.svg",
+    };
+  };
 const adminSearchInput = document.getElementById("adminSearchInput");
 const adminSearchLabel = document.getElementById("adminSearchLabel");
 const adminTableBody = document.getElementById("adminTableBody");
@@ -522,6 +781,7 @@ const adminRefreshBtn = document.getElementById("adminRefreshBtn");
 const adminExportBtn = document.getElementById("adminExportBtn");
 const adminBackToDashboardBtn = document.getElementById("adminBackToDashboardBtn");
 const adminNavCharacters = document.getElementById("adminNavCharacters");
+const adminNavBattles = document.getElementById("adminNavBattles");
 const adminNavWaitlist = document.getElementById("adminNavWaitlist");
 const adminPagination = document.getElementById("adminPagination");
 const adminPageInfo = document.getElementById("adminPageInfo");
@@ -548,10 +808,14 @@ const labelAttrs = document.getElementById("labelAttrs");
 
 let suppressRewardsTooltipTimeout = null;
 let attrsRowsBudget = 0;
+let attrsRowsMode = "";
 let lastAttrTouchEndAt = 0;
 let lastAttrsScreenTouchEndAt = 0;
 let toastTimeoutId = 0;
 let creatureTypeLimitToastAt = 0;
+let battleStateRefreshTimeoutId = 0;
+let battleStateRefreshPromise = null;
+let lastBattleStateRefreshAt = 0;
 let adminImageLightbox = null;
 let adminLightboxImage = null;
 let adminLightboxCaption = null;
@@ -559,6 +823,13 @@ let arenaAnimationFrameId = 0;
 let arenaTimeoutIds = [];
 let arenaFocusedSequenceIndex = -1;
 const arenaImagePromises = new Map();
+const arenaOpponentCache = {
+  walletKey: "",
+  attackerPetId: "",
+  preparedPool: [],
+  warmedAt: 0,
+  warmPromise: null,
+};
 const shareAssetPromises = new Map();
 
 const state = {
@@ -570,6 +841,7 @@ const state = {
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
+  isSavingUpgrade: false,
   isSharing: false,
   isShareModalOpen: false,
   isCopyingShareImage: false,
@@ -593,6 +865,13 @@ const state = {
   isAdminLoading: false,
   deletingAdminCharacterId: "",
   adminErrorMessage: "",
+  adminBattles: [],
+  adminBattleSummary: null,
+  hasLoadedAdminBattles: false,
+  adminBattleQuery: "",
+  adminBattlePage: 1,
+  isAdminBattlesLoading: false,
+  adminBattleErrorMessage: "",
   adminWaitlistEntries: [],
   hasLoadedAdminWaitlist: false,
   adminWaitlistQuery: "",
@@ -600,12 +879,24 @@ const state = {
   isAdminWaitlistLoading: false,
   adminWaitlistErrorMessage: "",
   attrs: createEmptyAttrs(),
+  upgradePetId: "",
   energyCurrent: DEFAULT_DASHBOARD_ENERGY_CURRENT,
   energyMax: DEFAULT_DASHBOARD_ENERGY_MAX,
+  battleStateResetsAt: "",
+  battleStateTimezone: "",
   isFightPreparing: false,
   fightPreparingCharacterId: "",
-  dashboardDemoImageById: {},
+  arenaRevealSession: null,
   activeBattle: null,
+  arenaHistoryEntries: [],
+  arenaHistoryNextCursor: "",
+  arenaHistoryHasMore: false,
+  hasLoadedArenaHistory: false,
+  isArenaHistoryLoading: false,
+  arenaHistoryErrorMessage: "",
+  arenaHistoryWalletKey: "",
+  arenaReplayRequest: null,
+  arenaSelectedHistoryBattleId: "",
 };
 
 function createEmptyAttrs() {
@@ -621,6 +912,17 @@ function wait(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function shuffleArray(items = []) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
 }
 
 function shortenAddress(address) {
@@ -669,6 +971,34 @@ function getRecordExperienceProgress(record) {
   const total = getRecordExperienceForNextLevel(record);
   const current = getRecordExperience(record);
   return Math.max(0, Math.min(100, (current / total) * 100));
+}
+
+function getRecordAttributePointsAvailable(record) {
+  return Math.max(0, Math.floor(Number(record?.attributePointsAvailable) || 0));
+}
+
+function canUpgradeRecord(record) {
+  return (
+    String(record?.status || "").trim().toLowerCase() === "completed" &&
+    getRecordAttributePointsAvailable(record) > 0
+  );
+}
+
+function findCharacterById(characterId) {
+  const normalizedId = String(characterId || "").trim();
+  if (!normalizedId) return null;
+
+  return (
+    state.characters.find((record) => String(record?.id || "").trim() === normalizedId) || null
+  );
+}
+
+function isUpgradeStep(step = state.step) {
+  return step === "upgrade";
+}
+
+function isMobileUpgradeViewport() {
+  return isUpgradeStep() && (window.innerWidth || 0) < 768;
 }
 
 function escapeHtml(value) {
@@ -823,7 +1153,11 @@ async function apiRequest(path, body, method = "POST") {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || data.error || "Request failed.");
+    const error = new Error(data.message || data.error || "Request failed.");
+    if (data.error) {
+      error.code = data.error;
+    }
+    throw error;
   }
   return data;
 }
@@ -867,43 +1201,241 @@ function reportClientIssue(event, details = {}) {
 function normalizeCharacterRecord(record) {
   if (!record) return null;
 
+  const imageUrl = record.imageUrl ? toApiUrl(record.imageUrl) : DEFAULT_CHARACTER_IMAGE;
+
   return {
     ...record,
-    imageUrl: record.imageUrl ? toApiUrl(record.imageUrl) : DEFAULT_CHARACTER_IMAGE,
+    imageUrl,
+    sourceImageUrl: imageUrl,
   };
 }
 
-function buildDashboardDemoImageMap(records = []) {
-  if (!ENABLE_ARENA) {
-    return {};
+function normalizeArenaOpponentRecord(record) {
+  const normalizedRecord = normalizeCharacterRecord(record);
+  if (!normalizedRecord?.id) {
+    return null;
   }
 
-  const map = {};
+  return cloneBattleRecord({
+    ...normalizedRecord,
+    creatorWallet: String(record?.creatorWallet || "").trim(),
+    matchTier: String(record?.matchTier || "").trim(),
+    levelDistance:
+      Number.isFinite(Number(record?.levelDistance)) && Number(record.levelDistance) >= 0
+        ? Math.floor(Number(record.levelDistance))
+        : null,
+  });
+}
 
-  records.slice(0, DASHBOARD_DEMO_IMAGE_PATHS.length).forEach((record, index) => {
-    if (!record?.id) return;
-    map[String(record.id)] = DASHBOARD_DEMO_IMAGE_PATHS[index];
+function createArenaRevealError(message, code = "BATTLE_REVEAL_UNAVAILABLE") {
+  const error = new Error(message || "Couldn't prepare a trustworthy rival reveal. Please retry.");
+  error.code = code;
+  return error;
+}
+
+function mergeArenaRecordDetails(primary, secondary) {
+  if (!primary) {
+    return secondary ? cloneBattleRecord(secondary) : null;
+  }
+
+  if (!secondary) {
+    return cloneBattleRecord(primary);
+  }
+
+  const primaryImageUrl = primary.imageUrl || primary.sourceImageUrl || "";
+  const secondaryImageUrl = secondary.imageUrl || secondary.sourceImageUrl || "";
+
+  return cloneBattleRecord({
+    ...secondary,
+    ...primary,
+    imageUrl: primaryImageUrl || secondaryImageUrl || DEFAULT_CHARACTER_IMAGE,
+    sourceImageUrl: primary.sourceImageUrl || primaryImageUrl || secondary.sourceImageUrl || secondaryImageUrl || "",
+    selectedPower:
+      primary.selectedPower ||
+      secondary.selectedPower ||
+      { description: "Power not selected yet" },
+    attributes: {
+      ...createEmptyAttrs(),
+      ...(secondary.attributes || {}),
+      ...(primary.attributes || {}),
+    },
+  });
+}
+
+function mergeArenaRecordCollections(collections = []) {
+  const mergedRecords = new Map();
+
+  collections.forEach((collection) => {
+    (Array.isArray(collection) ? collection : []).forEach((record) => {
+      const recordId = String(record?.id || "").trim();
+      if (!recordId) {
+        return;
+      }
+
+      const normalizedRecord = cloneBattleRecord(record);
+      const existingRecord = mergedRecords.get(recordId);
+      mergedRecords.set(
+        recordId,
+        existingRecord
+          ? mergeArenaRecordDetails(existingRecord, normalizedRecord)
+          : normalizedRecord
+      );
+    });
   });
 
-  return map;
+  return Array.from(mergedRecords.values());
 }
 
-function applyDashboardDemoImage(record) {
-  if (!ENABLE_ARENA) {
-    return record;
+function setArenaRevealSession(nextSession) {
+  state.arenaRevealSession = nextSession
+    ? {
+        attackerPetId: String(nextSession.attackerPetId || "").trim(),
+        battleId: String(nextSession.battleId || "").trim(),
+        selectedOpponentId: String(nextSession.selectedOpponentId || "").trim(),
+        status: String(nextSession.status || "preparing").trim() || "preparing",
+        visibleCandidateIds: Array.isArray(nextSession.visibleCandidateIds)
+          ? nextSession.visibleCandidateIds.map((value) => String(value || "").trim()).filter(Boolean)
+          : [],
+        preparedCandidateIds: Array.isArray(nextSession.preparedCandidateIds)
+          ? nextSession.preparedCandidateIds.map((value) => String(value || "").trim()).filter(Boolean)
+          : [],
+        recoveryMessage: String(nextSession.recoveryMessage || "").trim(),
+      }
+    : null;
+}
+
+function resetArenaRevealSession() {
+  setArenaRevealSession(null);
+}
+
+function setArenaRevealRecovery(message) {
+  setArenaRevealSession({
+    ...(state.arenaRevealSession || {}),
+    status: "recovery",
+    recoveryMessage:
+      String(message || "").trim() || "Couldn't prepare a trustworthy rival reveal. Please retry.",
+  });
+}
+
+function normalizeArenaRevealBundle(reveal) {
+  if (!reveal || typeof reveal !== "object") {
+    return null;
   }
 
-  if (!record) return null;
+  const selectedOpponent = normalizeArenaOpponentRecord(reveal.selectedOpponent);
+  const carouselCandidates = Array.isArray(reveal.carouselCandidates)
+    ? reveal.carouselCandidates.map((record) => normalizeArenaOpponentRecord(record)).filter(Boolean)
+    : [];
 
-  const demoImageUrl = state.dashboardDemoImageById[String(record.id)];
-  if (!demoImageUrl) {
-    return record;
+  if (!selectedOpponent) {
+    return null;
   }
+
+  const mergedCandidates = mergeArenaRecordCollections([
+    [selectedOpponent],
+    carouselCandidates,
+  ]);
 
   return {
-    ...record,
-    imageUrl: demoImageUrl,
+    selectedOpponent,
+    carouselCandidates: mergedCandidates,
+    matchmaking: reveal.matchmaking || null,
   };
+}
+
+function applyBattleStatePayload(battleState) {
+  const parsedMax = Number(battleState?.energyMax);
+  const parsedCurrent = Number(battleState?.energyCurrent);
+  const nextMax = Math.max(
+    1,
+    Math.floor(Number.isFinite(parsedMax) ? parsedMax : DEFAULT_DASHBOARD_ENERGY_MAX)
+  );
+  const nextCurrent = Math.max(
+    0,
+    Math.floor(Number.isFinite(parsedCurrent) ? parsedCurrent : DEFAULT_DASHBOARD_ENERGY_CURRENT)
+  );
+
+  state.energyMax = nextMax;
+  state.energyCurrent = Math.min(nextCurrent, nextMax);
+  state.battleStateResetsAt =
+    typeof battleState?.resetsAt === "string" ? String(battleState.resetsAt).trim() : "";
+  state.battleStateTimezone =
+    typeof battleState?.timezone === "string" ? String(battleState.timezone).trim() : "";
+  lastBattleStateRefreshAt = Date.now();
+  scheduleBattleStateRefresh();
+}
+
+function clearBattleStateRefreshTimer() {
+  if (!battleStateRefreshTimeoutId) {
+    return;
+  }
+
+  window.clearTimeout(battleStateRefreshTimeoutId);
+  battleStateRefreshTimeoutId = 0;
+}
+
+function scheduleBattleStateRefresh() {
+  clearBattleStateRefreshTimer();
+
+  if (!state.isAuthenticated) {
+    return;
+  }
+
+  const resetAtMs = Date.parse(state.battleStateResetsAt || "");
+  if (!Number.isFinite(resetAtMs)) {
+    return;
+  }
+
+  const delayMs = Math.max(0, resetAtMs - Date.now());
+  battleStateRefreshTimeoutId = window.setTimeout(() => {
+    battleStateRefreshTimeoutId = 0;
+    void refreshBattleStateFromServer({ force: true }).catch(() => null);
+  }, Math.min(delayMs, 2147483647));
+}
+
+async function refreshBattleStateFromServer({ force = false, minIntervalMs = 5000 } = {}) {
+  if (!state.isAuthenticated) {
+    return null;
+  }
+
+  const now = Date.now();
+  if (!force && now - lastBattleStateRefreshAt < minIntervalMs) {
+    return null;
+  }
+
+  if (battleStateRefreshPromise) {
+    return battleStateRefreshPromise;
+  }
+
+  battleStateRefreshPromise = apiRequest("/api/character/me", {}, "GET")
+    .then((payload) => {
+      syncStateWithPayload(payload);
+      return payload;
+    })
+    .catch((error) => {
+      if (/unauthorized/i.test(String(error?.message || ""))) {
+        return null;
+      }
+      throw error;
+    })
+    .finally(() => {
+      battleStateRefreshPromise = null;
+    });
+
+  return battleStateRefreshPromise;
+}
+
+function maybeRefreshBattleStateOnResume() {
+  if (!state.isAuthenticated) {
+    return;
+  }
+
+  const resetAtMs = Date.parse(state.battleStateResetsAt || "");
+  const shouldForce = Number.isFinite(resetAtMs) && Date.now() >= resetAtMs;
+  void refreshBattleStateFromServer({
+    force: shouldForce,
+    minIntervalMs: 15000,
+  }).catch(() => null);
 }
 
 function openWalletModal() {
@@ -934,24 +1466,47 @@ function showWalletAuthState() {
   state.isAuthenticated = false;
   state.isAdmin = false;
   state.walletAddress = "";
+  resetUpgradeSession();
+  clearArenaOpponentCache();
   state.adminSection = "characters";
   state.adminCharacters = [];
   state.adminWalletQuery = "";
   state.isAdminLoading = false;
   state.deletingAdminCharacterId = "";
   state.adminErrorMessage = "";
+  state.adminBattles = [];
+  state.adminBattleSummary = null;
+  state.adminBattleQuery = "";
+  state.adminBattlePage = 1;
+  state.isAdminBattlesLoading = false;
+  state.adminBattleErrorMessage = "";
   state.adminWaitlistEntries = [];
   state.adminWaitlistQuery = "";
   state.adminWaitlistPage = 1;
   state.isAdminWaitlistLoading = false;
   state.adminWaitlistErrorMessage = "";
   state.hasLoadedAdminCharacters = false;
+  state.hasLoadedAdminBattles = false;
   state.hasLoadedAdminWaitlist = false;
   state.activeBattle = null;
   state.energyCurrent = DEFAULT_DASHBOARD_ENERGY_CURRENT;
+  state.energyMax = DEFAULT_DASHBOARD_ENERGY_MAX;
+  state.battleStateResetsAt = "";
+  state.battleStateTimezone = "";
   state.isFightPreparing = false;
   state.fightPreparingCharacterId = "";
-  state.dashboardDemoImageById = {};
+  state.arenaHistoryEntries = [];
+  state.arenaHistoryNextCursor = "";
+  state.arenaHistoryHasMore = false;
+  state.hasLoadedArenaHistory = false;
+  clearBattleStateRefreshTimer();
+  battleStateRefreshPromise = null;
+  lastBattleStateRefreshAt = 0;
+  state.isArenaHistoryLoading = false;
+  state.arenaHistoryErrorMessage = "";
+  state.arenaHistoryWalletKey = "";
+  state.arenaReplayRequest = null;
+  state.arenaSelectedHistoryBattleId = "";
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
@@ -980,7 +1535,7 @@ function bytesToBase64(bytes) {
 }
 
 function getActiveRecord() {
-  return state.character || state.draft;
+  return state.draft || state.character;
 }
 
 function getPowerOptions() {
@@ -1012,6 +1567,90 @@ function getAttributePointBudget(record = getActiveRecord()) {
   }
 
   return getRarityMeta(record?.rarity).points || DEFAULT_ATTRIBUTE_POINTS;
+}
+
+function getRequestedUpgradePetId() {
+  return String(new URLSearchParams(window.location.search).get("petId") || "").trim();
+}
+
+function getSelectedUpgradeRecord(characterId = state.upgradePetId) {
+  return findCharacterById(characterId);
+}
+
+function getAttributeScreenMode(step = state.step) {
+  return isUpgradeStep(step) ? "upgrade" : "create";
+}
+
+function getAttributeScreenRecord(step = state.step) {
+  return isUpgradeStep(step) ? getSelectedUpgradeRecord() : getActiveRecord();
+}
+
+function getAttributeScreenScaleBudget(record = getAttributeScreenRecord()) {
+  if (!isUpgradeStep()) {
+    return getAttributePointBudget(record);
+  }
+
+  return getLevelAwareUpgradeScaleBudget({
+    attributes: record?.attributes,
+    availablePoints: getRecordAttributePointsAvailable(record),
+    level: getRecordLevel(record),
+    stagedIncrements: state.attrs,
+  });
+}
+
+function getAttributeDisplayValue(attrKey, record = getAttributeScreenRecord()) {
+  const baseValue = Math.max(0, Math.floor(Number(record?.attributes?.[attrKey]) || 0));
+  const stagedValue = Math.max(0, Math.floor(Number(state.attrs?.[attrKey]) || 0));
+  return isUpgradeStep() ? baseValue + stagedValue : stagedValue;
+}
+
+function getUpgradeRouteState(characterId = state.upgradePetId) {
+  const normalizedId = String(characterId || "").trim();
+  if (!normalizedId) {
+    return {
+      blocked: true,
+      title: "Choose a pet to upgrade",
+      description: "Open this screen from an Upgrade button on a pet card in My Pets.",
+      record: null,
+    };
+  }
+
+  const record = getSelectedUpgradeRecord(normalizedId);
+  if (!record) {
+    return {
+      blocked: true,
+      title: "Pet not found",
+      description: "This pet is not available in your current wallet anymore. Return to My Pets and choose another one.",
+      record: null,
+    };
+  }
+
+  if (!canUpgradeRecord(record)) {
+    return {
+      blocked: true,
+      title: "No upgrade points left",
+      description: `${getRecordDisplayName(record)} has no unspent upgrade points right now.`,
+      record,
+    };
+  }
+
+  return {
+    blocked: false,
+    title: "",
+    description: "",
+    record,
+  };
+}
+
+function primeUpgradeSession(characterId) {
+  state.upgradePetId = String(characterId || "").trim();
+  state.isSavingUpgrade = false;
+  state.attrs = createEmptyAttrs();
+}
+
+function resetUpgradeSession() {
+  state.upgradePetId = "";
+  state.isSavingUpgrade = false;
 }
 
 function applyRarityBadge(element, rarityLabel) {
@@ -1075,19 +1714,27 @@ function syncTypeSelectionWithRecord(record) {
 }
 
 function syncStateWithPayload(payload = {}) {
+  if (payload?.battleState) {
+    applyBattleStatePayload(payload.battleState);
+    updateEnergyUi();
+  }
+
   if (Array.isArray(payload.characters)) {
     state.characters = payload.characters.map(normalizeCharacterRecord);
-    state.dashboardDemoImageById = buildDashboardDemoImageMap(state.characters);
-    state.characters = state.characters.map(applyDashboardDemoImage);
     state.hasHydratedCharacters = true;
+    if (state.characters.length) {
+      void warmArenaOpponentPool().catch(() => {});
+    } else {
+      clearArenaOpponentCache();
+    }
   }
 
   if ("draft" in payload) {
-    state.draft = applyDashboardDemoImage(normalizeCharacterRecord(payload.draft));
+    state.draft = normalizeCharacterRecord(payload.draft);
   }
 
   if ("character" in payload) {
-    state.character = applyDashboardDemoImage(normalizeCharacterRecord(payload.character));
+    state.character = normalizeCharacterRecord(payload.character);
     if (payload.character) {
       state.draft = null;
     }
@@ -1099,10 +1746,12 @@ function syncStateWithPayload(payload = {}) {
 
   const activeRecord = state.draft || state.character;
   state.selectedPowerId = activeRecord?.selectedPowerId || "";
-  state.attrs = {
-    ...createEmptyAttrs(),
-    ...(activeRecord?.attributes || {}),
-  };
+  if (!isUpgradeStep()) {
+    state.attrs = {
+      ...createEmptyAttrs(),
+      ...(activeRecord?.attributes || {}),
+    };
+  }
 
   if (activeRecord) {
     syncTypeSelectionWithRecord(activeRecord);
@@ -1120,11 +1769,13 @@ function syncStateWithPayload(payload = {}) {
 function resetCharacterState({ keepTypeSelection = false, keepCharacters = false } = {}) {
   closeSuccessShareModal({ restoreFocus: false });
   clearSuccessSharePreview();
+  resetUpgradeSession();
   state.draft = null;
   state.character = null;
   if (!keepCharacters) {
     state.characters = [];
     state.hasHydratedCharacters = false;
+    clearArenaOpponentCache();
   }
   state.selectedPowerId = "";
   state.attrs = createEmptyAttrs();
@@ -1178,7 +1829,64 @@ function getRequestedScreen() {
     return "";
   }
 
-  return ["type", "cabinet", "admin", "arena"].includes(screen) ? screen : "";
+  return ["type", "cabinet", "admin", "arena", "upgrade"].includes(screen) ? screen : "";
+}
+
+function getArenaPreviewMode() {
+  const preview = String(new URLSearchParams(window.location.search).get("arenaPreview") || "")
+    .trim()
+    .toLowerCase();
+
+  return ["roulette", "focus", "versus", "battle", "result"].includes(preview) ? preview : "";
+}
+
+function getArenaRequestedBattleId() {
+  return String(new URLSearchParams(window.location.search).get("battleId") || "").trim();
+}
+
+function syncDashboardRouteState(step, { battleId = "", petId = "", replace = true } = {}) {
+  if (getPageMode() !== "dashboard") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const normalizedBattleId = String(battleId || "").trim();
+  const normalizedPetId = String(petId || "").trim();
+
+  if (step === "arena") {
+    url.searchParams.set("screen", "arena");
+  } else if (step === "upgrade") {
+    url.searchParams.set("screen", "upgrade");
+  } else if (step === "admin") {
+    url.searchParams.set("screen", "admin");
+  } else {
+    url.searchParams.delete("screen");
+  }
+
+  if (normalizedBattleId) {
+    url.searchParams.set("battleId", normalizedBattleId);
+    url.searchParams.delete("arenaPreview");
+  } else {
+    url.searchParams.delete("battleId");
+    if (step !== "arena" || !String(state.activeBattle?.id || "").startsWith("arena-preview-")) {
+      url.searchParams.delete("arenaPreview");
+    }
+  }
+
+  if (step === "upgrade" && normalizedPetId) {
+    url.searchParams.set("petId", normalizedPetId);
+  } else {
+    url.searchParams.delete("petId");
+  }
+
+  const nextHref = url.toString();
+  const currentHref = window.location.href;
+  if (nextHref === currentHref) {
+    return;
+  }
+
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method](null, "", nextHref);
 }
 
 function getPageMode() {
@@ -1190,12 +1898,9 @@ function getPageMode() {
   const requestedScreen = getRequestedScreen();
   if (requestedScreen === "cabinet") return "dashboard";
   if (requestedScreen === "arena") return "dashboard";
+  if (requestedScreen === "upgrade") return "dashboard";
   if (requestedScreen === "admin") return "admin";
   return "creation";
-}
-
-function buildBattleReplayUrl(battleId) {
-  return new URL(`${BATTLE_ROUTE}${encodeURIComponent(battleId)}`, window.location.origin).toString();
 }
 
 function setProcessCopy(title, text) {
@@ -1219,6 +1924,8 @@ async function restoreCharacterState() {
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
     const requestedScreen = getRequestedScreen();
+    const arenaPreviewMode = getArenaPreviewMode();
+    const requestedBattleId = getArenaRequestedBattleId();
     const pageMode = getPageMode();
 
     if (pageMode === "creation" && data?.hasDraft && data.draft) {
@@ -1229,11 +1936,23 @@ async function restoreCharacterState() {
 
     if ((pageMode === "dashboard" || pageMode === "admin") && data?.hasCharacter && data.character) {
       syncStateWithPayload(data);
+      if (requestedScreen === "arena") {
+        void ensureArenaHistoryLoaded().catch(() => {});
+        if (requestedBattleId) {
+          await ensureArenaReplayBattle(requestedBattleId, { source: "link" });
+        } else if (arenaPreviewMode) {
+          await ensureArenaPreviewBattle(arenaPreviewMode);
+        }
+      } else if (requestedScreen === "upgrade") {
+        primeUpgradeSession(getRequestedUpgradePetId());
+      }
       moveTo(
         pageMode === "admin" || requestedScreen === "admin"
           ? "admin"
           : requestedScreen === "arena"
             ? "arena"
+            : requestedScreen === "upgrade"
+              ? "upgrade"
             : "cabinet"
       );
       return true;
@@ -1252,7 +1971,23 @@ async function restoreCharacterState() {
     }
 
     if (pageMode === "dashboard") {
-      moveTo(requestedScreen === "arena" ? "arena" : "cabinet");
+      if (requestedScreen === "arena") {
+        void ensureArenaHistoryLoaded().catch(() => {});
+        if (requestedBattleId) {
+          await ensureArenaReplayBattle(requestedBattleId, { source: "link" });
+        } else if (arenaPreviewMode) {
+          await ensureArenaPreviewBattle(arenaPreviewMode);
+        }
+      } else if (requestedScreen === "upgrade") {
+        primeUpgradeSession(getRequestedUpgradePetId());
+      }
+      moveTo(
+        requestedScreen === "arena"
+          ? "arena"
+          : requestedScreen === "upgrade"
+            ? "upgrade"
+            : "cabinet"
+      );
       return true;
     }
 
@@ -1391,7 +2126,14 @@ function showScreen(targetId) {
 
 function setProgress(step) {
   if (progressWrap) {
-    progressWrap.classList.toggle("hidden", step === "success" || step === "cabinet" || step === "arena" || step === "admin");
+    progressWrap.classList.toggle(
+      "hidden",
+      step === "success" ||
+        step === "cabinet" ||
+        step === "arena" ||
+        step === "admin" ||
+        step === "upgrade"
+    );
   }
 
   barType.classList.toggle("active", ["type", "process"].includes(step));
@@ -1556,23 +2298,112 @@ function preloadAndOptimizeArenaImage(src) {
 
 async function prepareArenaRecordImage(record) {
   const safeRecord = cloneBattleRecord(record);
-  const preparedImageUrl = await preloadAndOptimizeArenaImage(safeRecord.imageUrl);
+  const sourceImageUrl = safeRecord.imageUrl || safeRecord.sourceImageUrl || DEFAULT_CHARACTER_IMAGE;
+  const preparedImageUrl = await preloadAndOptimizeArenaImage(sourceImageUrl);
 
   return {
     ...safeRecord,
-    imageUrl: preparedImageUrl || safeRecord.imageUrl,
+    sourceImageUrl,
+    imageUrl: preparedImageUrl || sourceImageUrl,
   };
 }
 
-async function preloadArenaFightAssets(initiator, opponentPool) {
-  const preparedInitiatorPromise = prepareArenaRecordImage(initiator);
-  const preparedPoolPromise = Promise.all(opponentPool.map((record) => prepareArenaRecordImage(record)));
-  const [preparedInitiator, preparedPool] = await Promise.all([preparedInitiatorPromise, preparedPoolPromise]);
+async function prepareArenaOpponentPool(opponentPool) {
+  return Promise.all(opponentPool.map((record) => prepareArenaRecordImage(record)));
+}
+
+async function prepareArenaRevealCandidates(revealBundle, warmedPool = []) {
+  const normalizedReveal = normalizeArenaRevealBundle(revealBundle);
+  const selectedOpponentId = String(normalizedReveal?.selectedOpponent?.id || "").trim();
+
+  if (!selectedOpponentId) {
+    throw createArenaRevealError();
+  }
+
+  const mergedCandidates = mergeArenaRecordCollections([
+    normalizedReveal.carouselCandidates,
+    warmedPool,
+  ]);
+  const revealCandidates = mergedCandidates.filter((record) => String(record?.id || "").trim());
+
+  if (!revealCandidates.length) {
+    throw createArenaRevealError();
+  }
+
+  const preparedCandidates = await Promise.all(
+    revealCandidates.map((record) => prepareArenaRecordImage(record))
+  );
+  const selectedOpponent =
+    preparedCandidates.find((record) => String(record?.id || "") === selectedOpponentId) || null;
+
+  if (!selectedOpponent) {
+    throw createArenaRevealError();
+  }
+
+  setArenaRevealSession({
+    ...(state.arenaRevealSession || {}),
+    selectedOpponentId,
+    status: "ready-to-spin",
+    visibleCandidateIds: preparedCandidates.map((record) => String(record?.id || "")).filter(Boolean),
+    preparedCandidateIds: preparedCandidates.map((record) => String(record?.id || "")).filter(Boolean),
+    recoveryMessage: "",
+  });
 
   return {
-    preparedInitiator,
-    preparedPool,
+    selectedOpponent,
+    preparedCandidates,
   };
+}
+
+function clearArenaOpponentCache() {
+  arenaOpponentCache.walletKey = "";
+  arenaOpponentCache.attackerPetId = "";
+  arenaOpponentCache.preparedPool = [];
+  arenaOpponentCache.warmedAt = 0;
+  arenaOpponentCache.warmPromise = null;
+}
+
+function getArenaOpponentCacheKey() {
+  return String(state.walletAddress || "").trim();
+}
+
+async function warmArenaOpponentPool(attackerPetId = getArenaStarterRecord()?.id, { force = false } = {}) {
+  const normalizedAttackerPetId = String(attackerPetId || "").trim();
+  const walletKey = getArenaOpponentCacheKey();
+
+  if (!ENABLE_ARENA || !state.isAuthenticated || !walletKey || !normalizedAttackerPetId) {
+    return [];
+  }
+
+  const isFresh =
+    arenaOpponentCache.walletKey === walletKey &&
+    arenaOpponentCache.preparedPool.length > 0 &&
+    Date.now() - arenaOpponentCache.warmedAt < ARENA_OPPONENT_CACHE_TTL;
+
+  if (!force && isFresh) {
+    return arenaOpponentCache.preparedPool;
+  }
+
+  if (arenaOpponentCache.warmPromise && arenaOpponentCache.walletKey === walletKey) {
+    return arenaOpponentCache.warmPromise;
+  }
+
+  arenaOpponentCache.walletKey = walletKey;
+  arenaOpponentCache.attackerPetId = normalizedAttackerPetId;
+  arenaOpponentCache.warmPromise = loadRealArenaOpponents(normalizedAttackerPetId)
+    .then((opponentPool) => prepareArenaOpponentPool(opponentPool))
+    .then((preparedPool) => {
+      arenaOpponentCache.preparedPool = preparedPool;
+      arenaOpponentCache.warmedAt = Date.now();
+      arenaOpponentCache.warmPromise = null;
+      return preparedPool;
+    })
+    .catch((error) => {
+      arenaOpponentCache.warmPromise = null;
+      throw error;
+    });
+
+  return arenaOpponentCache.warmPromise;
 }
 
 function preloadShareAsset(src) {
@@ -2268,12 +3099,404 @@ function shareSuccessToX() {
 async function loadRealArenaOpponents(attackerPetId) {
   const query = new URLSearchParams({
     attackerPetId: String(attackerPetId || ""),
+    limit: String(ARENA_OPPONENT_SELECTION_LIMIT),
   });
   const payload = await apiRequest(`/api/battles/opponents?${query.toString()}`, undefined, "GET");
 
   return Array.isArray(payload?.opponents)
-    ? payload.opponents.map((record) => cloneBattleRecord(normalizeCharacterRecord(record)))
+    ? payload.opponents.map((record) => normalizeArenaOpponentRecord(record)).filter(Boolean)
     : [];
+}
+
+async function createArenaBattleRecord(attackerPetId) {
+  return apiRequest("/api/battles", {
+    attackerPetId: String(attackerPetId || ""),
+  });
+}
+
+async function fetchArenaBattleRecord(battleId) {
+  return apiRequest(`/api/battles/${encodeURIComponent(String(battleId || ""))}`, undefined, "GET");
+}
+
+async function pollArenaBattleRecord(battleId, {
+  attempts = ARENA_BATTLE_POLL_ATTEMPTS,
+  interval = ARENA_BATTLE_POLL_INTERVAL,
+} = {}) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const payload = await fetchArenaBattleRecord(battleId);
+
+    if (payload?.status === "ready") {
+      return payload;
+    }
+
+    if (payload?.status === "failed") {
+      throw new Error(payload.error || "Battle generation failed.");
+    }
+
+    if (attempt < attempts - 1) {
+      await wait(interval);
+    }
+  }
+
+  throw new Error("Battle result is taking too long. Please try again.");
+}
+
+async function refreshArenaProfileState() {
+  return refreshBattleStateFromServer({ force: true, minIntervalMs: 0 });
+}
+
+async function fetchArenaBattleHistory({ cursor = "", limit = 8 } = {}) {
+  const query = new URLSearchParams();
+  if (cursor) {
+    query.set("cursor", String(cursor));
+  }
+  if (limit) {
+    query.set("limit", String(limit));
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest(`/api/battles${suffix}`, undefined, "GET");
+}
+
+function getArenaHistoryWalletKey() {
+  return String(state.walletAddress || "").trim();
+}
+
+function getSelectedArenaBattleId() {
+  return String(
+    state.activeBattle?.battleId ||
+      state.arenaReplayRequest?.battleId ||
+      state.arenaSelectedHistoryBattleId ||
+      ""
+  ).trim();
+}
+
+function clearArenaReplayRequest() {
+  state.arenaReplayRequest = null;
+}
+
+function resetArenaHistoryState() {
+  state.arenaHistoryEntries = [];
+  state.arenaHistoryNextCursor = "";
+  state.arenaHistoryHasMore = false;
+  state.hasLoadedArenaHistory = false;
+  state.isArenaHistoryLoading = false;
+  state.arenaHistoryErrorMessage = "";
+  state.arenaHistoryWalletKey = getArenaHistoryWalletKey();
+}
+
+function normalizeArenaHistoryEntry(entry) {
+  if (!entry?.battleId) {
+    return null;
+  }
+
+  return {
+    battleId: String(entry.battleId),
+    playerRole: String(entry.playerRole || "attacker"),
+    outcome: String(entry.outcome || "loss"),
+    createdAt: entry.createdAt || null,
+    completedAt: entry.completedAt || null,
+    finalSummaryText: String(entry.finalSummaryText || "").trim(),
+    replayUrl: String(entry.replayUrl || "").trim(),
+    playerPet: entry.playerPet
+      ? {
+          ...entry.playerPet,
+          imageUrl: toApiUrl(entry.playerPet.imageUrl || DEFAULT_CHARACTER_IMAGE),
+        }
+      : null,
+    opponentPet: entry.opponentPet
+      ? {
+          ...entry.opponentPet,
+          imageUrl: toApiUrl(entry.opponentPet.imageUrl || DEFAULT_CHARACTER_IMAGE),
+        }
+      : null,
+  };
+}
+
+async function loadArenaHistory({ append = false, force = false } = {}) {
+  if (!state.isAuthenticated) {
+    resetArenaHistoryState();
+    renderArena();
+    return [];
+  }
+
+  const walletKey = getArenaHistoryWalletKey();
+  const shouldReset = force || !append || state.arenaHistoryWalletKey !== walletKey;
+
+  if (state.isArenaHistoryLoading) {
+    return state.arenaHistoryEntries;
+  }
+
+  if (!shouldReset && state.hasLoadedArenaHistory && !state.arenaHistoryHasMore) {
+    return state.arenaHistoryEntries;
+  }
+
+  state.isArenaHistoryLoading = true;
+  state.arenaHistoryErrorMessage = "";
+  if (shouldReset) {
+    state.arenaHistoryWalletKey = walletKey;
+  }
+  renderArena();
+
+  try {
+    const payload = await fetchArenaBattleHistory({
+      cursor: append ? state.arenaHistoryNextCursor : "",
+    });
+    const nextEntries = Array.isArray(payload?.history)
+      ? payload.history.map(normalizeArenaHistoryEntry).filter(Boolean)
+      : [];
+
+    state.arenaHistoryEntries = append ? [...state.arenaHistoryEntries, ...nextEntries] : nextEntries;
+    state.arenaHistoryNextCursor = String(payload?.page?.nextCursor || "").trim();
+    state.arenaHistoryHasMore = Boolean(payload?.page?.hasMore && state.arenaHistoryNextCursor);
+    state.hasLoadedArenaHistory = true;
+    state.arenaHistoryWalletKey = walletKey;
+
+    return state.arenaHistoryEntries;
+  } catch (error) {
+    state.arenaHistoryErrorMessage =
+      error.message || "Couldn't load battle history right now. Please try again.";
+    if (!append) {
+      state.arenaHistoryEntries = [];
+      state.arenaHistoryNextCursor = "";
+      state.arenaHistoryHasMore = false;
+    }
+    throw error;
+  } finally {
+    state.isArenaHistoryLoading = false;
+    renderArena();
+  }
+}
+
+async function ensureArenaHistoryLoaded({ force = false } = {}) {
+  if (!state.isAuthenticated) {
+    return [];
+  }
+
+  if (!force && state.hasLoadedArenaHistory && state.arenaHistoryWalletKey === getArenaHistoryWalletKey()) {
+    return state.arenaHistoryEntries;
+  }
+
+  return loadArenaHistory({ force });
+}
+
+async function loadMoreArenaHistory() {
+  if (!state.arenaHistoryHasMore || state.isArenaHistoryLoading) {
+    return;
+  }
+
+  try {
+    await loadArenaHistory({ append: true });
+  } catch (_error) {
+    showToast(state.arenaHistoryErrorMessage || "Couldn't load older battles.");
+  }
+}
+
+function resolveArenaReplayMessage(error) {
+  const normalizedMessage = String(error?.message || "").trim();
+  const normalizedCode = String(error?.code || "").trim();
+
+  if (normalizedCode === "BATTLE_REPLAY_FORBIDDEN" || /not available to the current wallet/i.test(normalizedMessage)) {
+    return "This replay is available only to the wallets that took part in the battle.";
+  }
+
+  if (normalizedCode === "BATTLE_NOT_FOUND" || /replay is not available/i.test(normalizedMessage)) {
+    return "This replay couldn't be found anymore. Open Arena history to choose another battle.";
+  }
+
+  if (/timing|too long/i.test(normalizedMessage)) {
+    return "This replay is still getting ready. Please try again in a moment.";
+  }
+
+  return normalizedMessage || "This replay isn't available right now. Try another battle from Arena history.";
+}
+
+function setArenaReplayRequest(battleId, status, message, source = "link") {
+  state.arenaReplayRequest = {
+    battleId: String(battleId || "").trim(),
+    status,
+    message: String(message || "").trim(),
+    source,
+  };
+}
+
+async function buildArenaReplayBattle(readyBattle) {
+  const resolvedInitiator = mapBattleParticipantToArenaRecord(readyBattle?.attacker);
+  const resolvedOpponent = mapBattleParticipantToArenaRecord(readyBattle?.defender);
+  const [preparedInitiator, preparedOpponent] = await Promise.all([
+    prepareArenaRecordImage(resolvedInitiator),
+    prepareArenaRecordImage(resolvedOpponent),
+  ]);
+
+  return createResolvedArenaBattle({
+    battlePayload: readyBattle,
+    preparedInitiator,
+    preparedOpponent,
+    preparedPool: [preparedOpponent],
+    initialPhase: "battle-enter",
+    isReplay: true,
+  });
+}
+
+async function ensureArenaReplayBattle(battleId, { source = "link" } = {}) {
+  const normalizedBattleId = String(battleId || "").trim();
+  if (!normalizedBattleId) {
+    clearArenaReplayRequest();
+    return false;
+  }
+
+  clearArenaAnimation();
+  state.activeBattle = null;
+  state.arenaSelectedHistoryBattleId = normalizedBattleId;
+  setArenaReplayRequest(normalizedBattleId, "loading", "Loading battle replay...", source);
+  renderArena();
+
+  try {
+    const initialBattle = await fetchArenaBattleRecord(normalizedBattleId);
+
+    if (initialBattle?.status === "ready") {
+      state.activeBattle = await buildArenaReplayBattle(initialBattle);
+      clearArenaReplayRequest();
+      return true;
+    }
+
+    if (initialBattle?.status === "generating") {
+      setArenaReplayRequest(
+        normalizedBattleId,
+        "waiting",
+        "This replay is still getting ready. We'll open it as soon as it finishes.",
+        source
+      );
+      renderArena();
+      const readyBattle = await pollArenaBattleRecord(normalizedBattleId);
+      state.activeBattle = await buildArenaReplayBattle(readyBattle);
+      clearArenaReplayRequest();
+      return true;
+    }
+
+    throw new Error("This replay isn't available right now.");
+  } catch (error) {
+    setArenaReplayRequest(normalizedBattleId, "unavailable", resolveArenaReplayMessage(error), source);
+    state.activeBattle = null;
+    renderArena();
+    return false;
+  }
+}
+
+async function openArenaReplayBattle(battleId, { source = "history", pushRoute = true } = {}) {
+  const normalizedBattleId = String(battleId || "").trim();
+  if (!normalizedBattleId) {
+    return false;
+  }
+
+  const isReady = await ensureArenaReplayBattle(normalizedBattleId, { source });
+  syncDashboardRouteState("arena", {
+    battleId: normalizedBattleId,
+    replace: !pushRoute,
+  });
+  moveTo("arena");
+  return isReady;
+}
+
+function closeArenaReplayBattle({ keepSelection = true } = {}) {
+  const selectedBattleId = keepSelection ? getSelectedArenaBattleId() : "";
+  clearArenaAnimation();
+  state.activeBattle = null;
+  clearArenaReplayRequest();
+  state.isFightPreparing = false;
+  state.fightPreparingCharacterId = "";
+  state.arenaSelectedHistoryBattleId = keepSelection ? selectedBattleId : "";
+  syncDashboardRouteState("arena", { battleId: "", replace: true });
+  renderArena();
+}
+
+function mapBattleParticipantToArenaRecord(participant, fallbackRecord = null) {
+  const baseRecord = fallbackRecord ? cloneBattleRecord(fallbackRecord) : cloneBattleRecord({
+    id: participant?.id,
+    name: participant?.name,
+    displayName: participant?.name,
+    creatureType: participant?.type,
+    rarity: participant?.rarity,
+    imageUrl: participant?.imageUrl ? toApiUrl(participant.imageUrl) : DEFAULT_CHARACTER_IMAGE,
+    level: participant?.level,
+    selectedPower: participant?.selectedPower,
+    attributes: participant?.attributes,
+  });
+
+  return cloneBattleRecord({
+    ...baseRecord,
+    id: participant?.id || baseRecord?.id,
+    name: participant?.name || baseRecord?.name,
+    displayName: participant?.name || baseRecord?.displayName,
+    creatureType: participant?.type || baseRecord?.creatureType,
+    rarity: participant?.rarity || baseRecord?.rarity,
+    imageUrl: participant?.imageUrl ? toApiUrl(participant.imageUrl) : baseRecord?.imageUrl,
+    level: participant?.level ?? baseRecord?.level,
+    maxHp: Math.max(1, Math.floor(Number(participant?.maxHp) || Number(baseRecord?.maxHp) || 1)),
+    selectedPower: participant?.selectedPower
+      ? { ...(baseRecord?.selectedPower || {}), ...participant.selectedPower }
+      : baseRecord?.selectedPower,
+    attributes: participant?.attributes
+      ? {
+          ...createEmptyAttrs(),
+          ...participant.attributes,
+        }
+      : {
+          ...createEmptyAttrs(),
+          ...(baseRecord?.attributes || {}),
+        },
+    traits: participant?.traits || baseRecord?.traits || null,
+  });
+}
+
+function mergeArenaBattlePool(preparedPool, preparedOpponent) {
+  const safePool = Array.isArray(preparedPool) ? preparedPool : [];
+  const opponentId = String(preparedOpponent?.id || "");
+  const withoutOpponent = safePool.filter((record) => String(record?.id || "") !== opponentId);
+
+  if (!opponentId) {
+    return withoutOpponent;
+  }
+
+  return [preparedOpponent, ...withoutOpponent];
+}
+
+function createResolvedArenaBattle({
+  battlePayload,
+  preparedInitiator,
+  preparedOpponent,
+  preparedPool,
+  initialPhase = "roulette",
+  isReplay = false,
+}) {
+  const pool = mergeArenaBattlePool(preparedPool, preparedOpponent);
+  const sequencePool = pool.length ? pool : [preparedOpponent];
+  const { sequence, targetSequenceIndex } = buildArenaSequence(sequencePool, preparedOpponent);
+  const isBattlePhase = isArenaBattleScreenPhase(initialPhase);
+  const hasPassedFocusPhase = initialPhase !== "roulette" && initialPhase !== "focus";
+  const hasPassedVersusPhase = hasPassedFocusPhase && initialPhase !== "versus";
+  const battleRecordId = String(battlePayload?.id || battlePayload?.battleId || `arena-${Date.now()}`);
+  const battlePublicId = String(battlePayload?.id || battlePayload?.battleId || "");
+
+  return {
+    id: battleRecordId,
+    battleId: battlePublicId,
+    initiator: preparedInitiator,
+    opponent: preparedOpponent,
+    pool: sequencePool,
+    sequence,
+    targetSequenceIndex,
+    phase: initialPhase,
+    trackX: isBattlePhase ? null : undefined,
+    rouletteStarted: initialPhase !== "roulette",
+    focusScheduled: hasPassedFocusPhase,
+    versusRendered: hasPassedVersusPhase,
+    battleEnterStarted: initialPhase === "battle",
+    resultEnterStarted: initialPhase === "battle-result",
+    resultScreenScheduled: initialPhase === "battle-result",
+    resolvedBattle: battlePayload,
+    isReplay,
+  };
 }
 
 function applyChipIcon(chip, visualState) {
@@ -2351,20 +3574,44 @@ function renderPowersStep() {
 }
 
 function pointsRemaining() {
-  return getAttributePointBudget() - Object.values(state.attrs).reduce((sum, value) => sum + value, 0);
+  const spendTotal = Object.values(state.attrs).reduce(
+    (sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)),
+    0
+  );
+
+  if (isUpgradeStep()) {
+    return getRecordAttributePointsAvailable(getSelectedUpgradeRecord()) - spendTotal;
+  }
+
+  return getAttributePointBudget() - spendTotal;
 }
 
 function updateAttrsButtonState() {
   const left = pointsRemaining();
-  pointsLeft.textContent = String(left);
-  const ready = left === 0 && !state.isCreating;
+  const clampedLeft = Math.max(0, left);
+  const upgradeRecord = getSelectedUpgradeRecord();
+  const availablePoints = getRecordAttributePointsAvailable(upgradeRecord);
+  const ctaState = isUpgradeStep()
+    ? getUpgradeCtaState({
+        availablePoints,
+        isMobileUpgradeViewport: isMobileUpgradeViewport(),
+        isSaving: state.isSavingUpgrade,
+        remainingPoints: clampedLeft,
+      })
+    : {
+        label: "Continue",
+        ready: left === 0 && !state.isCreating,
+      };
 
-  attrsContinueBtn.disabled = !ready;
-  attrsContinueBtn.classList.toggle("enabled", ready);
-  attrsContinueBtn.classList.toggle("mobile-hidden", !ready);
+  pointsLeft.textContent = String(clampedLeft);
+
+  attrsContinueBtn.disabled = !ctaState.ready;
+  attrsContinueBtn.textContent = ctaState.label;
+  attrsContinueBtn.classList.toggle("enabled", ctaState.ready);
+  attrsContinueBtn.classList.toggle("mobile-hidden", !ctaState.ready && !isUpgradeStep());
 
   if (attrsSidePanel) {
-    attrsSidePanel.classList.toggle("is-ready", ready);
+    attrsSidePanel.classList.toggle("is-ready", ctaState.ready && !isMobileUpgradeViewport());
   }
 }
 
@@ -2417,8 +3664,9 @@ function suppressAttributeDoubleTapZoom(button) {
 function ensureAttrsRows() {
   suppressAttrsScreenDoubleTapZoom();
 
-  const totalSegments = DEFAULT_ATTRIBUTE_POINTS;
-  if (attrsRowsBudget === totalSegments) return;
+  const totalSegments = getAttributeScreenScaleBudget();
+  const mode = getAttributeScreenMode();
+  if (attrsRowsBudget === totalSegments && attrsRowsMode === mode) return;
 
   attrsList.innerHTML = "";
 
@@ -2443,6 +3691,8 @@ function ensureAttrsRows() {
           <p>${attr.desc}</p>
         </div>
         <div class="attr-controls">
+          <span class="attr-value" data-role="value">0</span>
+          <span class="attr-delta hidden" data-role="delta">+0</span>
           <button class="attr-btn" type="button" data-action="minus" disabled>
             <img src="/assets/attrs-step/minus.svg" alt="" width="20" height="20" />
           </button>
@@ -2461,13 +3711,19 @@ function ensureAttrsRows() {
     suppressAttributeDoubleTapZoom(plusBtn);
 
     minusBtn.addEventListener("click", () => {
-      if (state.attrs[attr.key] <= 0 || state.isCreating) return;
+      if (state.attrs[attr.key] <= 0 || state.isCreating || state.isSavingUpgrade) return;
       state.attrs[attr.key] -= 1;
       updateAttrsStep();
     });
 
     plusBtn.addEventListener("click", () => {
-      if (state.attrs[attr.key] >= DEFAULT_ATTRIBUTE_POINTS || pointsRemaining() <= 0 || state.isCreating) {
+      const reachedCreateCap = !isUpgradeStep() && state.attrs[attr.key] >= DEFAULT_ATTRIBUTE_POINTS;
+      if (
+        reachedCreateCap ||
+        pointsRemaining() <= 0 ||
+        state.isCreating ||
+        state.isSavingUpgrade
+      ) {
         return;
       }
       state.attrs[attr.key] += 1;
@@ -2478,34 +3734,137 @@ function ensureAttrsRows() {
   });
 
   attrsRowsBudget = totalSegments;
+  attrsRowsMode = mode;
 }
 
 function updateAttrsStep() {
+  const upgradeState = isUpgradeStep() ? getUpgradeRouteState() : null;
+  if (upgradeState?.blocked) {
+    updateAttrsButtonState();
+    return;
+  }
+
   ensureAttrsRows();
 
   ATTRS.forEach((attr) => {
     const row = attrsList.querySelector(`[data-attr="${attr.key}"]`);
     if (!row) return;
 
-    const value = state.attrs[attr.key];
-    const canMinus = value > 0 && !state.isCreating;
-    const canPlus = pointsRemaining() > 0 && value < DEFAULT_ATTRIBUTE_POINTS && !state.isCreating;
+    const value = Math.max(0, Math.floor(Number(state.attrs[attr.key]) || 0));
+    const totalValue = getAttributeDisplayValue(attr.key, upgradeState?.record || undefined);
+    const canMinus = value > 0 && !state.isCreating && !state.isSavingUpgrade;
+    const canPlus =
+      pointsRemaining() > 0 &&
+      (!isUpgradeStep() ? value < DEFAULT_ATTRIBUTE_POINTS : true) &&
+      !state.isCreating &&
+      !state.isSavingUpgrade;
     const minusBtn = row.querySelector('[data-action="minus"]');
     const plusBtn = row.querySelector('[data-action="plus"]');
     const segments = row.querySelectorAll(".attr-segment");
+    const valueLabel = row.querySelector('[data-role="value"]');
+    const deltaLabel = row.querySelector('[data-role="delta"]');
 
     if (minusBtn) minusBtn.disabled = !canMinus;
     if (plusBtn) plusBtn.disabled = !canPlus;
+    if (valueLabel) {
+      valueLabel.textContent = isUpgradeStep() ? String(totalValue) : String(value);
+    }
+    if (deltaLabel) {
+      deltaLabel.textContent = `+${value}`;
+      deltaLabel.classList.toggle("hidden", !isUpgradeStep() || value <= 0);
+    }
 
     segments.forEach((segment, index) => {
-      segment.classList.toggle("filled", index < value);
+      segment.classList.toggle("filled", index < totalValue);
     });
   });
 
   updateAttrsButtonState();
 }
 
+function renderAttrsPetCard(record) {
+  const resolvedRecord = record || getActiveRecord();
+  const imageUrl = resolvedRecord?.imageUrl || DEFAULT_CHARACTER_IMAGE;
+  const creatureType = resolvedRecord?.creatureType || "";
+
+  setCharacterImages(imageUrl, creatureType);
+  applyRarityBadge(attrsPetRarity, resolvedRecord?.rarity);
+
+  if (attrsPetName) {
+    attrsPetName.textContent = getRecordDisplayName(resolvedRecord);
+  }
+  if (attrsPetLevel) {
+    attrsPetLevel.textContent = `Lvl. ${getRecordLevel(resolvedRecord)}`;
+  }
+  if (attrsExpValue) {
+    attrsExpValue.textContent = `${getRecordExperience(resolvedRecord)}/${getRecordExperienceForNextLevel(resolvedRecord)}`;
+  }
+  if (attrsExpProgress) {
+    attrsExpProgress.style.width = `${getRecordExperienceProgress(resolvedRecord)}%`;
+  }
+}
+
+function renderUpgradeSummary() {
+  if (!attrsUpgradeSummary || !attrsUpgradeSummaryList) return;
+  attrsUpgradeSummary.classList.add("hidden");
+  attrsUpgradeSummaryList.innerHTML = "";
+}
+
 function renderAttrsStep() {
+  const upgradeState = isUpgradeStep() ? getUpgradeRouteState() : null;
+  const isBlocked = Boolean(upgradeState?.blocked);
+  const screenRecord = upgradeState?.record || getAttributeScreenRecord();
+  const isUpgradeMode = isUpgradeStep();
+
+  if (screenAttrs) {
+    screenAttrs.classList.toggle("is-upgrade-mode", isUpgradeMode);
+  }
+
+  if (backToPowersBtn) {
+    backToPowersBtn.classList.remove("hidden");
+    backToPowersBtn.textContent = isUpgradeMode ? "← My Pets" : "← Back";
+  }
+
+  if (attrsTitle) {
+    attrsTitle.textContent = isUpgradeMode
+      ? upgradeState?.record
+        ? `Upgrade ${getRecordDisplayName(upgradeState.record)}`
+        : "Upgrade pet"
+      : "Distribute attributes";
+  }
+  if (attrsDescription) {
+    attrsDescription.textContent = isUpgradeMode
+      ? "Spend newly earned upgrade points on your pet's combat stats."
+      : "Attributes increase your battle advantage.";
+  }
+  if (attrsPointsLabel) {
+    attrsPointsLabel.innerHTML = isUpgradeMode ? "Points<br />left to spend" : "Points<br />to distribute";
+  }
+  if (attrsContinueBtn) {
+    attrsContinueBtn.classList.toggle("hidden", isBlocked);
+  }
+  if (attrsBlockedState) {
+    attrsBlockedState.classList.toggle("hidden", !isBlocked);
+  }
+  if (attrsBlockedTitle) {
+    attrsBlockedTitle.textContent = upgradeState?.title || "Upgrade unavailable";
+  }
+  if (attrsBlockedText) {
+    attrsBlockedText.textContent =
+      upgradeState?.description || "This pet can't be upgraded right now.";
+  }
+  if (attrsList) {
+    attrsList.classList.toggle("hidden", isBlocked);
+  }
+  if (attrsHoldCopy) {
+    attrsHoldCopy.classList.toggle("hidden", isUpgradeMode);
+  }
+  if (attrsRewardsWrap) {
+    attrsRewardsWrap.classList.toggle("hidden", isUpgradeMode);
+  }
+
+  renderAttrsPetCard(screenRecord);
+  renderUpgradeSummary();
   updateAttrsStep();
 }
 
@@ -2559,9 +3918,35 @@ function updateEnergyUi() {
   dashboardEnergyCurrent.textContent = String(state.energyCurrent);
   dashboardEnergyMax.textContent = `of ${state.energyMax}`;
   dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent} of ${state.energyMax}`);
+
+  const isEmptyEnergy = state.energyCurrent <= 0;
+  dashboardEnergy.classList.toggle("has-empty-energy", isEmptyEnergy);
+
+  if (dashboardEnergyTooltip) {
+    dashboardEnergyTooltip.setAttribute("aria-hidden", isEmptyEnergy ? "false" : "true");
+  }
+
+  if (isEmptyEnergy) {
+    dashboardEnergy.setAttribute("tabindex", "0");
+    if (dashboardEnergyTooltip) {
+      dashboardEnergy.setAttribute("aria-describedby", "dashboardEnergyTooltip");
+    }
+  } else {
+    dashboardEnergy.removeAttribute("tabindex");
+    dashboardEnergy.removeAttribute("aria-describedby");
+  }
 }
 
 function clearArenaAnimation() {
+  cancelArenaScheduledWork();
+  arenaFocusedSequenceIndex = -1;
+
+  if (arenaVersus) {
+    arenaVersus.classList.remove("is-revealed");
+  }
+}
+
+function cancelArenaScheduledWork() {
   if (arenaAnimationFrameId) {
     window.cancelAnimationFrame(arenaAnimationFrameId);
     arenaAnimationFrameId = 0;
@@ -2569,11 +3954,6 @@ function clearArenaAnimation() {
 
   arenaTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
   arenaTimeoutIds = [];
-  arenaFocusedSequenceIndex = -1;
-
-  if (arenaVersus) {
-    arenaVersus.classList.remove("is-revealed");
-  }
 }
 
 function scheduleArenaTimeout(callback, delay) {
@@ -2591,19 +3971,1331 @@ function getArenaStarterRecord() {
   return state.characters[state.characters.length - 1] || state.characters[0] || null;
 }
 
-function buildArenaSequence(pool) {
+function buildArenaSequence(pool, targetRecord) {
   const sequence = [];
+  const targetId = String(targetRecord?.id || "");
+  const targetRepeatIndex = Math.max(ARENA_ROULETTE_REPEAT_COUNT - 2, 0);
+  let targetSequenceIndex = -1;
 
   for (let repeat = 0; repeat < ARENA_ROULETTE_REPEAT_COUNT; repeat += 1) {
-    pool.forEach((record) => {
+    let roundPool = shuffleArray(pool).map((record) => cloneBattleRecord(record));
+
+    if (targetId && repeat === targetRepeatIndex) {
+      const targetEntry = roundPool.find((record) => String(record.id) === targetId);
+      if (targetEntry) {
+        roundPool = roundPool.filter((record) => String(record.id) !== targetId);
+        const targetSlot = Math.floor(Math.random() * (roundPool.length + 1));
+        roundPool.splice(targetSlot, 0, cloneBattleRecord(targetEntry));
+        targetSequenceIndex = sequence.length + targetSlot;
+      }
+    }
+
+    roundPool.forEach((record, index) => {
       sequence.push({
         ...cloneBattleRecord(record),
-        sequenceId: `${repeat}-${record.id}`,
+        sequenceId: `${repeat}-${index}-${record.id}`,
       });
     });
   }
 
-  return sequence;
+  if (targetSequenceIndex < 0) {
+    targetSequenceIndex = Math.max(
+      0,
+      sequence.findIndex((record) => String(record.id) === targetId)
+    );
+  }
+
+  return {
+    sequence,
+    targetSequenceIndex,
+  };
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildFallbackArenaRoundText(round, battle) {
+  const initiatorId = String(battle?.initiator?.id || "");
+  const actorName =
+    String(round?.actorPetId || "") === initiatorId
+      ? getRecordDisplayName(battle?.initiator)
+      : getRecordDisplayName(battle?.opponent);
+  const targetName =
+    String(round?.targetPetId || "") === initiatorId
+      ? getRecordDisplayName(battle?.initiator)
+      : getRecordDisplayName(battle?.opponent);
+
+  if (round?.turnType === "counterattack") {
+    return `${actorName} knocks the pressure aside and snaps right back before ${targetName} can reset.\nThe whole exchange turns in a single ugly heartbeat.`;
+  }
+
+  if (round?.hitResult === "defended") {
+    return `${actorName} surges in first.\n${targetName} meets it cleanly and sends the attack harmlessly off line.`;
+  }
+
+  if (round?.usedSuperpower) {
+    return `${actorName} tears into the round with a full superpower beat.\n${targetName} gets caught in the middle of the spectacle.`;
+  }
+
+  if (round?.usedCritical || round?.hitResult === "critical") {
+    return `${actorName} spots the opening a split second early.\nThe follow-through lands nastier than anything else in the exchange.`;
+  }
+
+  return `${actorName} slips inside ${targetName}'s guard and lands clean.\nThe hit knocks the whole rhythm of the round sideways.`;
+}
+
+function getArenaRoundNote(round) {
+  if (round?.turnType === "counterattack" || round?.hitResult === "counter") {
+    return "COUNTER!";
+  }
+
+  if (round?.usedSuperpower) {
+    return "SUPERPOWER!";
+  }
+
+  if (round?.usedCritical || round?.hitResult === "critical") {
+    return "CRITICAL HIT!";
+  }
+
+  if (round?.hitResult === "defended") {
+    return "BLOCKED!";
+  }
+
+  return "";
+}
+
+function buildArenaSummaryRoundFromResolvedBattle(round, battle, index) {
+  const initiatorId = String(battle?.initiator?.id || "");
+  const roundVisualState = buildArenaRoundVisualState({
+    actorPetId: round?.actorPetId,
+    initiatorId,
+    targetPetId: round?.targetPetId,
+  });
+  const damage = Math.max(0, Math.floor(Number(round?.damage) || 0));
+
+  return {
+    number: Math.max(1, Math.floor(Number(round?.roundNumber) || index + 1)),
+    ...roundVisualState,
+    damage,
+    damageLabel: damage > 0 ? `−${damage} HP` : "BLOCK",
+    text: String(round?.narrationText || "").trim() || buildFallbackArenaRoundText(round, battle),
+    note: getArenaRoundNote(round),
+    skull: damage > 0 && Math.max(0, Math.floor(Number(round?.hpAfterTarget) || 0)) === 0,
+  };
+}
+
+function buildArenaBattleSummaryFromResolvedBattle(battle) {
+  const resolvedBattle = battle?.resolvedBattle;
+  const rounds = Array.isArray(resolvedBattle?.rounds)
+    ? resolvedBattle.rounds.map((round, index) =>
+        buildArenaSummaryRoundFromResolvedBattle(round, battle, index)
+      )
+    : [];
+
+  return {
+    currentRound: rounds[0]?.number || 1,
+    initiator: {
+      ...cloneBattleRecord(battle?.initiator),
+      currentHp: Math.max(
+        0,
+        Math.floor(
+          Number(resolvedBattle?.startingHp?.attacker) ||
+            Number(battle?.initiator?.maxHp) ||
+            0
+        )
+      ),
+      maxHp: Math.max(
+        1,
+        Math.floor(
+          Number(resolvedBattle?.attacker?.maxHp) ||
+            Number(resolvedBattle?.startingHp?.attacker) ||
+            Number(battle?.initiator?.maxHp) ||
+            1
+        )
+      ),
+    },
+    opponent: {
+      ...cloneBattleRecord(battle?.opponent),
+      currentHp: Math.max(
+        0,
+        Math.floor(
+          Number(resolvedBattle?.startingHp?.defender) ||
+            Number(battle?.opponent?.maxHp) ||
+            0
+        )
+      ),
+      maxHp: Math.max(
+        1,
+        Math.floor(
+          Number(resolvedBattle?.defender?.maxHp) ||
+            Number(resolvedBattle?.startingHp?.defender) ||
+            Number(battle?.opponent?.maxHp) ||
+            1
+        )
+      ),
+    },
+    rounds,
+    result: resolvedBattle?.result || null,
+  };
+}
+
+function buildArenaBattleSummary(battle) {
+  if (battle?.resolvedBattle?.status === "ready") {
+    return buildArenaBattleSummaryFromResolvedBattle(battle);
+  }
+
+  const initiator = cloneBattleRecord(battle?.initiator);
+  const opponent = cloneBattleRecord(battle?.opponent);
+
+  const initiatorName = getRecordDisplayName(initiator);
+  const initiatorMaxHp = 45 + (Number(initiator?.attributes?.stamina) || 0) * 7;
+  const opponentMaxHp = 45 + (Number(opponent?.attributes?.stamina) || 0) * 7;
+  const initiatorOverviewHp = initiatorMaxHp;
+  const opponentOverviewHp = opponentMaxHp;
+  const sharedRoundText = `${initiatorName} Preparing attack charging the fist.\nAnd then he grabs him by the head and hits him on the floor.`;
+  const buildPreviewRound = (number, actorSide, overrides = {}) => {
+    const actorPetId =
+      actorSide === "initiator" ? String(initiator?.id || "preview_initiator") : String(opponent?.id || "preview_opponent");
+    const targetPetId =
+      actorSide === "initiator" ? String(opponent?.id || "preview_opponent") : String(initiator?.id || "preview_initiator");
+
+    return {
+      number,
+      ...buildArenaRoundVisualState({
+        actorPetId,
+        initiatorId: String(initiator?.id || "preview_initiator"),
+        targetPetId,
+      }),
+      ...overrides,
+    };
+  };
+  const rounds = [
+    buildPreviewRound(1, "initiator", {
+      damage: 21,
+      text: sharedRoundText,
+      note: "CRITICAL HIT!",
+    }),
+    buildPreviewRound(2, "opponent", {
+      damage: 21,
+      text: sharedRoundText,
+    }),
+    buildPreviewRound(3, "initiator", {
+      damage: 13,
+      text: sharedRoundText,
+    }),
+    buildPreviewRound(4, "opponent", {
+      damage: 21,
+      text: sharedRoundText,
+    }),
+    buildPreviewRound(5, "initiator", {
+      damage: 21,
+      text: sharedRoundText,
+      skull: true,
+    }),
+  ];
+
+  return {
+    currentRound: 1,
+    initiator: {
+      ...initiator,
+      currentHp: initiatorOverviewHp,
+      maxHp: initiatorMaxHp,
+    },
+    opponent: {
+      ...opponent,
+      currentHp: opponentOverviewHp,
+      maxHp: opponentMaxHp,
+    },
+    rounds,
+  };
+}
+
+function isArenaBattleResultPhase(phase) {
+  return phase === "battle-result-enter" || phase === "battle-result";
+}
+
+function isArenaBattleScreenPhase(phase) {
+  return phase === "battle" || phase === "battle-enter" || isArenaBattleResultPhase(phase);
+}
+
+function getArenaBattleResult(summary) {
+  if (summary?.result) {
+    const initiator = cloneBattleRecord(summary?.initiator);
+    const opponent = cloneBattleRecord(summary?.opponent);
+    const initiatorId = String(initiator?.id || "");
+    const winnerSide =
+      String(summary.result?.winnerPetId || "") === initiatorId ? "initiator" : "opponent";
+    const loserSide = winnerSide === "initiator" ? "opponent" : "initiator";
+    const winner = winnerSide === "initiator" ? initiator : opponent;
+    const loser = loserSide === "initiator" ? initiator : opponent;
+    const winnerReward =
+      winnerSide === "initiator"
+        ? summary.result?.attackerRewards
+        : summary.result?.defenderRewards;
+    const loserReward =
+      loserSide === "initiator"
+        ? summary.result?.attackerRewards
+        : summary.result?.defenderRewards;
+
+    return {
+      initiatorHp: Math.max(0, Math.floor(Number(summary.result?.attackerEndingHp) || 0)),
+      opponentHp: Math.max(0, Math.floor(Number(summary.result?.defenderEndingHp) || 0)),
+      winnerSide,
+      loserSide,
+      winner,
+      loser,
+      winnerExp: `+${Math.max(0, Math.floor(Number(winnerReward?.xpGained) || 0))} Exp.`,
+      loserExp: `+${Math.max(0, Math.floor(Number(loserReward?.xpGained) || 0))} Exp.`,
+      levelUpLabel: winnerReward?.levelUp ? `Lvl ${winnerReward.newLevel}` : "",
+    };
+  }
+
+  const initiator = cloneBattleRecord(summary?.initiator);
+  const opponent = cloneBattleRecord(summary?.opponent);
+  let initiatorHp = Math.max(0, Number(initiator?.maxHp) || 0);
+  let opponentHp = Math.max(0, Number(opponent?.maxHp) || 0);
+
+  (summary?.rounds || []).forEach((round) => {
+    if (round?.accentSide === "left") {
+      initiatorHp = Math.max(0, initiatorHp - (Number(round?.damage) || 0));
+      return;
+    }
+
+    opponentHp = Math.max(0, opponentHp - (Number(round?.damage) || 0));
+  });
+
+  const winnerSide = initiatorHp >= opponentHp ? "initiator" : "opponent";
+  const loserSide = winnerSide === "initiator" ? "opponent" : "initiator";
+  const winner = winnerSide === "initiator" ? initiator : opponent;
+  const loser = loserSide === "initiator" ? initiator : opponent;
+
+  return {
+    initiatorHp,
+    opponentHp,
+    winnerSide,
+    loserSide,
+    winner,
+    loser,
+    winnerExp: "+200 Exp.",
+    loserExp: "+25 Exp.",
+    levelUpLabel: "Lvl up",
+  };
+}
+
+async function ensureArenaPreviewBattle(previewPhase = "battle") {
+  const resolvedPreviewPhase = previewPhase === "result" ? "battle-result" : previewPhase;
+  const initiatorSource = getArenaStarterRecord() || state.character || state.characters[0] || null;
+  const initiator = cloneBattleRecord(initiatorSource);
+
+  if (!initiator) {
+    return false;
+  }
+
+  let preparedPool = [];
+
+  try {
+    preparedPool = await warmArenaOpponentPool(initiator.id);
+  } catch (_error) {
+    preparedPool = [];
+  }
+
+  if (!preparedPool.length) {
+    preparedPool = await prepareArenaOpponentPool(ARENA_OPPONENT_POOL.slice(0, ARENA_OPPONENT_SELECTION_LIMIT));
+  }
+
+  if (!preparedPool.length) {
+    return false;
+  }
+
+  const preparedInitiator = await prepareArenaRecordImage(initiator);
+  const opponent = preparedPool[0];
+  const { sequence, targetSequenceIndex } = buildArenaSequence(preparedPool, opponent);
+  const hasPassedFocusPhase =
+    resolvedPreviewPhase !== "roulette" && resolvedPreviewPhase !== "focus";
+  const hasPassedVersusPhase = hasPassedFocusPhase && resolvedPreviewPhase !== "versus";
+
+  state.activeBattle = {
+    id: `arena-preview-${previewPhase}`,
+    initiator: preparedInitiator,
+    opponent,
+    pool: preparedPool,
+    sequence,
+    targetSequenceIndex,
+    phase: resolvedPreviewPhase,
+    trackX: resolvedPreviewPhase === "battle" || resolvedPreviewPhase === "battle-result" ? null : undefined,
+    rouletteStarted: previewPhase !== "roulette",
+    focusScheduled: hasPassedFocusPhase,
+    versusRendered: hasPassedVersusPhase,
+    battleScreenScheduled: resolvedPreviewPhase === "battle" || resolvedPreviewPhase === "battle-result",
+    battleEnterStarted: resolvedPreviewPhase === "battle",
+    resultEnterStarted: resolvedPreviewPhase === "battle-result",
+  };
+
+  if (resolvedPreviewPhase === "battle-result") {
+    const previewAnimation = getArenaBattleAnimationState(state.activeBattle);
+    const previewSummary = buildArenaBattleSummary(state.activeBattle);
+    previewAnimation.started = true;
+    previewAnimation.currentIndex = Math.max(0, previewSummary.rounds.length - 1);
+    previewAnimation.introVisible = true;
+    previewAnimation.introCompleted = true;
+    previewAnimation.typedLength = previewSummary.rounds[previewAnimation.currentIndex]?.text?.length || 0;
+    previewAnimation.damageVisible = true;
+    previewAnimation.noteVisible = true;
+    previewAnimation.finished = true;
+  }
+
+  return true;
+}
+
+function getArenaRoundIcon(iconType) {
+  return iconType === "shield" ? "/assets/battle/round-shield.png" : "/assets/battle/round-swords.png";
+}
+
+function buildArenaCompactFighterMarkup(record, variant = "initiator") {
+  const safeRecord = cloneBattleRecord(record);
+  const rarity = getRarityMeta(safeRecord?.rarity);
+  const currentHp = Math.max(0, Number(safeRecord?.currentHp) || 0);
+  const maxHp = Math.max(1, Number(safeRecord?.maxHp) || 1);
+  const hpProgress = clampNumber((currentHp / maxHp) * 100, 0, 100);
+  const hpClassName = variant === "initiator" ? "arena-live-fighter-hp--healthy" : "arena-live-fighter-hp--danger";
+
+  return `
+    <article class="arena-live-fighter-card arena-live-fighter-card--${variant}">
+      <img
+        class="arena-live-fighter-image"
+        src="${safeRecord?.imageUrl || DEFAULT_CHARACTER_IMAGE}"
+        alt="${escapeHtml(safeRecord?.creatureType || "Pet")} character"
+        width="104"
+        height="104"
+      />
+      <p class="arena-live-fighter-name">${escapeHtml(getRecordDisplayName(safeRecord))}</p>
+      <span class="arena-live-fighter-rarity" style="background-color: ${rarity.color};">${escapeHtml(rarity.label)}</span>
+      <p class="arena-live-fighter-level">Lvl. ${getRecordLevel(safeRecord)}</p>
+      <p class="arena-live-fighter-hp ${hpClassName}">${currentHp} HP</p>
+      <div class="arena-live-fighter-hp-track">
+        <span class="arena-live-fighter-hp-fill" style="width: ${hpProgress}%;"></span>
+      </div>
+    </article>
+  `;
+}
+
+function buildArenaBattleSideCardMarkup(record, variant = "initiator") {
+  const safeRecord = cloneBattleRecord(record);
+  const rarity = getRarityMeta(safeRecord?.rarity);
+  const name = escapeHtml(getRecordDisplayName(safeRecord));
+  const level = getRecordLevel(safeRecord);
+  const powerText = escapeHtml(getSelectedPowerDescription(safeRecord));
+  const statsMarkup = ATTRS.map((attr) => {
+    const value = safeRecord?.attributes?.[attr.key] ?? 0;
+
+    return `
+      <div class="arena-live-sidecard-stat">
+        <img src="${attr.icon}" alt="" width="16" height="16" />
+        <span>${value}</span>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <article class="arena-live-sidecard arena-live-sidecard--${variant}">
+      <p class="arena-live-sidecard-title">${name}</p>
+      <div class="arena-live-sidecard-image-wrap">
+        <img
+          class="arena-live-sidecard-image"
+          src="${safeRecord?.imageUrl || DEFAULT_CHARACTER_IMAGE}"
+          alt="${escapeHtml(safeRecord?.creatureType || "Pet")} character"
+          width="248"
+          height="248"
+        />
+        <span class="arena-live-sidecard-level">Lvl. ${level}</span>
+        <span class="arena-live-sidecard-rarity" style="background-color: ${rarity.color};">${escapeHtml(rarity.label)}</span>
+      </div>
+      <div class="arena-live-sidecard-stats">${statsMarkup}</div>
+      <div class="arena-live-sidecard-power">
+        <img class="arena-live-sidecard-power-icon" src="${BATTLE_SIDE_CARD_POWER_ICON}" alt="" width="20" height="20" />
+        <p class="arena-live-sidecard-power-text">${powerText}</p>
+      </div>
+    </article>
+  `;
+}
+
+function buildArenaBattleOverviewSideMarkup(record, variant = "initiator") {
+  const safeRecord = cloneBattleRecord(record);
+  const currentHp = Math.max(0, Number(safeRecord?.currentHp) || 0);
+  const maxHp = Math.max(1, Number(safeRecord?.maxHp) || 1);
+  const hpProgress = clampNumber((currentHp / maxHp) * 100, 0, 100);
+  const nameMarkup = `<p class="arena-live-overview-name">${escapeHtml(getRecordDisplayName(safeRecord))}</p>`;
+  const hpMarkup = `<p class="arena-live-overview-hp">${currentHp} HP</p>`;
+
+  return `
+    <div class="arena-live-overview-side arena-live-overview-side--${variant}">
+      <div class="arena-live-overview-copy">
+        ${variant === "initiator" ? `${nameMarkup}${hpMarkup}` : `${hpMarkup}${nameMarkup}`}
+      </div>
+      <div class="arena-live-overview-track arena-live-overview-track--${variant}">
+        <span class="arena-live-overview-fill arena-live-overview-fill--${variant}" style="width: ${hpProgress}%;"></span>
+      </div>
+    </div>
+  `;
+}
+
+function buildArenaRoundSkeletonMarkup(round, index) {
+  const pillAssets = getArenaRoundPillAssets(round);
+  const damageLabel = String(round.damageLabel || `−${round.damage} HP`);
+  const damageExtras = round.skull && round.damage > 0
+    ? `<img class="arena-live-round-skull" src="${BATTLE_ROUND_SKULL_ICON}" alt="" width="20" height="20" />`
+    : "";
+  const noteMarkup = round.note
+    ? `
+      <div class="arena-live-round-note">
+        <span class="arena-live-round-note-text" aria-label="${escapeHtml(round.note)}">
+          <span class="arena-live-round-text-shadow" aria-hidden="true">${escapeHtml(round.note)}</span>
+          <span class="arena-live-round-text-face">${escapeHtml(round.note)}</span>
+        </span>
+      </div>
+    `
+    : "";
+
+  return `
+    <article
+      class="arena-live-round-card arena-live-round-card--accent-${round.accentSide} is-hidden"
+      data-round-index="${index}"
+      data-round-number="${round.number}"
+    >
+      <div class="arena-live-round-main">
+        <div class="arena-live-round-head">
+          <div class="arena-live-round-icon-slot arena-live-round-icon-slot--left">
+            <img src="${getArenaRoundIcon(round.leftIcon)}" alt="" width="32" height="32" />
+          </div>
+          <div class="arena-live-round-pill">
+            <img class="arena-live-round-pill-ornament" src="${pillAssets.left}" alt="" width="31" height="20" />
+            <span class="arena-live-round-pill-label">ROUND ${round.number}</span>
+            <img class="arena-live-round-pill-ornament" src="${pillAssets.right}" alt="" width="31" height="20" />
+          </div>
+          <div class="arena-live-round-icon-slot arena-live-round-icon-slot--right">
+            <img src="${getArenaRoundIcon(round.rightIcon)}" alt="" width="32" height="32" />
+          </div>
+        </div>
+        <div class="arena-live-round-body">
+          <p class="arena-live-round-text"></p>
+        </div>
+      </div>
+
+      <div class="arena-live-round-accent arena-live-round-accent--${round.accentSide}">
+        <div class="arena-live-round-damage-line">
+          <p class="arena-live-round-damage" aria-label="${damageLabel}">
+            <span class="arena-live-round-text-shadow" aria-hidden="true">${damageLabel}</span>
+            <span class="arena-live-round-text-face">${damageLabel}</span>
+          </p>
+          ${damageExtras}
+        </div>
+        ${noteMarkup}
+      </div>
+    </article>
+  `;
+}
+
+function buildArenaBattleResultLayerMarkup() {
+  return `
+    <div class="arena-live-result-layer" aria-hidden="true">
+      <p class="arena-live-result-title arena-live-result-title--winner">Winner</p>
+
+      <div class="arena-live-result-reward arena-live-result-reward--winner">
+        <p class="arena-live-result-exp arena-live-result-exp--winner">+200 Exp.</p>
+        <div class="arena-live-result-pill">
+          <img class="arena-live-result-pill-icon" src="${BATTLE_RESULT_LEVEL_UP_ICON}" alt="" width="12" height="12" />
+          <span class="arena-live-result-pill-text">Lvl up</span>
+        </div>
+      </div>
+
+      <div class="arena-live-result-trophy-stack" aria-hidden="true">
+        <img class="arena-live-result-trophy arena-live-result-trophy--composite" src="${BATTLE_RESULT_TROPHY_COMPOSITE}" alt="" width="305" height="311" />
+      </div>
+
+      <p class="arena-live-result-title arena-live-result-title--loser">Loser</p>
+
+      <div class="arena-live-result-reward arena-live-result-reward--loser">
+        <p class="arena-live-result-exp arena-live-result-exp--loser">+25 Exp.</p>
+      </div>
+
+      <div class="arena-live-result-actions">
+        <button class="arena-live-result-btn arena-live-result-btn--secondary" data-action="replay-battle" type="button">
+          <img src="${BATTLE_RESULT_REPLAY_ICON}" alt="" width="24" height="24" />
+          <span>Replay</span>
+        </button>
+        <button class="arena-live-result-btn arena-live-result-btn--primary" data-action="go-to-my-pets" type="button">
+          <span>Go to My Pets</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function applyArenaResultCardMotion(card, role, side, shellWidth) {
+  if (!card) return;
+
+  card.classList.toggle("is-result-winner", role === "winner");
+  card.classList.toggle("is-result-loser", role === "loser");
+
+  if (!role) {
+    card.style.removeProperty("--arena-result-x");
+    card.style.removeProperty("--arena-result-y");
+    card.style.removeProperty("--arena-result-scale");
+    card.style.removeProperty("--arena-result-rotate");
+    card.style.removeProperty("--arena-result-opacity");
+    return;
+  }
+
+  const isMobileResultLayout = isMobileArenaViewport();
+  const isTabletResultLayout = !isMobileResultLayout && shellWidth <= 768;
+  const mobileLayoutWidth = Math.min(360, shellWidth);
+  const mobileLayoutOffset = isMobileResultLayout ? (shellWidth - mobileLayoutWidth) / 2 : 0;
+  const width = 264;
+  const defaultLeft = isMobileResultLayout
+    ? side === "initiator"
+      ? mobileLayoutOffset + 16
+      : mobileLayoutOffset + mobileLayoutWidth - 16 - width
+    : side === "initiator"
+      ? 0
+      : shellWidth - width;
+  const defaultTop = isMobileResultLayout ? -40 : -40;
+  const target = isMobileResultLayout
+    ? role === "winner"
+      ? { left: mobileLayoutOffset + 32.68, top: 34.33, scale: 0.644, rotate: "-8.94deg", opacity: 1 }
+      : { left: mobileLayoutOffset + 236.28, top: 104.72, scale: 0.409, rotate: "19.48deg", opacity: 0.6 }
+    : isTabletResultLayout
+    ? role === "winner"
+      ? { left: 205.61, top: -39.07, scale: 1, rotate: "-8.94deg", opacity: 1 }
+      : { left: 503.89, top: -11.98, scale: 0.586, rotate: "19.48deg", opacity: 0.6 }
+    : role === "winner"
+      ? { left: 468.61, top: -132.07, scale: 1, rotate: "-8.94deg", opacity: 1 }
+      : { left: 766.89, top: -104.98, scale: 0.586, rotate: "19.48deg", opacity: 0.6 };
+  const translateX = target.left - defaultLeft;
+  const translateY = target.top - defaultTop;
+
+  card.style.setProperty("--arena-result-x", `${translateX}px`);
+  card.style.setProperty("--arena-result-y", `${translateY}px`);
+  card.style.setProperty("--arena-result-scale", String(target.scale));
+  card.style.setProperty("--arena-result-rotate", target.rotate);
+  card.style.setProperty("--arena-result-opacity", String(target.opacity));
+}
+
+function getArenaBattleAnimationState(battle) {
+  if (!battle) return null;
+
+  if (!battle.roundAnimation) {
+    battle.roundAnimation = {
+      started: false,
+      currentIndex: 0,
+      introVisible: false,
+      introCompleted: false,
+      typedLength: 0,
+      damageVisible: false,
+      noteVisible: false,
+      finished: false,
+      isPaused: false,
+      fastForward: false,
+      lastHitEffectKey: "",
+    };
+  }
+
+  return battle.roundAnimation;
+}
+
+function formatArenaRoundText(text, limit = text.length) {
+  return escapeHtml(String(text || "").slice(0, Math.max(0, limit))).replace(/\n/g, "<br />");
+}
+
+function isArenaBattleFastForward(battle) {
+  return Boolean(getArenaBattleAnimationState(battle)?.fastForward);
+}
+
+function getArenaBattleDelay(battle, normalDelay, fastForwardDelay) {
+  return isArenaBattleFastForward(battle) ? fastForwardDelay : normalDelay;
+}
+
+function getArenaBattleTypingDelay(text, typedLength, battle = null) {
+  if (isArenaBattleFastForward(battle)) {
+    const currentCharacter = String(text || "").charAt(Math.max(0, typedLength - 1));
+
+    if (currentCharacter === "\n") return ARENA_BATTLE_FAST_FORWARD_TEXT_LINEBREAK_DELAY;
+    if (currentCharacter === " ") return ARENA_BATTLE_FAST_FORWARD_TEXT_SPACE_DELAY;
+    if (/[.!?]/.test(currentCharacter)) return ARENA_BATTLE_FAST_FORWARD_TEXT_PUNCTUATION_DELAY;
+    if (currentCharacter === ",") return Math.round(ARENA_BATTLE_FAST_FORWARD_TEXT_PUNCTUATION_DELAY * 0.7);
+    return ARENA_BATTLE_FAST_FORWARD_TEXT_CHAR_DELAY;
+  }
+
+  const currentCharacter = String(text || "").charAt(Math.max(0, typedLength - 1));
+
+  if (currentCharacter === "\n") return ARENA_BATTLE_TEXT_LINEBREAK_DELAY;
+  if (currentCharacter === " ") return ARENA_BATTLE_TEXT_SPACE_DELAY;
+  if (/[.!?]/.test(currentCharacter)) return ARENA_BATTLE_TEXT_PUNCTUATION_DELAY;
+  if (currentCharacter === ",") return Math.round(ARENA_BATTLE_TEXT_PUNCTUATION_DELAY * 0.7);
+  return ARENA_BATTLE_TEXT_CHAR_DELAY;
+}
+
+function getArenaBattlePresentation(summary, battle) {
+  const animation = getArenaBattleAnimationState(battle);
+  const rounds = summary.rounds || [];
+  const maxIndex = Math.max(rounds.length - 1, 0);
+  const isResultPhase = isArenaBattleResultPhase(battle?.phase);
+  const currentIndex = isResultPhase ? maxIndex : clampNumber(animation?.currentIndex ?? 0, 0, maxIndex);
+  const currentRound = rounds[currentIndex] || rounds[0] || { number: 1, text: "" };
+  let initiatorHp = summary.initiator.maxHp;
+  let opponentHp = summary.opponent.maxHp;
+
+  rounds.forEach((round, index) => {
+    const shouldApplyDamage =
+      isResultPhase || index < currentIndex || (index === currentIndex && animation?.damageVisible);
+    if (!shouldApplyDamage) return;
+
+    if (round.accentSide === "left") {
+      initiatorHp = Math.max(0, initiatorHp - round.damage);
+      return;
+    }
+
+    opponentHp = Math.max(0, opponentHp - round.damage);
+  });
+
+  const roundStates = rounds.map((round, index) => {
+    const isCurrent = !isResultPhase && index === currentIndex;
+    const isCompleted = isResultPhase || index < currentIndex;
+    const isFirstRoundIntro = index === 0 && isCurrent;
+    const isVisible =
+      isResultPhase || isCompleted || (isCurrent && (!isFirstRoundIntro || Boolean(animation?.introVisible)));
+    const typedLength = isResultPhase
+      ? round.text.length
+      : isCompleted
+        ? round.text.length
+        : isCurrent
+          ? animation?.typedLength ?? 0
+          : 0;
+
+    return {
+      isCurrent,
+      isCompleted,
+      isVisible,
+      isIntroEntering:
+        !isResultPhase && isFirstRoundIntro && Boolean(animation?.introVisible) && !animation?.introCompleted,
+      isTyping: !isResultPhase && isCurrent && typedLength < round.text.length && !animation?.damageVisible,
+      showDamage: isResultPhase || isCompleted || (isCurrent && Boolean(animation?.damageVisible)),
+      showNote:
+        Boolean(round.note) &&
+        (isResultPhase || isCompleted || (isCurrent && Boolean(animation?.noteVisible))),
+      stackPosition: isVisible ? currentIndex - index : null,
+      textHtml: formatArenaRoundText(round.text, typedLength),
+    };
+  });
+
+  return {
+    currentRoundIndex: currentIndex,
+    currentRoundNumber: currentRound.number,
+    initiatorHp,
+    opponentHp,
+    visibleRoundsCount: isResultPhase ? rounds.length : currentIndex + 1,
+    roundStates,
+  };
+}
+
+function syncArenaBattleScreen(battle, summary) {
+  if (!arenaLiveBattle) return;
+
+  const shell = arenaLiveBattle.querySelector(".arena-live-shell");
+  if (!shell) return;
+
+  const isBattleEnterPhase = battle?.phase === "battle-enter";
+  const isResultPhase = isArenaBattleResultPhase(battle?.phase);
+  const result = getArenaBattleResult(summary);
+
+  shell.classList.toggle("is-entering", isBattleEnterPhase);
+  shell.classList.toggle("is-result-entering", isResultPhase);
+  shell.classList.toggle("is-result-final", battle?.phase === "battle-result");
+
+  if (battle?.phase !== "battle-enter") {
+    shell.classList.remove("is-landing");
+  }
+
+  if (battle?.phase === "battle-result") {
+    shell.classList.add("is-result-landing");
+  } else if (battle?.phase !== "battle-result-enter") {
+    shell.classList.remove("is-result-landing");
+  }
+
+  const presentation = getArenaBattlePresentation(summary, battle);
+  const initiatorOverview = shell.querySelector(".arena-live-overview-side--initiator");
+  const opponentOverview = shell.querySelector(".arena-live-overview-side--opponent");
+  const roundValue = shell.querySelector(".arena-live-round-value");
+  const roundsWrap = shell.querySelector(".arena-live-rounds");
+  const initiatorStageCard = shell.querySelector(".arena-live-stage-card--initiator");
+  const opponentStageCard = shell.querySelector(".arena-live-stage-card--opponent");
+  const pauseButton = shell.querySelector('[data-action="pause-battle"]');
+  const pauseButtonIcon = pauseButton?.querySelector("img");
+  const resultLayer = shell.querySelector(".arena-live-result-layer");
+  const winnerExp = shell.querySelector(".arena-live-result-exp--winner");
+  const loserExp = shell.querySelector(".arena-live-result-exp--loser");
+  const resultPill = shell.querySelector(".arena-live-result-pill");
+  const resultPillText = shell.querySelector(".arena-live-result-pill-text");
+
+  if (initiatorOverview) {
+    const hpLabel = initiatorOverview.querySelector(".arena-live-overview-hp");
+    const hpFill = initiatorOverview.querySelector(".arena-live-overview-fill");
+    if (hpLabel) hpLabel.textContent = `${presentation.initiatorHp} HP`;
+    if (hpFill) {
+      hpFill.style.width = `${clampNumber((presentation.initiatorHp / summary.initiator.maxHp) * 100, 0, 100)}%`;
+    }
+  }
+
+  if (opponentOverview) {
+    const hpLabel = opponentOverview.querySelector(".arena-live-overview-hp");
+    const hpFill = opponentOverview.querySelector(".arena-live-overview-fill");
+    if (hpLabel) hpLabel.textContent = `${presentation.opponentHp} HP`;
+    if (hpFill) {
+      hpFill.style.width = `${clampNumber((presentation.opponentHp / summary.opponent.maxHp) * 100, 0, 100)}%`;
+    }
+  }
+
+  if (roundValue) {
+    roundValue.textContent = String(presentation.currentRoundNumber);
+  }
+
+  if (resultLayer) {
+    resultLayer.setAttribute("aria-hidden", isResultPhase ? "false" : "true");
+  }
+  if (winnerExp) winnerExp.textContent = result.winnerExp;
+  if (loserExp) loserExp.textContent = result.loserExp;
+  if (resultPill) {
+    resultPill.classList.toggle("hidden", !result.levelUpLabel);
+  }
+  if (resultPillText) resultPillText.textContent = result.levelUpLabel;
+
+  const currentRound = summary.rounds[presentation.currentRoundIndex];
+  const currentRoundState = presentation.roundStates[presentation.currentRoundIndex];
+  const initiatorShouldHit = !isResultPhase && Boolean(
+    currentRound &&
+      currentRoundState?.isCurrent &&
+      currentRoundState.showDamage &&
+      currentRound.accentSide === "left"
+  );
+  const opponentShouldHit = !isResultPhase && Boolean(
+    currentRound &&
+      currentRoundState?.isCurrent &&
+      currentRoundState.showDamage &&
+      currentRound.accentSide === "right"
+  );
+
+  initiatorStageCard?.classList.toggle("is-hit", initiatorShouldHit);
+  opponentStageCard?.classList.toggle("is-hit", opponentShouldHit);
+
+  const shellWidth = shell.clientWidth || 1328;
+  applyArenaResultCardMotion(
+    initiatorStageCard,
+    isResultPhase ? (result.winnerSide === "initiator" ? "winner" : "loser") : "",
+    "initiator",
+    shellWidth
+  );
+  applyArenaResultCardMotion(
+    opponentStageCard,
+    isResultPhase ? (result.winnerSide === "opponent" ? "winner" : "loser") : "",
+    "opponent",
+    shellWidth
+  );
+
+  if (pauseButton) {
+    const isPaused = Boolean(getArenaBattleAnimationState(battle)?.isPaused);
+    pauseButton.setAttribute("aria-pressed", isPaused ? "true" : "false");
+    pauseButton.setAttribute("aria-label", isPaused ? "Resume fight" : "Pause fight");
+    pauseButton.classList.toggle("is-paused", isPaused);
+    if (pauseButtonIcon) {
+      pauseButtonIcon.src = isPaused ? BATTLE_CONTROL_PLAY_ICON : BATTLE_CONTROL_PAUSE_ICON;
+    }
+  }
+
+  summary.rounds.forEach((round, index) => {
+    const roundState = presentation.roundStates[index];
+    const card = shell.querySelector(`.arena-live-round-card[data-round-index="${index}"]`);
+
+    if (!card || !roundState) return;
+
+    card.classList.toggle("is-hidden", !roundState.isVisible);
+    card.classList.toggle("is-current", roundState.isCurrent);
+    card.classList.toggle("is-completed", roundState.isCompleted);
+    card.classList.toggle("is-intro-entering", roundState.isIntroEntering);
+    card.classList.toggle("is-typing", roundState.isTyping);
+    card.style.opacity = roundState.isVisible ? "1" : "0";
+    card.style.zIndex = roundState.isVisible ? String(20 - roundState.stackPosition) : "0";
+    card.style.transform = roundState.isVisible
+      ? `translate3d(0, ${roundState.stackPosition * 148}px, 0)`
+      : "translate3d(0, 32px, 0) scale(0.96)";
+
+    const textNode = card.querySelector(".arena-live-round-text");
+    const damageLine = card.querySelector(".arena-live-round-damage-line");
+    const noteNode = card.querySelector(".arena-live-round-note");
+
+    if (textNode) {
+      textNode.innerHTML = roundState.textHtml;
+    }
+    if (damageLine) {
+      damageLine.classList.toggle("is-visible", roundState.showDamage);
+    }
+    if (noteNode) {
+      noteNode.classList.toggle("is-visible", roundState.showNote);
+    }
+  });
+
+  if (roundsWrap) {
+    const visibleEntries = summary.rounds
+      .map((round, index) => {
+        const roundState = presentation.roundStates[index];
+        const card = shell.querySelector(`.arena-live-round-card[data-round-index="${index}"]`);
+        return { index, roundState, card };
+      })
+      .filter((entry) => entry.card && entry.roundState?.isVisible)
+      .sort((left, right) => (left.roundState?.stackPosition ?? 0) - (right.roundState?.stackPosition ?? 0));
+
+    const stackGap = 16;
+    const stackOffsets = new Map();
+    let totalHeight = 0;
+
+    visibleEntries.forEach((entry, entryIndex) => {
+      const roundMain = entry.card.querySelector(".arena-live-round-main");
+      const cardHeight = Math.max(132, roundMain?.offsetHeight || entry.card.offsetHeight || 132);
+      stackOffsets.set(entry.index, totalHeight);
+      totalHeight += cardHeight;
+      if (entryIndex < visibleEntries.length - 1) {
+        totalHeight += stackGap;
+      }
+    });
+
+    const wrapPaddingTop = parseFloat(window.getComputedStyle(roundsWrap).paddingTop) || 0;
+    roundsWrap.style.height = `${Math.max(132, wrapPaddingTop + totalHeight)}px`;
+
+    summary.rounds.forEach((round, index) => {
+      const roundState = presentation.roundStates[index];
+      const card = shell.querySelector(`.arena-live-round-card[data-round-index="${index}"]`);
+
+      if (!card || !roundState) return;
+
+      card.style.transform = roundState.isVisible
+        ? `translate3d(0, ${stackOffsets.get(index) ?? 0}px, 0)`
+        : "translate3d(0, 32px, 0) scale(0.96)";
+    });
+  }
+}
+
+function stepArenaBattleTyping(battle) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const summary = buildArenaBattleSummary(battle);
+  const animation = getArenaBattleAnimationState(battle);
+  const round = summary.rounds[animation.currentIndex];
+
+  if (!round || animation.isPaused) return;
+
+  if (animation.typedLength < round.text.length) {
+    animation.typedLength += 1;
+    syncArenaBattleScreen(battle, summary);
+    scheduleArenaTimeout(
+      () => stepArenaBattleTyping(battle),
+      getArenaBattleTypingDelay(round.text, animation.typedLength, battle)
+    );
+    return;
+  }
+
+  scheduleArenaTimeout(
+    () => revealArenaBattleDamage(battle, round),
+    getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_TEXT_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_TEXT_DELAY)
+  );
+}
+
+function advanceArenaBattleRound(battle) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const summary = buildArenaBattleSummary(battle);
+  const animation = getArenaBattleAnimationState(battle);
+
+  if (animation.isPaused) return;
+
+  if (animation.currentIndex >= summary.rounds.length - 1) {
+    animation.finished = true;
+    syncArenaBattleScreen(battle, summary);
+    if (!battle.resultScreenScheduled) {
+      battle.resultScreenScheduled = true;
+      scheduleArenaTimeout(() => {
+        if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+        state.activeBattle.phase = "battle-result-enter";
+        renderArena();
+      }, getArenaBattleDelay(battle, ARENA_BATTLE_RESULT_DELAY, ARENA_BATTLE_FAST_FORWARD_RESULT_DELAY));
+    }
+    return;
+  }
+
+  animation.currentIndex += 1;
+  animation.typedLength = 0;
+  animation.damageVisible = false;
+  animation.noteVisible = false;
+  syncArenaBattleScreen(battle, summary);
+  scheduleArenaTimeout(
+    () => stepArenaBattleTyping(battle),
+    getArenaBattleDelay(battle, ARENA_BATTLE_TYPING_START_DELAY, ARENA_BATTLE_FAST_FORWARD_TYPING_START_DELAY)
+  );
+}
+
+function revealArenaBattleDamage(battle, round) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  if (animation.isPaused) return;
+
+  animation.damageVisible = true;
+  syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+  triggerArenaBattleHitEffects(battle, round);
+
+  if (round.note) {
+    scheduleArenaTimeout(
+      () => revealArenaBattleNote(battle, round),
+      getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_DAMAGE_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_DAMAGE_DELAY)
+    );
+    return;
+  }
+
+  scheduleArenaTimeout(
+    () => advanceArenaBattleRound(battle),
+    getArenaBattleDelay(battle, ARENA_BATTLE_NEXT_ROUND_DELAY, ARENA_BATTLE_FAST_FORWARD_NEXT_ROUND_DELAY)
+  );
+}
+
+function revealArenaBattleNote(battle, round) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  if (animation.isPaused) return;
+
+  animation.noteVisible = true;
+  syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+  scheduleArenaTimeout(
+    () => advanceArenaBattleRound(battle),
+    getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_NOTE_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_NOTE_DELAY)
+  );
+}
+
+function continueArenaBattleFlow(battle) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const summary = buildArenaBattleSummary(battle);
+  const animation = getArenaBattleAnimationState(battle);
+  const round = summary.rounds[animation.currentIndex];
+
+  if (!round || animation.isPaused || animation.finished) return;
+
+  if (animation.currentIndex === 0 && !animation.introVisible) {
+    startArenaBattleFirstRoundIntro(battle);
+    return;
+  }
+
+  if (animation.typedLength < round.text.length) {
+    scheduleArenaTimeout(
+      () => stepArenaBattleTyping(battle),
+      isArenaBattleFastForward(battle) ? ARENA_BATTLE_FAST_FORWARD_TEXT_CHAR_DELAY : Math.max(ARENA_BATTLE_TEXT_CHAR_DELAY, 32)
+    );
+    return;
+  }
+
+  if (!animation.damageVisible) {
+    scheduleArenaTimeout(
+      () => revealArenaBattleDamage(battle, round),
+      getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_TEXT_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_TEXT_DELAY)
+    );
+    return;
+  }
+
+  if (round.note && !animation.noteVisible) {
+    scheduleArenaTimeout(
+      () => revealArenaBattleNote(battle, round),
+      getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_DAMAGE_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_DAMAGE_DELAY)
+    );
+    return;
+  }
+
+  scheduleArenaTimeout(
+    () => advanceArenaBattleRound(battle),
+    round.note
+      ? getArenaBattleDelay(battle, ARENA_BATTLE_AFTER_NOTE_DELAY, ARENA_BATTLE_FAST_FORWARD_AFTER_NOTE_DELAY)
+      : getArenaBattleDelay(battle, ARENA_BATTLE_NEXT_ROUND_DELAY, ARENA_BATTLE_FAST_FORWARD_NEXT_ROUND_DELAY)
+  );
+}
+
+function startArenaBattleRounds(battle) {
+  const animation = getArenaBattleAnimationState(battle);
+  if (animation.started) return;
+
+  animation.started = true;
+  animation.currentIndex = 0;
+  animation.introVisible = false;
+  animation.introCompleted = false;
+  animation.typedLength = 0;
+  animation.damageVisible = false;
+  animation.noteVisible = false;
+  animation.finished = false;
+  animation.isPaused = false;
+  animation.fastForward = false;
+  animation.lastHitEffectKey = "";
+  syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+  startArenaBattleFirstRoundIntro(battle);
+}
+
+function startArenaBattleFirstRoundIntro(battle) {
+  if (!state.activeBattle || state.activeBattle.id !== battle?.id) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  if (!animation || animation.isPaused || animation.introVisible) return;
+
+  scheduleArenaTimeout(() => {
+    if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+    if (animation.isPaused || animation.introVisible) return;
+
+    animation.introVisible = true;
+    animation.introCompleted = false;
+    syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+
+    scheduleArenaTimeout(() => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      if (animation.isPaused) return;
+
+      animation.introCompleted = true;
+      syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+      scheduleArenaTimeout(() => stepArenaBattleTyping(battle), isArenaBattleFastForward(battle) ? 12 : 40);
+    }, getArenaBattleDelay(
+      battle,
+      ARENA_BATTLE_FIRST_ROUND_APPEAR_DURATION,
+      ARENA_BATTLE_FAST_FORWARD_FIRST_ROUND_APPEAR_DURATION
+    ));
+  }, getArenaBattleDelay(
+    battle,
+    ARENA_BATTLE_FIRST_ROUND_APPEAR_DELAY,
+    ARENA_BATTLE_FAST_FORWARD_FIRST_ROUND_APPEAR_DELAY
+  ));
+}
+
+function restartArenaBattle(battle) {
+  if (!battle) return;
+
+  cancelArenaScheduledWork();
+  battle.roundAnimation = null;
+  battle.phase = "battle";
+  battle.resultEnterStarted = false;
+  battle.resultScreenScheduled = false;
+  renderArenaBattleScreen(battle);
+  startArenaBattleRounds(battle);
+}
+
+function toggleArenaBattlePause(battle) {
+  if (!battle) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  if (!animation) return;
+
+  if (animation.isPaused) {
+    animation.isPaused = false;
+    syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+    continueArenaBattleFlow(battle);
+    return;
+  }
+
+  animation.isPaused = true;
+  cancelArenaScheduledWork();
+  syncArenaBattleScreen(battle, buildArenaBattleSummary(battle));
+}
+
+function accelerateArenaBattle(battle) {
+  if (!battle) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  if (!animation || animation.finished) return;
+
+  animation.fastForward = true;
+  animation.isPaused = false;
+  cancelArenaScheduledWork();
+
+  const summary = buildArenaBattleSummary(battle);
+  const round = summary.rounds[animation.currentIndex];
+
+  if (!round) {
+    continueArenaBattleFlow(battle);
+    return;
+  }
+
+  if (animation.currentIndex === 0 && !animation.introVisible) {
+    startArenaBattleFirstRoundIntro(battle);
+    return;
+  }
+
+  if (animation.typedLength < round.text.length) {
+    animation.typedLength = round.text.length;
+    syncArenaBattleScreen(battle, summary);
+    scheduleArenaTimeout(
+      () => revealArenaBattleDamage(battle, round),
+      ARENA_BATTLE_FAST_FORWARD_AFTER_TEXT_DELAY
+    );
+    return;
+  }
+
+  if (!animation.damageVisible) {
+    scheduleArenaTimeout(() => revealArenaBattleDamage(battle, round), ARENA_BATTLE_FAST_FORWARD_AFTER_TEXT_DELAY);
+    return;
+  }
+
+  if (round.note && !animation.noteVisible) {
+    scheduleArenaTimeout(() => revealArenaBattleNote(battle, round), ARENA_BATTLE_FAST_FORWARD_AFTER_DAMAGE_DELAY);
+    return;
+  }
+
+  scheduleArenaTimeout(
+    () => advanceArenaBattleRound(battle),
+    round.note ? ARENA_BATTLE_FAST_FORWARD_AFTER_NOTE_DELAY : ARENA_BATTLE_FAST_FORWARD_NEXT_ROUND_DELAY
+  );
+}
+
+function bindArenaBattleControls(battle) {
+  if (!arenaLiveBattle) return;
+
+  const restartButton = arenaLiveBattle.querySelector('[data-action="restart-battle"]');
+  const skipButton = arenaLiveBattle.querySelector('[data-action="skip-battle"]');
+  const pauseButton = arenaLiveBattle.querySelector('[data-action="pause-battle"]');
+  const replayButton = arenaLiveBattle.querySelector('[data-action="replay-battle"]');
+  const goToPetsButton = arenaLiveBattle.querySelector('[data-action="go-to-my-pets"]');
+
+  if (restartButton) {
+    restartButton.onclick = () => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      restartArenaBattle(state.activeBattle);
+    };
+  }
+
+  if (pauseButton) {
+    pauseButton.onclick = () => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      toggleArenaBattlePause(state.activeBattle);
+    };
+  }
+
+  if (skipButton) {
+    skipButton.onclick = () => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      accelerateArenaBattle(state.activeBattle);
+    };
+  }
+
+  if (replayButton) {
+    replayButton.onclick = () => {
+      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+      restartArenaBattle(state.activeBattle);
+    };
+  }
+
+  if (goToPetsButton) {
+    goToPetsButton.onclick = () => {
+      window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
+    };
+  }
+}
+
+function renderArenaBattleScreen(battle) {
+  if (!arenaLiveBattle) {
+    return;
+  }
+
+  const summary = buildArenaBattleSummary(battle);
+  if (
+    arenaLiveBattle.dataset.battleId !== battle.id ||
+    !arenaLiveBattle.querySelector(".arena-live-result-layer")
+  ) {
+    arenaLiveBattle.dataset.battleId = battle.id;
+    arenaLiveBattle.innerHTML = `
+      <div class="arena-live-shell">
+        <div class="arena-live-overview">
+          ${buildArenaBattleOverviewSideMarkup(summary.initiator, "initiator")}
+          <div class="arena-live-round-indicator">
+            <p class="arena-live-round-value">${summary.currentRound}</p>
+            <p class="arena-live-round-label">ROUND</p>
+          </div>
+          ${buildArenaBattleOverviewSideMarkup(summary.opponent, "opponent")}
+        </div>
+
+        <div class="arena-live-controls">
+          <button class="arena-live-control-btn arena-live-control-btn--restart" data-action="restart-battle" type="button" aria-label="Restart fight">
+            <img src="${BATTLE_CONTROL_RESTART_ICON}" alt="" width="24" height="24" />
+          </button>
+          <button class="arena-live-skip-btn" data-action="skip-battle" type="button">Speed Up</button>
+          <button class="arena-live-control-btn arena-live-control-btn--pause" data-action="pause-battle" type="button" aria-label="Pause fight">
+            <img src="${BATTLE_CONTROL_PAUSE_ICON}" alt="" width="24" height="24" />
+          </button>
+        </div>
+
+        ${buildArenaBattleResultLayerMarkup()}
+
+        <div class="arena-live-stage">
+          <div class="arena-live-stage-card arena-live-stage-card--initiator">
+            ${buildArenaBattleSideCardMarkup(summary.initiator, "initiator")}
+          </div>
+
+          <div class="arena-live-rounds">
+            ${summary.rounds.map((round, index) => buildArenaRoundSkeletonMarkup(round, index)).join("")}
+          </div>
+
+          <div class="arena-live-stage-card arena-live-stage-card--opponent">
+            ${buildArenaBattleSideCardMarkup(summary.opponent, "opponent")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  bindArenaBattleControls(battle);
+  syncArenaBattleScreen(battle, summary);
+}
+
+function getArenaRouletteViewportWidth() {
+  if (arenaRoulette?.clientWidth) {
+    return arenaRoulette.clientWidth;
+  }
+
+  return Math.min(1816, Math.max(window.innerWidth || 0, 320) + 88);
+}
+
+function isMobileArenaViewport() {
+  return (window.innerWidth || 0) < 768;
+}
+
+function getArenaRouletteMetrics() {
+  const itemSize = isMobileArenaViewport() ? ARENA_ROULETTE_MOBILE_ITEM_SIZE : ARENA_ROULETTE_ITEM_SIZE;
+  const gap = isMobileArenaViewport() ? ARENA_ROULETTE_MOBILE_GAP : ARENA_ROULETTE_GAP;
+
+  return {
+    itemSize,
+    gap,
+    step: itemSize + gap,
+  };
+}
+
+function getArenaRoulettePositions(battle) {
+  if (!battle?.sequence?.length) return null;
+
+  const { itemSize, step } = getArenaRouletteMetrics();
+  const rouletteWidth = getArenaRouletteViewportWidth();
+  const focusCenter = rouletteWidth / 2;
+  const halfVisibleItems = Math.ceil(rouletteWidth / step / 2) + 1;
+  const minCenteredStartIndex = Math.min(halfVisibleItems, Math.max(battle.sequence.length - 1, 0));
+  const maxCenteredStartIndex = Math.max(minCenteredStartIndex, battle.sequence.length - halfVisibleItems - 1);
+  const desiredStartIndex = battle.targetSequenceIndex - ARENA_ROULETTE_TRAVEL_ITEMS;
+  const startSequenceIndex = Math.max(
+    minCenteredStartIndex,
+    Math.min(maxCenteredStartIndex, desiredStartIndex)
+  );
+  const finalX = focusCenter - battle.targetSequenceIndex * step - itemSize / 2;
+  const startX = focusCenter - startSequenceIndex * step - itemSize / 2;
+
+  return { startX, finalX };
 }
 
 function setArenaFocusImage(record) {
@@ -2617,6 +5309,10 @@ function renderArenaStageTitle(phase) {
   if (!arenaStageTitle) return;
 
   const titleText = phase === "versus" ? "Preparing fight" : "Looking for your opponent";
+  if (isMobileArenaViewport()) {
+    arenaStageTitle.innerHTML = `<span class="arena-stage-title-mobile">${titleText}</span>`;
+    return;
+  }
   arenaStageTitle.innerHTML = `
     <span class="arena-stage-title-text">${titleText}</span>
     <span class="arena-stage-dots" aria-hidden="true">
@@ -2665,56 +5361,34 @@ function buildBattleCardMarkup(record, extraClassName = "") {
   `;
 }
 
-async function launchArenaBattleReplay(battle) {
-  if (!battle || battle.isCreatingBattle) {
-    return;
-  }
-
-  battle.isCreatingBattle = true;
-  renderArena();
-
-  try {
-    const payload = await apiRequest("/api/battles", {
-      attackerPetId: battle.initiator.id,
-      defenderPetId: battle.opponent.id,
-    });
-
-    if (!payload?.battleId) {
-      throw new Error("Battle id was not returned.");
-    }
-
-    window.location.href = buildBattleReplayUrl(payload.battleId);
-  } catch (error) {
-    if (!state.activeBattle || state.activeBattle.id !== battle.id) {
-      return;
-    }
-
-    state.activeBattle = null;
-    state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
-    updateEnergyUi();
-    renderCabinet();
-    renderArena();
-    showToast(error.message || "Couldn't prepare the battle. Please try again.");
-  }
-}
-
 function renderArenaRouletteTrack(battle) {
   if (!arenaRouletteTrack || !battle) return;
 
-  if (arenaRouletteTrack.dataset.battleId === battle.id) {
-    return;
+  if (arenaRouletteTrack.dataset.battleId !== battle.id) {
+    const { itemSize } = getArenaRouletteMetrics();
+    arenaRouletteTrack.dataset.battleId = battle.id;
+    arenaRouletteTrack.innerHTML = battle.sequence
+      .map(
+        (record, index) => `
+          <div class="arena-roulette-thumb" data-sequence-index="${index}">
+            <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="${itemSize}" height="${itemSize}" />
+          </div>
+        `
+      )
+      .join("");
   }
 
-  arenaRouletteTrack.dataset.battleId = battle.id;
-  arenaRouletteTrack.innerHTML = battle.sequence
-    .map(
-      (record, index) => `
-        <div class="arena-roulette-thumb" data-sequence-index="${index}">
-          <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="160" height="160" />
-        </div>
-      `
-    )
-    .join("");
+  if (battle.phase === "roulette" && typeof battle.trackX !== "number") {
+    const positions = getArenaRoulettePositions(battle);
+    if (positions) {
+      battle.trackX = positions.startX;
+    }
+  }
+
+  if (typeof battle.trackX === "number") {
+    arenaRouletteTrack.style.transform = `translate3d(${battle.trackX}px, 0, 0)`;
+    updateArenaFocusByTrackPosition(battle, battle.trackX);
+  }
 }
 
 function syncArenaThumbStates(battle) {
@@ -2733,12 +5407,13 @@ function syncArenaThumbStates(battle) {
 function updateArenaFocusByTrackPosition(battle, currentX) {
   if (!arenaRoulette || !battle?.sequence?.length) return;
 
+  const { itemSize, step } = getArenaRouletteMetrics();
   const focusCenter = arenaRoulette.clientWidth / 2;
   const centeredIndex = Math.max(
     0,
     Math.min(
       battle.sequence.length - 1,
-      Math.round((focusCenter - currentX - ARENA_ROULETTE_ITEM_SIZE / 2) / ARENA_ROULETTE_STEP)
+      Math.round((focusCenter - currentX - itemSize / 2) / step)
     )
   );
 
@@ -2759,9 +5434,10 @@ function finishArenaRoulette(battle, finalX) {
 function runArenaRoulette(battle) {
   if (!arenaRouletteTrack || !arenaRoulette || !battle?.sequence?.length) return;
 
-  const focusCenter = arenaRoulette.clientWidth / 2;
-  const finalX = focusCenter - battle.targetSequenceIndex * ARENA_ROULETTE_STEP - ARENA_ROULETTE_ITEM_SIZE / 2;
-  const startX = finalX + ARENA_ROULETTE_STEP * ARENA_ROULETTE_TRAVEL_ITEMS;
+  const positions = getArenaRoulettePositions(battle);
+  if (!positions) return;
+
+  const { startX, finalX } = positions;
   const startedAt = performance.now();
 
   battle.trackX = startX;
@@ -2794,14 +5470,193 @@ function runArenaRoulette(battle) {
   arenaAnimationFrameId = window.requestAnimationFrame(animate);
 }
 
+function buildArenaHistorySummary(entry) {
+  if (entry?.finalSummaryText) {
+    return entry.finalSummaryText;
+  }
+
+  const playerName = entry?.playerPet?.name || "Your pet";
+  const opponentName = entry?.opponentPet?.name || "the opponent";
+  return entry?.outcome === "win"
+    ? `${playerName} defeated ${opponentName}.`
+    : `${playerName} fought ${opponentName}.`;
+}
+
+function buildArenaHistoryCardMarkup(entry) {
+  const outcomeLabel = entry?.outcome === "win" ? "Victory" : "Defeat";
+  const roleLabel = entry?.playerRole === "defender" ? "Defended" : "Started";
+  const playerName = escapeHtml(entry?.playerPet?.name || "Your pet");
+  const opponentName = escapeHtml(entry?.opponentPet?.name || "Unknown opponent");
+  const summaryText = escapeHtml(buildArenaHistorySummary(entry));
+  const battleTime = formatDateTime(entry?.completedAt || entry?.createdAt);
+  const replayUrl = escapeHtml(entry?.replayUrl || `/dashboard/?screen=arena&battleId=${encodeURIComponent(String(entry?.battleId || ""))}`);
+
+  return `
+    <a
+      class="arena-history-card"
+      href="${replayUrl}"
+      data-action="open-arena-history-battle"
+      data-battle-id="${escapeHtml(entry?.battleId || "")}"
+      data-replay-url="${replayUrl}"
+    >
+      <div class="arena-history-card-topline">
+        <span class="arena-history-card-outcome arena-history-card-outcome--${escapeHtml(entry?.outcome || "loss")}">${outcomeLabel}</span>
+        <span class="arena-history-card-role">${roleLabel}</span>
+      </div>
+
+      <div class="arena-history-card-fighters">
+        <div class="arena-history-fighter">
+          <img
+            class="arena-history-fighter-image"
+            src="${entry?.playerPet?.imageUrl || DEFAULT_CHARACTER_IMAGE}"
+            alt="${playerName}"
+            width="56"
+            height="56"
+          />
+          <div class="arena-history-fighter-copy">
+            <p class="arena-history-fighter-name">${playerName}</p>
+            <p class="arena-history-fighter-meta">Lvl. ${Math.max(1, Math.floor(Number(entry?.playerPet?.level) || 1))}</p>
+          </div>
+        </div>
+
+        <span class="arena-history-versus-pill">VS</span>
+
+        <div class="arena-history-fighter arena-history-fighter--opponent">
+          <img
+            class="arena-history-fighter-image"
+            src="${entry?.opponentPet?.imageUrl || DEFAULT_CHARACTER_IMAGE}"
+            alt="${opponentName}"
+            width="56"
+            height="56"
+          />
+          <div class="arena-history-fighter-copy">
+            <p class="arena-history-fighter-name">${opponentName}</p>
+            <p class="arena-history-fighter-meta">Lvl. ${Math.max(1, Math.floor(Number(entry?.opponentPet?.level) || 1))}</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="arena-history-card-summary">${summaryText}</p>
+
+      <div class="arena-history-card-meta">
+        <span>${escapeHtml(battleTime)}</span>
+        <span>Open replay</span>
+      </div>
+    </a>
+  `;
+}
+
+function renderArenaHistory() {
+  if (!arenaHistoryPanel || !arenaHistoryList || !arenaHistoryFeedback || !arenaHistoryCount) {
+    return;
+  }
+
+  const isAuthenticated = state.isAuthenticated;
+  const hasEntries = state.arenaHistoryEntries.length > 0;
+
+  arenaHistoryPanel.classList.toggle("is-loading", state.isArenaHistoryLoading);
+
+  if (!isAuthenticated) {
+    arenaHistoryCount.textContent = "Connect wallet to unlock Arena replays.";
+    arenaHistoryFeedback.textContent = "Battle history appears here once you're connected.";
+    arenaHistoryFeedback.classList.remove("hidden");
+    arenaHistoryList.innerHTML = "";
+    arenaHistoryLoadMoreBtn?.classList.add("hidden");
+    return;
+  }
+
+  if (hasEntries) {
+    arenaHistoryCount.textContent = `${state.arenaHistoryEntries.length} replay${state.arenaHistoryEntries.length === 1 ? "" : "s"} loaded`;
+    arenaHistoryList.innerHTML = state.arenaHistoryEntries.map(buildArenaHistoryCardMarkup).join("");
+    arenaHistoryFeedback.classList.add("hidden");
+  } else {
+    arenaHistoryList.innerHTML = "";
+    if (state.isArenaHistoryLoading) {
+      arenaHistoryCount.textContent = "Loading battle history...";
+      arenaHistoryFeedback.textContent = "Pulling your latest Arena battles.";
+    } else if (state.arenaHistoryErrorMessage) {
+      arenaHistoryCount.textContent = "Battle history is unavailable";
+      arenaHistoryFeedback.textContent = state.arenaHistoryErrorMessage;
+    } else if (state.hasLoadedArenaHistory) {
+      arenaHistoryCount.textContent = "No replays yet";
+      arenaHistoryFeedback.textContent = "Start a real battle and it will show up here for replay.";
+    } else {
+      arenaHistoryCount.textContent = "Loading battle history...";
+      arenaHistoryFeedback.textContent = "Pulling your latest Arena battles.";
+    }
+    arenaHistoryFeedback.classList.remove("hidden");
+  }
+
+  if (arenaHistoryLoadMoreBtn) {
+    const shouldShowLoadMore =
+      isAuthenticated && state.arenaHistoryHasMore && !state.isArenaHistoryLoading && hasEntries;
+    arenaHistoryLoadMoreBtn.classList.toggle("hidden", !shouldShowLoadMore);
+    arenaHistoryLoadMoreBtn.disabled = state.isArenaHistoryLoading;
+  }
+}
+
+function renderArenaReplayBanner() {
+  if (!arenaReplayBanner || !arenaReplayBannerTitle || !arenaReplayBackBtn) {
+    return;
+  }
+
+  const replayBattleId = String(state.activeBattle?.isReplay ? state.activeBattle.battleId : state.arenaReplayRequest?.battleId || "").trim();
+  const showBanner = Boolean(replayBattleId);
+
+  arenaReplayBanner.classList.toggle("hidden", !showBanner);
+  if (!showBanner) {
+    return;
+  }
+
+  if (state.activeBattle?.isReplay) {
+    const attackerName = getRecordDisplayName(state.activeBattle?.initiator);
+    const defenderName = getRecordDisplayName(state.activeBattle?.opponent);
+    arenaReplayBannerTitle.textContent = `${attackerName} vs ${defenderName}`;
+  } else if (state.arenaReplayRequest?.status === "waiting") {
+    arenaReplayBannerTitle.textContent = "Replay is still being prepared";
+  } else if (state.arenaReplayRequest?.status === "unavailable") {
+    arenaReplayBannerTitle.textContent = "Replay unavailable";
+  } else {
+    arenaReplayBannerTitle.textContent = "Loading replay";
+  }
+}
+
 function renderArena() {
   if (!screenArena || !arenaIdleState || !arenaBattleState || !arenaStartFightBtn) return;
 
   const battle = state.activeBattle;
+  const replayRequest = state.arenaReplayRequest;
+  const isReplayPage = Boolean(battle || replayRequest?.battleId);
+  const isBattleScreen = isArenaBattleScreenPhase(battle?.phase);
+  const isArenaStagePhase = Boolean(battle && !isBattleScreen);
   const hasStarter = Boolean(getArenaStarterRecord());
   const isPreparingFight = state.isFightPreparing && !battle;
   const canStartFight = hasStarter && state.energyCurrent > 0 && !state.isFightPreparing;
-  const idleCopy = arenaIdleState.querySelector(".arena-panel-copy p");
+  const isReplayStatusVisible = !battle && Boolean(replayRequest?.battleId);
+
+  renderArenaHistory();
+  renderArenaReplayBanner();
+
+  if (arenaLayout) {
+    arenaLayout.classList.toggle("is-history-only", !isReplayPage);
+    arenaLayout.classList.toggle("is-replay-view", isReplayPage);
+  }
+  if (arenaHistoryPanel) {
+    arenaHistoryPanel.classList.toggle("hidden", isReplayPage);
+  }
+  if (arenaIdleState?.parentElement) {
+    arenaIdleState.parentElement.classList.toggle("hidden", !isReplayPage);
+  }
+
+  if (dashboardTabs) {
+    dashboardTabs.classList.remove("hidden");
+  }
+  if (dashboardTopbar) {
+    dashboardTopbar.classList.toggle("is-battle-header", isBattleScreen);
+    dashboardTopbar.classList.toggle("is-arena-stage-header", isArenaStagePhase);
+  }
+
+  arenaBattleState.classList.toggle("is-live-battle", Boolean(isBattleScreen));
 
   arenaStartFightBtn.disabled = !canStartFight;
   arenaStartFightBtn.classList.toggle("disabled", !canStartFight);
@@ -2811,17 +5666,118 @@ function renderArena() {
     ? getFightButtonMarkup({ isLoading: true })
     : "<span>Start Fight</span>";
 
-  if (idleCopy) {
-    idleCopy.textContent = hasStarter
-      ? "Select any pet in My Pets or start with your latest one to match a real opponent."
-      : "Create your first pet to unlock the battle preparation flow.";
+  if (arenaPanelEyebrow) {
+    arenaPanelEyebrow.textContent = isReplayStatusVisible ? "Battle replay" : "Arena";
+  }
+  if (arenaPanelTitle) {
+    if (replayRequest?.status === "waiting") {
+      arenaPanelTitle.textContent = "Replay is still getting ready";
+    } else if (replayRequest?.status === "unavailable") {
+      arenaPanelTitle.textContent = "Replay unavailable";
+    } else if (replayRequest?.status === "loading") {
+      arenaPanelTitle.textContent = "Loading replay";
+    } else {
+      arenaPanelTitle.textContent = "Arena";
+    }
+  }
+  if (arenaPanelDescription) {
+    if (replayRequest?.message) {
+      arenaPanelDescription.textContent = replayRequest.message;
+    } else {
+      arenaPanelDescription.textContent = hasStarter
+        ? "Select any pet in My Pets or start with your latest one to match a real opponent."
+        : "Create your first pet to unlock the battle preparation flow.";
+    }
+  }
+  if (arenaIdleSecondaryBtn) {
+    arenaIdleSecondaryBtn.classList.toggle("hidden", !isReplayStatusVisible);
+    arenaIdleSecondaryBtn.textContent = "Back to history";
+  }
+  if (arenaStartFightBtn) {
+    arenaStartFightBtn.classList.toggle("hidden", isReplayStatusVisible);
   }
 
   arenaIdleState.classList.toggle("hidden", Boolean(battle));
   arenaBattleState.classList.toggle("hidden", !battle);
 
-  if (!battle) {
+  if (!isReplayPage) {
+    arenaIdleState.classList.add("hidden");
+    arenaBattleState.classList.add("hidden");
+    if (arenaLiveBattle) {
+      arenaLiveBattle.classList.add("hidden");
+      arenaLiveBattle.setAttribute("aria-hidden", "true");
+    }
     return;
+  }
+
+  if (!battle) {
+    if (arenaLiveBattle) {
+      arenaLiveBattle.classList.add("hidden");
+      arenaLiveBattle.setAttribute("aria-hidden", "true");
+    }
+    return;
+  }
+
+  if (isBattleScreen) {
+    renderArenaBattleScreen(battle);
+    if (arenaRoulette) {
+      arenaRoulette.classList.remove("is-fading-out");
+    }
+    if (arenaRouletteFocus) {
+      arenaRouletteFocus.classList.add("is-hidden");
+    }
+    if (arenaFocusCard) {
+      arenaFocusCard.classList.add("hidden");
+    }
+    if (arenaVersus) {
+      arenaVersus.classList.add("hidden");
+      arenaVersus.setAttribute("aria-hidden", "true");
+    }
+    if (arenaLiveBattle) {
+      arenaLiveBattle.classList.remove("hidden");
+      arenaLiveBattle.setAttribute("aria-hidden", "false");
+    }
+
+    if (battle.phase === "battle-enter" && !battle.battleEnterStarted) {
+      battle.battleEnterStarted = true;
+      const battleShell = arenaLiveBattle?.querySelector(".arena-live-shell");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          battleShell?.classList.add("is-landing");
+        });
+      });
+      scheduleArenaTimeout(() => {
+        if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+        state.activeBattle.phase = "battle";
+        renderArena();
+      }, ARENA_BATTLE_ENTER_DURATION);
+    }
+
+    if (battle.phase === "battle") {
+      startArenaBattleRounds(battle);
+    }
+
+    if (battle.phase === "battle-result-enter" && !battle.resultEnterStarted) {
+      battle.resultEnterStarted = true;
+      const battleShell = arenaLiveBattle?.querySelector(".arena-live-shell");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          battleShell?.classList.add("is-result-landing");
+        });
+      });
+      scheduleArenaTimeout(() => {
+        if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+        state.activeBattle.phase = "battle-result";
+        renderArena();
+      }, ARENA_BATTLE_RESULT_ENTER_DURATION);
+    }
+
+    return;
+  }
+
+  if (arenaLiveBattle) {
+    arenaLiveBattle.classList.add("hidden");
+    arenaLiveBattle.setAttribute("aria-hidden", "true");
   }
 
   renderArenaRouletteTrack(battle);
@@ -2864,7 +5820,9 @@ function renderArena() {
 
   if (arenaFocusCard) {
     arenaFocusCard.innerHTML = buildBattleCardMarkup(battle.opponent, "arena-card--focus");
-    arenaFocusCard.classList.toggle("hidden", battle.phase === "versus");
+    const isMobileVersusIntro = isMobileArenaViewport() && battle.phase === "versus";
+    arenaFocusCard.classList.toggle("hidden", battle.phase === "versus" && !isMobileVersusIntro);
+    arenaFocusCard.classList.toggle("is-fading-out", isMobileVersusIntro);
   }
 
   if (battle.phase === "focus") {
@@ -2898,30 +5856,36 @@ function renderArena() {
     arenaFocusCard.classList.add("hidden");
   }
   if (arenaVersus) {
+    const revealImmediately = isMobileArenaViewport();
     arenaVersus.classList.remove("hidden");
     arenaVersus.setAttribute("aria-hidden", "false");
+    arenaVersus.classList.toggle("is-revealed", revealImmediately);
   }
 
   if (!battle.versusRendered) {
     battle.versusRendered = true;
-    if (arenaVersus) {
+    if (arenaVersus && !isMobileArenaViewport()) {
       arenaVersus.classList.remove("is-revealed");
     }
-    scheduleArenaTimeout(() => {
-      if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
-      if (arenaVersus) {
-        arenaVersus.classList.add("is-revealed");
-      }
-    }, 40);
+    if (!isMobileArenaViewport()) {
+      scheduleArenaTimeout(() => {
+        if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
+        if (arenaVersus) {
+          arenaVersus.classList.add("is-revealed");
+        }
+      }, 40);
+    }
   }
 
-  if (!battle.battleLaunchScheduled) {
-    battle.battleLaunchScheduled = true;
+  if (!battle.battleScreenScheduled) {
+    battle.battleScreenScheduled = true;
     scheduleArenaTimeout(() => {
       if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
-      launchArenaBattleReplay(battle);
-    }, ARENA_BATTLE_LAUNCH_DELAY);
+      state.activeBattle.phase = "battle-enter";
+      renderArena();
+    }, ARENA_BATTLE_SCREEN_DELAY);
   }
+
 }
 
 async function startFightFlow(characterId) {
@@ -2943,46 +5907,95 @@ async function startFightFlow(characterId) {
     return;
   }
 
+  let createdBattleId = "";
   clearArenaAnimation();
+  resetArenaRevealSession();
 
   state.energyCurrent = Math.max(0, state.energyCurrent - 1);
   state.isFightPreparing = true;
   state.fightPreparingCharacterId = String(initiator.id || characterId || "");
+  setArenaRevealSession({
+    attackerPetId: state.fightPreparingCharacterId,
+    battleId: "",
+    selectedOpponentId: "",
+    status: "preparing",
+    visibleCandidateIds: [],
+    preparedCandidateIds: [],
+    recoveryMessage: "",
+  });
   updateEnergyUi();
   renderCabinet();
   renderArena();
 
   try {
-    const opponentPool = await loadRealArenaOpponents(initiator.id);
-    if (!opponentPool.length) {
-      throw new Error("No real opponents are available yet. Create pets from another wallet and try again.");
+    const minimumSpinnerPromise = wait(ARENA_PREPARE_MIN_SPINNER_DURATION);
+    const preparedPoolPromise = warmArenaOpponentPool(initiator.id).catch(() => []);
+    const createBattlePayload = await createArenaBattleRecord(initiator.id);
+    createdBattleId = String(createBattlePayload?.battleId || "").trim();
+    const revealBundle = normalizeArenaRevealBundle(createBattlePayload?.reveal);
+
+    if (!createdBattleId) {
+      throw new Error("Battle id was not returned.");
     }
 
-    const opponentIndex = Math.floor(Math.random() * opponentPool.length);
-    const [{ preparedInitiator, preparedPool }] = await Promise.all([
-      preloadArenaFightAssets(initiator, opponentPool),
-      wait(ARENA_PREPARE_MIN_SPINNER_DURATION),
+    if (!revealBundle?.selectedOpponent || !revealBundle.carouselCandidates.length) {
+      throw createArenaRevealError();
+    }
+
+    setArenaRevealSession({
+      ...(state.arenaRevealSession || {}),
+      battleId: createdBattleId,
+      selectedOpponentId: String(revealBundle.selectedOpponent.id || "").trim(),
+      status: "preparing",
+      recoveryMessage: "",
+    });
+
+    const [readyBattle, preparedReveal] = await Promise.all([
+      pollArenaBattleRecord(createdBattleId),
+      preparedPoolPromise.then((preparedPool) =>
+        prepareArenaRevealCandidates(revealBundle, preparedPool)
+      ),
+      minimumSpinnerPromise,
     ]);
+    const fallbackOpponent =
+      preparedReveal.preparedCandidates.find(
+        (record) => String(record?.id || "") === String(readyBattle?.defender?.id || "")
+      ) ||
+      preparedReveal.selectedOpponent;
+    const resolvedInitiator = mapBattleParticipantToArenaRecord(readyBattle?.attacker, initiator);
+    const resolvedOpponent = mapBattleParticipantToArenaRecord(readyBattle?.defender, fallbackOpponent);
+
+    const [preparedInitiator, preparedOpponent] = await Promise.all([
+      prepareArenaRecordImage(resolvedInitiator),
+      prepareArenaRecordImage(resolvedOpponent),
+    ]);
+
+    await refreshArenaProfileState().catch(() => null);
 
     state.isFightPreparing = false;
     state.fightPreparingCharacterId = "";
-    state.activeBattle = {
-      id: `arena-${Date.now()}`,
-      initiator: preparedInitiator,
-      opponent: preparedPool[opponentIndex],
-      pool: preparedPool,
-      sequence: buildArenaSequence(preparedPool),
-      targetSequenceIndex: preparedPool.length * 2 + opponentIndex,
-      phase: "roulette",
-      trackX: null,
-      rouletteStarted: false,
-      focusScheduled: false,
-      versusRendered: false,
-    };
+    clearArenaReplayRequest();
+    resetArenaRevealSession();
+    state.activeBattle = createResolvedArenaBattle({
+      battlePayload: readyBattle,
+      preparedInitiator,
+      preparedOpponent,
+      preparedPool: preparedReveal.preparedCandidates,
+    });
+    state.arenaSelectedHistoryBattleId = createdBattleId;
+    void loadArenaHistory({ force: true }).catch(() => null);
 
     moveTo("arena");
   } catch (error) {
-    state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
+    if (createdBattleId) {
+      await refreshArenaProfileState().catch(() => null);
+    } else {
+      state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
+    }
+
+    setArenaRevealRecovery(
+      error.message || "Couldn't prepare a trustworthy rival reveal. Please retry."
+    );
     state.isFightPreparing = false;
     state.fightPreparingCharacterId = "";
     updateEnergyUi();
@@ -2994,6 +6007,12 @@ async function startFightFlow(characterId) {
 }
 
 function renderCabinet() {
+  if (dashboardTopbar) {
+    dashboardTopbar.classList.remove("is-battle-header");
+  }
+  if (dashboardTabs) {
+    dashboardTabs.classList.remove("hidden");
+  }
   const records = [...state.characters].reverse();
   const canCreateAnother = hasCharacterCreationCapacity();
   const canFight = ENABLE_ARENA && state.energyCurrent > 0 && !state.isFightPreparing;
@@ -3037,8 +6056,23 @@ function renderCabinet() {
   cabinetCard.innerHTML = records
     .map((record) => {
       const rarity = getRarityMeta(record.rarity);
+      const upgradePoints = getRecordAttributePointsAvailable(record);
+      const isUpgradeable = canUpgradeRecord(record);
       const isPreparingThisFight =
         state.isFightPreparing && String(state.fightPreparingCharacterId) === String(record.id);
+      const shouldRenderFightButton = ENABLE_ARENA;
+      const isFightButtonDisabled = !canFight || isPreparingThisFight;
+      const hasNoEnergy = state.energyCurrent <= 0 && !state.isFightPreparing;
+      const fightButtonMarkup = `
+            <button
+              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}${!canFight ? " disabled" : ""}"
+              type="button"
+              data-character-id="${record.id}"
+              ${isFightButtonDisabled ? 'disabled aria-disabled="true"' : ""}
+            >
+              ${getFightButtonMarkup({ isLoading: isPreparingThisFight })}
+            </button>
+      `;
       const statsMarkup = ATTRS.map((attr) => {
         const value = record.attributes[attr.key];
         return `
@@ -3050,9 +6084,25 @@ function renderCabinet() {
       }).join("");
 
       return `
-        <article class="cabinet-character" data-character-id="${record.id}">
+        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
+            ${
+              isUpgradeable
+                ? `
+            <button
+              class="cabinet-upgrade-btn"
+              type="button"
+              data-action="open-upgrade"
+              data-character-id="${record.id}"
+              aria-label="Upgrade ${escapeHtml(getRecordDisplayName(record))}"
+            >
+              <img src="/assets/character/upgrade-indicator.svg" alt="" width="14" height="14" />
+              <span>Upgrade</span>
+            </button>
+            `
+                : ""
+            }
             <div class="success-card-image-wrap">
               <img class="success-card-image" src="${record.imageUrl}" alt="${record.creatureType} character" width="248" height="248" />
               <span class="success-card-level">Lvl. ${getRecordLevel(record)}</span>
@@ -3068,16 +6118,20 @@ function renderCabinet() {
               <p class="success-card-power-text">${getSelectedPowerDescription(record)}</p>
             </div>
             ${
-              canFight
+              shouldRenderFightButton
                 ? `
-            <button
-              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}"
-              type="button"
-              data-character-id="${record.id}"
-              ${isPreparingThisFight ? 'disabled aria-disabled="true"' : ""}
-            >
-              ${getFightButtonMarkup({ isLoading: isPreparingThisFight })}
-            </button>
+            ${
+              hasNoEnergy
+                ? `
+            <div class="cabinet-fight-tooltip-wrap" tabindex="0" aria-describedby="cabinetFightTooltip-${record.id}">
+              ${fightButtonMarkup}
+              <span class="cabinet-action-tooltip" id="cabinetFightTooltip-${record.id}">
+                Energy refills every day. Come back tomorrow!
+              </span>
+            </div>
+            `
+                : fightButtonMarkup
+            }
             `
                 : ""
             }
@@ -3088,21 +6142,140 @@ function renderCabinet() {
     .join("");
 }
 
-function getAdminActiveQuery() {
-  return state.adminSection === "waitlist" ? state.adminWaitlistQuery : state.adminWalletQuery;
+function buildStagedUpgradePayload() {
+  return ATTRS.reduce((acc, attr) => {
+    const value = Math.max(0, Math.floor(Number(state.attrs?.[attr.key]) || 0));
+    if (value > 0) {
+      acc[attr.key] = value;
+    }
+    return acc;
+  }, {});
 }
 
-function setAdminActiveQuery(value) {
-  if (state.adminSection === "waitlist") {
-    state.adminWaitlistQuery = value;
+function openUpgradeFlow(characterId, { pushRoute = true } = {}) {
+  primeUpgradeSession(characterId);
+  moveTo("upgrade", { replace: !pushRoute });
+}
+
+async function saveUpgradeAllocation() {
+  if (!isUpgradeStep() || state.isSavingUpgrade) return;
+
+  const upgradeState = getUpgradeRouteState();
+  const attributeIncrements = buildStagedUpgradePayload();
+  if (
+    upgradeState.blocked ||
+    !upgradeState.record ||
+    !Object.keys(attributeIncrements).length ||
+    pointsRemaining() < 0
+  ) {
+    renderAttrsStep();
     return;
   }
 
-  state.adminWalletQuery = value;
+  state.isSavingUpgrade = true;
+  renderAttrsStep();
+
+  try {
+    const data = await apiRequest("/api/character/upgrade", {
+      characterId: upgradeState.record.id,
+      attributeIncrements,
+    });
+
+    syncStateWithPayload(data);
+    const updatedCharacter = normalizeCharacterRecord(data?.character) || findCharacterById(upgradeState.record.id);
+    const remainingPoints = getRecordAttributePointsAvailable(updatedCharacter);
+
+    resetUpgradeSession();
+    moveTo("cabinet", { replace: true });
+    showToast(
+      remainingPoints > 0
+        ? `Upgrade saved. ${remainingPoints} point${remainingPoints === 1 ? "" : "s"} still available.`
+        : "Upgrade saved."
+    );
+  } catch (error) {
+    if (/unauthorized/i.test(error?.message || "")) {
+      handleFlowError(error, "Unable to save upgrade.");
+    } else {
+      showToast(error.message || "Unable to save upgrade.");
+    }
+  } finally {
+    state.isSavingUpgrade = false;
+    if (isUpgradeStep()) {
+      renderAttrsStep();
+    }
+  }
+}
+
+async function syncDashboardStateFromLocation() {
+  const requestedScreen = getRequestedScreen();
+  if (requestedScreen === "arena") {
+    const requestedBattleId = getArenaRequestedBattleId();
+    const arenaPreviewMode = getArenaPreviewMode();
+
+    if (requestedBattleId) {
+      await ensureArenaReplayBattle(requestedBattleId, { source: "history-link" });
+    } else if (arenaPreviewMode) {
+      await ensureArenaPreviewBattle(arenaPreviewMode);
+    } else {
+      closeArenaReplayBattle();
+    }
+
+    moveTo("arena", { replace: true });
+    return;
+  }
+
+  if (requestedScreen === "upgrade") {
+    primeUpgradeSession(getRequestedUpgradePetId());
+    moveTo("upgrade", { replace: true });
+    return;
+  }
+
+  if (requestedScreen === "admin") {
+    moveTo("admin", { replace: true });
+    return;
+  }
+
+  moveTo("cabinet", { replace: true });
+}
+
+function getAdminActiveQuery() {
+  if (state.adminSection === "waitlist") {
+    return state.adminWaitlistQuery;
+  }
+
+  if (state.adminSection === "battles") {
+    return state.adminBattleQuery;
+  }
+
+  return state.adminWalletQuery;
+}
+
+function setAdminActiveQuery(value) {
+  const normalizedValue = normalizeAdminSearchValue(value);
+
+  if (state.adminSection === "waitlist") {
+    state.adminWaitlistQuery = normalizedValue;
+    return;
+  }
+
+  if (state.adminSection === "battles") {
+    state.adminBattleQuery = normalizedValue;
+    return;
+  }
+
+  state.adminWalletQuery = normalizedValue;
 }
 
 function getAdminActivePage() {
-  return state.adminSection === "waitlist" ? state.adminWaitlistPage : state.adminPage;
+  if (state.adminSection === "waitlist") {
+    return state.adminWaitlistPage;
+  }
+
+  if (state.adminSection === "battles") {
+    return state.adminBattlePage;
+  }
+
+  return state.adminPage;
 }
 
 function setAdminActivePage(value) {
@@ -3111,41 +6284,36 @@ function setAdminActivePage(value) {
     return;
   }
 
+  if (state.adminSection === "battles") {
+    state.adminBattlePage = value;
+    return;
+  }
+
   state.adminPage = value;
 }
 
 function getFilteredAdminCharacters() {
-  const query = state.adminWalletQuery.trim().toLowerCase();
-  if (!query) {
-    return state.adminCharacters;
-  }
-
-  return state.adminCharacters.filter((record) =>
-    String(record.creatorWallet || "")
-      .toLowerCase()
-      .includes(query)
-  );
+  return filterAdminCharacters(state.adminCharacters, state.adminWalletQuery);
 }
 
 function getFilteredAdminWaitlistEntries() {
-  const query = state.adminWaitlistQuery.trim().toLowerCase();
-  if (!query) {
-    return state.adminWaitlistEntries;
-  }
+  return filterAdminWaitlistEntries(state.adminWaitlistEntries, state.adminWaitlistQuery);
+}
 
-  return state.adminWaitlistEntries.filter((entry) =>
-    [entry.email, entry.source, entry.pagePath, entry.userAgent].some((field) =>
-      String(field || "")
-        .toLowerCase()
-        .includes(query)
-    )
-  );
+function getFilteredAdminBattles() {
+  return filterAdminBattles(state.adminBattles, state.adminBattleQuery);
 }
 
 function getAdminCurrentRecords() {
-  return state.adminSection === "waitlist"
-    ? getFilteredAdminWaitlistEntries()
-    : getFilteredAdminCharacters();
+  if (state.adminSection === "waitlist") {
+    return getFilteredAdminWaitlistEntries();
+  }
+
+  if (state.adminSection === "battles") {
+    return getFilteredAdminBattles();
+  }
+
+  return getFilteredAdminCharacters();
 }
 
 function getAdminPaginationState(records = getAdminCurrentRecords()) {
@@ -3170,9 +6338,17 @@ function renderAdminPagination(records) {
   if (!adminPagination || !adminPageInfo || !adminPrevBtn || !adminNextBtn) return;
 
   const isLoading =
-    state.adminSection === "waitlist" ? state.isAdminWaitlistLoading : state.isAdminLoading;
+    state.adminSection === "waitlist"
+      ? state.isAdminWaitlistLoading
+      : state.adminSection === "battles"
+        ? state.isAdminBattlesLoading
+        : state.isAdminLoading;
   const hasLoaded =
-    state.adminSection === "waitlist" ? state.hasLoadedAdminWaitlist : state.hasLoadedAdminCharacters;
+    state.adminSection === "waitlist"
+      ? state.hasLoadedAdminWaitlist
+      : state.adminSection === "battles"
+        ? state.hasLoadedAdminBattles
+        : state.hasLoadedAdminCharacters;
 
   if (isLoading && !hasLoaded) {
     adminPagination.classList.add("hidden");
@@ -3285,6 +6461,18 @@ function updateAdminCount(records) {
     return;
   }
 
+  if (state.adminSection === "battles") {
+    if (state.isAdminBattlesLoading && !state.hasLoadedAdminBattles) {
+      adminCount.textContent = "Loading completed battles...";
+      return;
+    }
+
+    const total = records.length;
+    const baseLabel = `${total} completed battle${total === 1 ? "" : "s"}`;
+    adminCount.textContent = state.adminBattleQuery.trim() ? `${baseLabel} found` : baseLabel;
+    return;
+  }
+
   if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
     adminCount.textContent = "Loading characters...";
     return;
@@ -3292,9 +6480,7 @@ function updateAdminCount(records) {
 
   const total = records.length;
   const baseLabel = `${total} created character${total === 1 ? "" : "s"}`;
-  adminCount.textContent = state.adminWalletQuery.trim()
-    ? `${baseLabel} found`
-    : baseLabel;
+  adminCount.textContent = state.adminWalletQuery.trim() ? `${baseLabel} found` : baseLabel;
 }
 
 function renderAdminStats() {
@@ -3315,14 +6501,54 @@ function renderAdminStats() {
     adminRarityLegendary,
   ];
 
-  if (
+  const isInitialLoading =
     (state.adminSection === "characters" && state.isAdminLoading && !state.hasLoadedAdminCharacters) ||
+    (state.adminSection === "battles" && state.isAdminBattlesLoading && !state.hasLoadedAdminBattles) ||
     (state.adminSection === "waitlist" &&
       state.isAdminWaitlistLoading &&
-      !state.hasLoadedAdminWaitlist)
-  ) {
+      !state.hasLoadedAdminWaitlist);
+
+  if (isInitialLoading) {
     statValues.forEach((node) => {
-      if (node) node.textContent = "—";
+      if (node) {
+        node.textContent = "—";
+        node.style.color = "#101828";
+      }
+    });
+    return;
+  }
+
+  if (state.adminSection === "battles") {
+    const summary = state.adminBattleSummary || {};
+    const labels = [
+      "Completed Battles",
+      "Avg Rounds (50)",
+      "Sample Size",
+      "AI Narration",
+      "Template",
+      "24h",
+    ];
+    const values = [
+      summary.totalCompletedBattles || 0,
+      Number.isFinite(Number(summary.averageRoundsLast50))
+        ? Number(summary.averageRoundsLast50).toFixed(
+            Number(summary.averageRoundsLast50) % 1 === 0 ? 0 : 1
+          )
+        : "0",
+      summary.averageRoundsSampleSize || 0,
+      summary.aiNarratedBattles || 0,
+      summary.templateNarratedBattles || 0,
+      summary.completedLast24Hours || 0,
+    ];
+
+    statLabels.forEach((node, index) => {
+      if (node) node.textContent = labels[index];
+    });
+    statValues.forEach((node, index) => {
+      if (node) {
+        node.textContent = String(values[index]);
+        node.style.color = "#101828";
+      }
     });
     return;
   }
@@ -3351,16 +6577,6 @@ function renderAdminStats() {
         node.style.color = "#101828";
       }
     });
-    return;
-  }
-
-  if (state.isAdminLoading && !state.hasLoadedAdminCharacters) {
-    if (adminUsersCount) adminUsersCount.textContent = "—";
-    if (adminCharactersCount) adminCharactersCount.textContent = "—";
-    if (adminRarityCommon) adminRarityCommon.textContent = "—";
-    if (adminRarityRare) adminRarityRare.textContent = "—";
-    if (adminRarityEpic) adminRarityEpic.textContent = "—";
-    if (adminRarityLegendary) adminRarityLegendary.textContent = "—";
     return;
   }
 
@@ -3441,6 +6657,64 @@ function copyAdminText(value, successMessage = "Copied.") {
   window.prompt("Copy value:", text);
 }
 
+function normalizeAdminBattleRecord(record) {
+  if (!record || typeof record !== "object" || !record.battleId) {
+    return null;
+  }
+
+  return cloneBattleRecord({
+    battleId: String(record.battleId),
+    createdAt: record.createdAt || null,
+    completedAt: record.completedAt || null,
+    roundCount: Math.max(0, Math.floor(Number(record.roundCount) || 0)),
+    winnerPetId: String(record.winnerPetId || "").trim(),
+    narrationMode: String(record.narrationMode || "template").trim() || "template",
+    attackerPet: record.attackerPet
+      ? {
+          id: String(record.attackerPet.id || "").trim(),
+          wallet: String(record.attackerPet.wallet || "").trim(),
+          name: String(record.attackerPet.name || "Unknown").trim() || "Unknown",
+          level: Math.max(1, Math.floor(Number(record.attackerPet.level) || 1)),
+          rarity: String(record.attackerPet.rarity || "Common").trim() || "Common",
+        }
+      : null,
+    defenderPet: record.defenderPet
+      ? {
+          id: String(record.defenderPet.id || "").trim(),
+          wallet: String(record.defenderPet.wallet || "").trim(),
+          name: String(record.defenderPet.name || "Unknown").trim() || "Unknown",
+          level: Math.max(1, Math.floor(Number(record.defenderPet.level) || 1)),
+          rarity: String(record.defenderPet.rarity || "Common").trim() || "Common",
+        }
+      : null,
+  });
+}
+
+function getAdminBattleWinnerLabel(record) {
+  const winnerPetId = String(record?.winnerPetId || "").trim();
+  if (!winnerPetId) {
+    return "Unknown";
+  }
+
+  if (winnerPetId === String(record?.attackerPet?.id || "").trim()) {
+    return record?.attackerPet?.name || "Attacker";
+  }
+
+  if (winnerPetId === String(record?.defenderPet?.id || "").trim()) {
+    return record?.defenderPet?.name || "Defender";
+  }
+
+  return "Unknown";
+}
+
+function applyAdminWalletPivot(wallet) {
+  const next = getAdminWalletPivotState(wallet);
+  state.adminSection = "characters";
+  state.adminWalletQuery = next.query;
+  state.adminPage = next.page;
+  renderAdminTable();
+}
+
 function renderAdminWaitlistTable(records) {
   const { pageRecords } = getAdminPaginationState(records);
 
@@ -3491,6 +6765,79 @@ function renderAdminWaitlistTable(records) {
   });
 }
 
+function renderAdminBattlesTable(records) {
+  const { pageRecords } = getAdminPaginationState(records);
+
+  if (adminTableHeadRow) {
+    adminTableHeadRow.innerHTML = `
+      <th scope="col">Matchup</th>
+      <th scope="col">Winner</th>
+      <th scope="col">Rounds</th>
+      <th scope="col">Completed</th>
+      <th scope="col">Narration</th>
+    `;
+  }
+
+  pageRecords.forEach((record) => {
+    const row = document.createElement("tr");
+    row.className = "admin-row";
+
+    const matchupCell = document.createElement("td");
+    matchupCell.className = "admin-battle-matchup-cell";
+
+    const matchupStack = document.createElement("div");
+    matchupStack.className = "admin-battle-matchup";
+
+    const attackerLine = document.createElement("div");
+    attackerLine.className = "admin-battle-participant";
+    const attackerTitle = document.createElement("strong");
+    attackerTitle.textContent = record.attackerPet?.name || "Unknown attacker";
+    const attackerMeta = document.createElement("span");
+    attackerMeta.className = "admin-battle-participant-meta";
+    attackerMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.attackerPet?.level) || 1))} · ${record.attackerPet?.rarity || "Common"} · ${shortenAddress(record.attackerPet?.wallet || "")}`;
+    attackerLine.append(attackerTitle, attackerMeta);
+
+    const versusLine = document.createElement("span");
+    versusLine.className = "admin-battle-versus";
+    versusLine.textContent = "vs";
+
+    const defenderLine = document.createElement("div");
+    defenderLine.className = "admin-battle-participant";
+    const defenderTitle = document.createElement("strong");
+    defenderTitle.textContent = record.defenderPet?.name || "Unknown defender";
+    const defenderMeta = document.createElement("span");
+    defenderMeta.className = "admin-battle-participant-meta";
+    defenderMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.defenderPet?.level) || 1))} · ${record.defenderPet?.rarity || "Common"} · ${shortenAddress(record.defenderPet?.wallet || "")}`;
+    defenderLine.append(defenderTitle, defenderMeta);
+
+    const battleMeta = document.createElement("span");
+    battleMeta.className = "admin-battle-id";
+    battleMeta.textContent = record.battleId;
+
+    matchupStack.append(attackerLine, versusLine, defenderLine, battleMeta);
+    matchupCell.appendChild(matchupStack);
+
+    const winnerCell = document.createElement("td");
+    winnerCell.className = "admin-battle-winner-cell";
+    winnerCell.textContent = getAdminBattleWinnerLabel(record);
+
+    const roundsCell = document.createElement("td");
+    roundsCell.textContent = String(Math.max(0, Math.floor(Number(record.roundCount) || 0)));
+
+    const completedCell = document.createElement("td");
+    completedCell.textContent = formatDateTime(record.completedAt || record.createdAt);
+
+    const narrationCell = document.createElement("td");
+    const narrationBadge = document.createElement("span");
+    narrationBadge.className = `admin-battle-mode-badge admin-battle-mode-badge--${record.narrationMode === "ai" ? "ai" : "template"}`;
+    narrationBadge.textContent = record.narrationMode === "ai" ? "AI" : "Template";
+    narrationCell.appendChild(narrationBadge);
+
+    row.append(matchupCell, winnerCell, roundsCell, completedCell, narrationCell);
+    adminTableBody.appendChild(row);
+  });
+}
+
 function renderAdminTable() {
   if (!adminTableBody) return;
 
@@ -3500,25 +6847,32 @@ function renderAdminTable() {
   renderAdminPagination(records);
   adminTableBody.innerHTML = "";
 
-  if (adminSearchInput) {
-    adminSearchInput.placeholder =
-      state.adminSection === "waitlist"
-        ? "Search by email, source, page or user agent"
+  const searchPlaceholder =
+    state.adminSection === "waitlist"
+      ? "Search by email, source, page or user agent"
+      : state.adminSection === "battles"
+        ? "Search by battle id, pet or wallet"
         : "Search by wallet address";
+
+  if (adminSearchInput) {
+    adminSearchInput.placeholder = searchPlaceholder;
     adminSearchInput.value = getAdminActiveQuery();
   }
 
   if (adminSearchLabel) {
-    adminSearchLabel.textContent =
-      state.adminSection === "waitlist"
-        ? "Search by email, source, page or user agent"
-        : "Search by wallet";
+    adminSearchLabel.textContent = searchPlaceholder;
   }
 
   if (adminNavCharacters) {
     const isActive = state.adminSection === "characters";
     adminNavCharacters.classList.toggle("active", isActive);
     adminNavCharacters.setAttribute("aria-selected", isActive ? "true" : "false");
+  }
+
+  if (adminNavBattles) {
+    const isActive = state.adminSection === "battles";
+    adminNavBattles.classList.toggle("active", isActive);
+    adminNavBattles.setAttribute("aria-selected", isActive ? "true" : "false");
   }
 
   if (adminNavWaitlist) {
@@ -3543,6 +6897,12 @@ function renderAdminTable() {
     return;
   }
 
+  if (state.adminSection === "battles" && state.isAdminBattlesLoading) {
+    setAdminEmptyState("Loading completed battles...", true);
+    if (adminPagination) adminPagination.classList.add("hidden");
+    return;
+  }
+
   if (state.adminSection === "waitlist" && state.isAdminWaitlistLoading) {
     setAdminEmptyState("Loading waitlist entries...", true);
     if (adminPagination) adminPagination.classList.add("hidden");
@@ -3551,6 +6911,12 @@ function renderAdminTable() {
 
   if (state.adminSection === "characters" && state.adminErrorMessage) {
     setAdminEmptyState(state.adminErrorMessage, true);
+    if (adminPagination) adminPagination.classList.add("hidden");
+    return;
+  }
+
+  if (state.adminSection === "battles" && state.adminBattleErrorMessage) {
+    setAdminEmptyState(state.adminBattleErrorMessage, true);
     if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
@@ -3567,6 +6933,10 @@ function renderAdminTable() {
         ? state.adminWaitlistQuery.trim()
           ? "No waitlist entries found for this search."
           : "No waitlist entries yet."
+        : state.adminSection === "battles"
+          ? state.adminBattleQuery.trim()
+            ? "No completed battles found for this search."
+            : "No completed battles yet."
         : state.adminWalletQuery.trim()
           ? "No characters found for this wallet search."
           : "No created characters yet.";
@@ -3579,6 +6949,11 @@ function renderAdminTable() {
 
   if (state.adminSection === "waitlist") {
     renderAdminWaitlistTable(records);
+    return;
+  }
+
+  if (state.adminSection === "battles") {
+    renderAdminBattlesTable(records);
     return;
   }
 
@@ -3636,7 +7011,11 @@ function renderAdminTable() {
     meta.className = "admin-rarity-text";
     meta.style.color = getRarityMeta(record.rarity).color;
 
-    summary.append(title, meta);
+    const progression = document.createElement("span");
+    progression.className = "admin-character-progression";
+    progression.textContent = `Lvl ${getRecordLevel(record)} · XP ${Math.max(0, Math.floor(Number(record.experience) || 0))}/${Math.max(0, Math.floor(Number(record.experienceForNextLevel) || 0))}`;
+
+    summary.append(title, meta, progression);
     characterCell.append(thumb, summary);
 
     const typeCell = document.createElement("td");
@@ -3644,7 +7023,15 @@ function renderAdminTable() {
 
     const walletCell = document.createElement("td");
     walletCell.className = "admin-wallet-cell";
-    walletCell.textContent = record.creatorWallet || "";
+    const walletButton = document.createElement("button");
+    walletButton.type = "button";
+    walletButton.className = "admin-wallet-btn";
+    walletButton.textContent = record.creatorWallet || "";
+    walletButton.title = "Filter roster by this wallet";
+    walletButton.addEventListener("click", () => {
+      applyAdminWalletPivot(record.creatorWallet || "");
+    });
+    walletCell.appendChild(walletButton);
 
     const createdCell = document.createElement("td");
     createdCell.textContent = formatDateTime(record.completedAt || record.createdAt);
@@ -3727,6 +7114,59 @@ async function loadAdminCharacters({ force = false } = {}) {
   }
 }
 
+async function loadAdminBattles({ force = false } = {}) {
+  if (!state.isAdmin) return;
+  if (state.isAdminBattlesLoading) return;
+  if (!force && state.adminBattles.length) {
+    renderAdminTable();
+    return;
+  }
+
+  state.isAdminBattlesLoading = true;
+  state.adminBattleErrorMessage = "";
+  renderAdminTable();
+
+  try {
+    const data = await apiRequest("/api/admin/battles", {}, "GET");
+    state.adminBattles = Array.isArray(data.battles)
+      ? data.battles.map(normalizeAdminBattleRecord).filter(Boolean)
+      : [];
+    state.adminBattleSummary =
+      data.summary && typeof data.summary === "object"
+        ? {
+            totalCompletedBattles: Math.max(
+              0,
+              Math.floor(Number(data.summary.totalCompletedBattles) || 0)
+            ),
+            averageRoundsLast50: Math.max(0, Number(data.summary.averageRoundsLast50) || 0),
+            averageRoundsSampleSize: Math.max(
+              0,
+              Math.floor(Number(data.summary.averageRoundsSampleSize) || 0)
+            ),
+            aiNarratedBattles: Math.max(0, Math.floor(Number(data.summary.aiNarratedBattles) || 0)),
+            templateNarratedBattles: Math.max(
+              0,
+              Math.floor(Number(data.summary.templateNarratedBattles) || 0)
+            ),
+            completedLast24Hours: Math.max(
+              0,
+              Math.floor(Number(data.summary.completedLast24Hours) || 0)
+            ),
+          }
+        : null;
+    state.adminBattlePage = 1;
+  } catch (error) {
+    state.adminBattles = [];
+    state.adminBattleSummary = null;
+    state.adminBattleErrorMessage =
+      typeof error?.message === "string" ? error.message : "Failed to load completed battles.";
+  } finally {
+    state.isAdminBattlesLoading = false;
+    state.hasLoadedAdminBattles = true;
+    renderAdminTable();
+  }
+}
+
 async function loadAdminWaitlist({ force = false } = {}) {
   if (!state.isAdmin) return;
   if (state.isAdminWaitlistLoading) return;
@@ -3754,22 +7194,28 @@ async function loadAdminWaitlist({ force = false } = {}) {
   }
 }
 
+function loadActiveAdminSection({ force = false } = {}) {
+  if (state.adminSection === "waitlist") {
+    return loadAdminWaitlist({ force });
+  }
+
+  if (state.adminSection === "battles") {
+    return loadAdminBattles({ force });
+  }
+
+  return loadAdminCharacters({ force });
+}
+
 function switchAdminSection(section) {
-  const nextSection = section === "waitlist" ? "waitlist" : "characters";
+  const nextSection =
+    section === "waitlist" ? "waitlist" : section === "battles" ? "battles" : "characters";
   if (state.adminSection === nextSection) {
     renderAdminTable();
     return;
   }
 
   state.adminSection = nextSection;
-  renderAdminTable();
-
-  if (nextSection === "waitlist") {
-    loadAdminWaitlist();
-    return;
-  }
-
-  loadAdminCharacters();
+  loadActiveAdminSection();
 }
 
 async function deleteAdminCharacter(record) {
@@ -3867,7 +7313,92 @@ function fireSuccessConfetti() {
   });
 }
 
-function moveTo(step) {
+const ARENA_HIT_CONFETTI_EMOJIS = ["🍬", "🍫", "🍭", "🧁", "🍪"];
+let arenaHitConfettiShapes = null;
+
+function getArenaHitConfettiShapes() {
+  if (arenaHitConfettiShapes) {
+    return arenaHitConfettiShapes;
+  }
+
+  if (typeof window.confetti !== "function" || typeof window.confetti.shapeFromText !== "function") {
+    arenaHitConfettiShapes = [];
+    return arenaHitConfettiShapes;
+  }
+
+  arenaHitConfettiShapes = ARENA_HIT_CONFETTI_EMOJIS.map((text) =>
+    window.confetti.shapeFromText({ text, scalar: 5.25 })
+  );
+  return arenaHitConfettiShapes;
+}
+
+function fireArenaHitConfetti(targetElement, accentSide = "right") {
+  if (typeof window.confetti !== "function" || !targetElement) return;
+
+  const rect = targetElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const viewportWidth = Math.max(window.innerWidth || 0, 1);
+  const viewportHeight = Math.max(window.innerHeight || 0, 1);
+  const origin = {
+    x: clampNumber((rect.left + rect.width / 2) / viewportWidth, 0, 1),
+    y: clampNumber((rect.top + rect.height * 0.42) / viewportHeight, 0, 1),
+  };
+  const direction = accentSide === "left" ? 1 : -1;
+  const isMobile = isMobileArenaViewport();
+  const defaults = {
+    disableForReducedMotion: true,
+    gravity: isMobile ? 1.05 : 1.15,
+    origin,
+    scalar: isMobile ? 1.05 : 1.15,
+    startVelocity: isMobile ? 28 : 42,
+    ticks: isMobile ? 120 : 180,
+    zIndex: 1200,
+  };
+  const emojiShapes = getArenaHitConfettiShapes();
+
+  window.requestAnimationFrame(() => {
+    if (emojiShapes.length) {
+      window.confetti({
+        ...defaults,
+        angle: direction > 0 ? 26 : 154,
+        drift: direction * (isMobile ? 0.28 : 0.55),
+        particleCount: isMobile ? 10 : 16,
+        scalar: isMobile ? 3.2 : 4.6,
+        shapes: emojiShapes,
+        spread: isMobile ? 34 : 60,
+      });
+    }
+
+    window.confetti({
+      ...defaults,
+      angle: direction > 0 ? 22 : 158,
+      colors: ["#FDB022", "#F79009", "#F04438", "#FEC84B", "#FFFFFF"],
+      drift: direction * (isMobile ? 0.35 : 0.7),
+      particleCount: isMobile ? (emojiShapes.length ? 12 : 18) : (emojiShapes.length ? 20 : 30),
+      scalar: isMobile ? 1.02 : 1.18,
+      shapes: ["square", "circle"],
+      spread: isMobile ? 42 : 72,
+    });
+  });
+}
+
+function triggerArenaBattleHitEffects(battle, round) {
+  if (!arenaLiveBattle || !battle || !round) return;
+  if (Math.max(0, Number(round.damage) || 0) <= 0) return;
+
+  const animation = getArenaBattleAnimationState(battle);
+  const hitKey = `${animation.currentIndex}:${round.number}`;
+  if (animation.lastHitEffectKey === hitKey) return;
+  animation.lastHitEffectKey = hitKey;
+
+  const targetSelector =
+    round.accentSide === "left" ? ".arena-live-stage-card--initiator" : ".arena-live-stage-card--opponent";
+  const targetCard = arenaLiveBattle.querySelector(targetSelector);
+  fireArenaHitConfetti(targetCard, round.accentSide);
+}
+
+function moveTo(step, { replace = true } = {}) {
   if (!ENABLE_ARENA && step === "arena") {
     step = "cabinet";
   }
@@ -3876,8 +7407,16 @@ function moveTo(step) {
     step = state.isAuthenticated ? "cabinet" : "type";
   }
 
+  if (step === "upgrade" && getPageMode() !== "dashboard") {
+    step = "attrs";
+  }
+
   if (step !== "success" && state.isShareModalOpen) {
     closeSuccessShareModal({ restoreFocus: false });
+  }
+
+  if (step !== "upgrade") {
+    resetUpgradeSession();
   }
 
   state.step = step;
@@ -3899,6 +7438,10 @@ function moveTo(step) {
     renderAttrsStep();
     suppressRewardsTooltip();
   }
+  if (step === "upgrade") {
+    showScreen("screenAttrs");
+    renderAttrsStep();
+  }
   if (step === "success") {
     showScreen("screenSuccess");
     renderSuccessStep();
@@ -3911,14 +7454,22 @@ function moveTo(step) {
   if (step === "arena") {
     showScreen("screenArena");
     renderArena();
+    void ensureArenaHistoryLoaded().catch(() => {});
   }
   if (step === "admin") {
     showScreen("screenAdmin");
     renderAdminTable();
-    loadAdminCharacters();
+    loadActiveAdminSection();
   }
 
   syncDashboardTabs(step);
+  if (getPageMode() === "dashboard") {
+    syncDashboardRouteState(step, {
+      battleId: step === "arena" ? getSelectedArenaBattleId() : "",
+      petId: step === "upgrade" ? state.upgradePetId : "",
+      replace,
+    });
+  }
   document.body.classList.remove("app-booting");
   resetStepScroll();
 }
@@ -3993,6 +7544,7 @@ async function savePowerSelectionAndContinue() {
 
   try {
     const data = await apiRequest("/api/character/select-power", {
+      draftId: state.draft?.id || "",
       selectedPowerId: state.selectedPowerId,
     });
 
@@ -4025,6 +7577,7 @@ async function completeCharacterCreation() {
 
   try {
     const data = await apiRequest("/api/character/create", {
+      draftId: state.draft?.id || "",
       stats: state.attrs,
     });
 
@@ -4115,6 +7668,11 @@ function init() {
   });
 
   attrsContinueBtn.addEventListener("click", () => {
+    if (isUpgradeStep()) {
+      void saveUpgradeAllocation();
+      return;
+    }
+
     completeCharacterCreation();
   });
 
@@ -4122,9 +7680,20 @@ function init() {
     moveTo("type");
   });
 
-  document.getElementById("backToPowersBtn").addEventListener("click", () => {
+  backToPowersBtn.addEventListener("click", () => {
+    if (isUpgradeStep()) {
+      moveTo("cabinet", { replace: true });
+      return;
+    }
+
     moveTo("powers");
   });
+
+  if (attrsBlockedBtn) {
+    attrsBlockedBtn.addEventListener("click", () => {
+      moveTo("cabinet", { replace: true });
+    });
+  }
 
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
     window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
@@ -4186,6 +7755,10 @@ function init() {
 
   if (dashboardTabArena) {
     dashboardTabArena.addEventListener("click", () => {
+      clearArenaAnimation();
+      state.activeBattle = null;
+      clearArenaReplayRequest();
+      state.arenaSelectedHistoryBattleId = "";
       moveTo("arena");
     });
   }
@@ -4196,14 +7769,80 @@ function init() {
     });
   }
 
+  if (arenaIdleSecondaryBtn) {
+    arenaIdleSecondaryBtn.addEventListener("click", () => {
+      closeArenaReplayBattle();
+    });
+  }
+
+  if (arenaReplayBackBtn) {
+    arenaReplayBackBtn.addEventListener("click", () => {
+      closeArenaReplayBattle();
+    });
+  }
+
+  if (arenaHistoryLoadMoreBtn) {
+    arenaHistoryLoadMoreBtn.addEventListener("click", () => {
+      loadMoreArenaHistory();
+    });
+  }
+
+  if (arenaHistoryList) {
+    arenaHistoryList.addEventListener("click", async (event) => {
+      const trigger = event.target.closest('[data-action="open-arena-history-battle"]');
+      if (!trigger) return;
+
+      event.preventDefault();
+
+      const battleId = String(trigger.dataset.battleId || "").trim();
+      if (!battleId) return;
+
+      await openArenaReplayBattle(battleId, {
+        source: "history",
+        pushRoute: true,
+      });
+    });
+  }
+
   if (cabinetCard) {
     cabinetCard.addEventListener("click", (event) => {
+      const upgradeButton = event.target.closest('[data-action="open-upgrade"]');
+      if (upgradeButton) {
+        event.preventDefault();
+        openUpgradeFlow(upgradeButton.dataset.characterId, { pushRoute: true });
+        return;
+      }
+
       const fightButton = event.target.closest(".cabinet-fight-btn");
       if (!fightButton) return;
       if (fightButton.disabled) return;
       startFightFlow(fightButton.dataset.characterId);
     });
   }
+
+  window.addEventListener("popstate", () => {
+    if (!state.isAuthenticated || getPageMode() !== "dashboard") {
+      return;
+    }
+
+    void syncDashboardStateFromLocation();
+  });
+
+  let attrsViewportSyncFrame = 0;
+  window.addEventListener("resize", () => {
+    if (state.step !== "upgrade" && state.step !== "attrs") {
+      return;
+    }
+
+    if (attrsViewportSyncFrame) {
+      window.cancelAnimationFrame(attrsViewportSyncFrame);
+    }
+
+    attrsViewportSyncFrame = window.requestAnimationFrame(() => {
+      attrsViewportSyncFrame = 0;
+      renderAttrsStep();
+    });
+  });
 
   if (walletMenuAdmin) {
     walletMenuAdmin.addEventListener("click", () => {
@@ -4255,6 +7894,16 @@ function init() {
     });
   });
 
+  window.addEventListener("focus", () => {
+    maybeRefreshBattleStateOnResume();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      maybeRefreshBattleStateOnResume();
+    }
+  });
+
   if (claimRewardsBtn) {
     claimRewardsBtn.addEventListener("click", () => {
       claimRewardsBtn.blur();
@@ -4275,6 +7924,12 @@ function init() {
     });
   }
 
+  if (adminNavBattles) {
+    adminNavBattles.addEventListener("click", () => {
+      switchAdminSection("battles");
+    });
+  }
+
   if (adminNavWaitlist) {
     adminNavWaitlist.addEventListener("click", () => {
       switchAdminSection("waitlist");
@@ -4283,11 +7938,7 @@ function init() {
 
   if (adminRefreshBtn) {
     adminRefreshBtn.addEventListener("click", async () => {
-      if (state.adminSection === "waitlist") {
-        await loadAdminWaitlist({ force: true });
-        return;
-      }
-      await loadAdminCharacters({ force: true });
+      await loadActiveAdminSection({ force: true });
     });
   }
 
@@ -4361,7 +8012,14 @@ function init() {
   restoreWalletSession();
   closeWalletModal();
   if (getPageMode() === "dashboard") {
-    moveTo(getRequestedScreen() === "arena" ? "arena" : "cabinet");
+    const requestedScreen = getRequestedScreen();
+    moveTo(
+      requestedScreen === "arena"
+        ? "arena"
+        : requestedScreen === "upgrade"
+          ? "upgrade"
+          : "cabinet"
+    );
     return;
   }
 

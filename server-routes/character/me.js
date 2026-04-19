@@ -1,5 +1,8 @@
 const { getSessionFromRequest, handleCors, json } = require("../../api/_lib/auth");
-const { serializeCharacterRecord } = require("../../api/_lib/character");
+const {
+  serializeBattleState,
+  serializeCharacterRecord,
+} = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { getWalletProfile } = require("../../api/_lib/store");
 
@@ -31,5 +34,6 @@ module.exports = async (req, res) => {
     draft: serializeCharacterRecord(profile.draft),
     character: serializeCharacterRecord(latestCharacter),
     characters: profile.characters.map(serializeCharacterRecord),
+    battleState: serializeBattleState(profile.battleState, { wallet: session.wallet }),
   });
 };

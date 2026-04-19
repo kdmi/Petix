@@ -1,6 +1,10 @@
 const { getSessionFromRequest, handleCors, json } = require("../_lib/auth");
-const { serializeCharacterRecord } = require("../_lib/character");
-const { findCharacterRecordById, listAllCharacters } = require("../_lib/store");
+const { getPreviewOpponentCandidates } = require("../_lib/battle-matchmaking");
+const {
+  resolveAttackerParticipant,
+  serializeBattlePreviewCandidate,
+} = require("../_lib/battle");
+const { listAllCharacters } = require("../_lib/store");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -18,34 +22,36 @@ module.exports = async (req, res) => {
 
   const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const attackerPetId = String(requestUrl.searchParams.get("attackerPetId") || "").trim();
+  const requestedLimit = Number.parseInt(requestUrl.searchParams.get("limit") || "", 10);
+  const opponentLimit = Number.isFinite(requestedLimit)
+    ? Math.max(1, Math.min(requestedLimit, 20))
+    : 10;
 
   if (!attackerPetId) {
     json(res, 400, { error: "attackerPetId is required." });
     return;
   }
 
-  const attacker = await findCharacterRecordById(attackerPetId);
-  if (!attacker?.character || attacker.wallet !== session.wallet) {
-    json(res, 403, { error: "Attacker pet does not belong to this wallet." });
-    return;
-  }
-
-  const characters = await listAllCharacters();
-  const opponents = characters
-    .filter(({ wallet, character }) => {
-      return (
-        wallet &&
-        wallet !== session.wallet &&
-        character?.status === "completed" &&
-        character?.id !== attackerPetId
-      );
+  try {
+    const attacker = await resolveAttackerParticipant({
+      attackerPetId,
+      attackerWallet: session.wallet,
+    });
+    const characters = await listAllCharacters();
+    const opponents = getPreviewOpponentCandidates({
+      attacker,
+      candidates: characters,
+      limit: opponentLimit,
     })
-    .map(({ wallet, character }) => ({
-      ...serializeCharacterRecord(character),
-      creatorWallet: wallet,
-    }));
+      .map((entry) => serializeBattlePreviewCandidate(entry))
+      .filter(Boolean);
 
-  json(res, 200, {
-    opponents,
-  });
+    json(res, 200, {
+      opponents,
+    });
+  } catch (error) {
+    json(res, 400, {
+      error: error.message || "Bad request.",
+    });
+  }
 };

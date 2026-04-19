@@ -4,12 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Petix - My Pets</title>
-    <meta name="description" content="View your Petix characters" />
+    <meta name="description" content="View your Petix characters and arena access" />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bangers&family=Figtree:wght@400;500;600;700&family=Fraunces:wght@600&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -27,15 +27,26 @@
         display: flex !important;
       }
     </style>
-    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260318a" />
+    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260419g" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
-      <header class="topbar">
+      <header class="topbar dashboard-topbar">
         <div class="brand">
           <img src="/assets/petix-logo.svg" alt="Petix logo" width="118" height="40" />
         </div>
+        <nav class="dashboard-tabs" id="dashboardTabs" aria-label="Dashboard pages">
+          <button class="dashboard-tab active" id="dashboardTabMyPets" type="button">My Pets</button>
+          <button class="dashboard-tab" id="dashboardTabArena" type="button">Arena</button>
+        </nav>
         <div class="topbar-actions">
+          <div class="dashboard-energy" id="dashboardEnergy" aria-label="Energy 3 of 3">
+            <img src="/assets/dashboard/energy-bolt.svg" alt="" width="20" height="20" />
+            <p><span id="dashboardEnergyCurrent">3</span> <em id="dashboardEnergyMax">of 3</em></p>
+            <span class="dashboard-energy-tooltip" id="dashboardEnergyTooltip" aria-hidden="true">
+              Energy refills every day. Come back tomorrow!
+            </span>
+          </div>
           <button class="connect-trigger" id="connectTrigger" type="button">Connect wallet</button>
           <div class="wallet-menu hidden" id="walletMenu">
             <button class="wallet-menu-item" id="walletMenuCreatePet" type="button">Create pet</button>
@@ -173,8 +184,15 @@
 
         <div class="attrs-layout">
           <div class="attrs-main">
-            <h1>Distribute attributes</h1>
-            <p>Attributes increase your battle advantage.</p>
+            <h1 id="attrsTitle">Distribute attributes</h1>
+            <p id="attrsDescription">Attributes increase your battle advantage.</p>
+            <div class="attrs-blocked hidden" id="attrsBlockedState">
+              <h2 id="attrsBlockedTitle">Upgrade unavailable</h2>
+              <p id="attrsBlockedText">This pet can't be upgraded right now.</p>
+              <button class="primary-btn attrs-blocked-btn" id="attrsBlockedBtn" type="button">
+                Go to My Pets
+              </button>
+            </div>
             <div class="attrs-list" id="attrsList"></div>
           </div>
 
@@ -183,26 +201,32 @@
               <div class="attrs-pet-image-wrap">
                 <img class="attrs-pet-image" src="/assets/character/current-pet.jpg" alt="" width="248" height="248" />
               </div>
-              <span class="attrs-pet-level">Lvl. 1</span>
-              <span class="attrs-pet-rarity">Legendary</span>
+              <span class="attrs-pet-name" id="attrsPetName">Current pet</span>
+              <span class="attrs-pet-level" id="attrsPetLevel">Lvl. 1</span>
+              <span class="attrs-pet-rarity" id="attrsPetRarity">Legendary</span>
               <span class="attrs-exp-label">Experience</span>
-              <span class="attrs-exp-value">0/500</span>
+              <span class="attrs-exp-value" id="attrsExpValue">0/500</span>
               <span class="attrs-exp-track"></span>
-              <span class="attrs-exp-progress"></span>
+              <span class="attrs-exp-progress" id="attrsExpProgress"></span>
             </div>
 
-            <div class="attrs-side-panel">
+            <div class="attrs-side-panel" id="attrsSidePanel">
               <div class="attrs-points-card">
-                <span>Points<br />to distribute</span>
+                <span id="attrsPointsLabel">Points<br />to distribute</span>
                 <strong id="pointsLeft">15</strong>
               </div>
 
-              <div class="attrs-hold-copy">
+              <div class="attrs-upgrade-summary hidden" id="attrsUpgradeSummary">
+                <p class="attrs-upgrade-summary-title">Staged changes</p>
+                <div class="attrs-upgrade-summary-list" id="attrsUpgradeSummaryList"></div>
+              </div>
+
+              <div class="attrs-hold-copy" id="attrsHoldCopy">
                 <p class="attrs-hold-title">Extra points for $PETIX hold</p>
                 <p class="attrs-hold-text">If your wallet holds $PETIX, you can get extra experience rewards</p>
               </div>
 
-              <div class="attrs-rewards-wrap">
+              <div class="attrs-rewards-wrap" id="attrsRewardsWrap">
                 <button class="attrs-rewards-btn" id="claimRewardsBtn" type="button" disabled aria-disabled="true">
                   <span class="attrs-rewards-icon" aria-hidden="true"></span>
                   <span>Claim rewards</span>
@@ -300,6 +324,82 @@
         <div class="cabinet-grid" id="cabinetCard"></div>
       </section>
 
+      <section class="screen hidden" id="screenArena">
+        <div class="arena-layout" id="arenaLayout">
+          <div class="arena-shell">
+            <div class="arena-panel" id="arenaIdleState">
+              <div class="arena-panel-copy">
+                <p class="arena-panel-eyebrow" id="arenaPanelEyebrow">Arena</p>
+                <h1 id="arenaPanelTitle">Arena</h1>
+                <p id="arenaPanelDescription">Select any pet in My Pets or start with your latest one to roll a random opponent.</p>
+              </div>
+              <div class="arena-panel-actions">
+                <button class="primary-btn arena-start-btn enabled" id="arenaStartFightBtn" type="button">Start Fight</button>
+                <button class="arena-secondary-btn hidden" id="arenaIdleSecondaryBtn" type="button">Back to history</button>
+              </div>
+            </div>
+
+            <div class="arena-battle hidden" id="arenaBattleState">
+              <h1 class="arena-stage-title" id="arenaStageTitle">
+                <span class="arena-stage-title-text">Looking for your opponent</span>
+                <span class="arena-stage-dots" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </span>
+              </h1>
+
+              <div class="arena-roulette" id="arenaRoulette" aria-hidden="true">
+                <div class="arena-roulette-track" id="arenaRouletteTrack"></div>
+                <div class="arena-roulette-focus" id="arenaRouletteFocus">
+                  <div class="arena-roulette-focus-frame"></div>
+                  <img
+                    class="arena-roulette-focus-image"
+                    id="arenaRouletteFocusImage"
+                    src="/assets/character/current-pet.jpg"
+                    alt=""
+                    width="248"
+                    height="248"
+                  />
+                </div>
+              </div>
+
+              <div class="arena-focus-card hidden" id="arenaFocusCard"></div>
+
+              <div class="arena-versus hidden" id="arenaVersus" aria-hidden="true">
+                <div class="arena-versus-card arena-versus-card-opponent" id="arenaOpponentCard"></div>
+                <div class="arena-versus-loader" aria-hidden="true">
+                  <img
+                    class="arena-versus-loader-glyph"
+                    src="/assets/battle/arena-center-glyph.svg"
+                    alt=""
+                    width="64"
+                    height="64"
+                  />
+                </div>
+                <div class="arena-versus-card arena-versus-card-player" id="arenaPlayerCard"></div>
+              </div>
+
+              <div class="arena-live-battle hidden" id="arenaLiveBattle" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <aside class="arena-history-panel" id="arenaHistoryPanel" aria-label="Arena battle history">
+            <div class="arena-history-panel-head">
+              <div>
+                <p class="arena-history-panel-eyebrow">Battle history</p>
+                <h2>All battles with your pets</h2>
+                <p class="arena-history-panel-copy" id="arenaHistoryCount">Loading battle history...</p>
+              </div>
+            </div>
+
+            <div class="arena-history-feedback hidden" id="arenaHistoryFeedback" role="status"></div>
+            <div class="arena-history-list" id="arenaHistoryList"></div>
+            <button class="arena-history-load-more hidden" id="arenaHistoryLoadMoreBtn" type="button">
+              Load older battles
+            </button>
+          </aside>
+        </div>
+      </section>
+
       <section class="screen hidden" id="screenAdmin">
         <div class="admin-panel">
           <div class="admin-header">
@@ -319,6 +419,9 @@
           <div class="admin-nav" role="tablist" aria-label="Admin sections">
             <button class="admin-nav-btn active" id="adminNavCharacters" type="button" role="tab" aria-selected="true">
               Characters
+            </button>
+            <button class="admin-nav-btn" id="adminNavBattles" type="button" role="tab" aria-selected="false">
+              Battles
             </button>
             <button class="admin-nav-btn" id="adminNavWaitlist" type="button" role="tab" aria-selected="false">
               Waitlist
@@ -433,6 +536,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <script src="/assets/vendor/tweetnacl-fast.min.js"></script>
-    <script src="/pet-creation/app.js?v=20260319b"></script>
+    <script src="/pet-creation/battle-round-direction.js?v=20260419b"></script>
+    <script src="/pet-creation/admin-panel-state.js?v=20260419a"></script>
+    <script src="/pet-creation/upgrade-screen-state.js?v=20260418a"></script>
+    <script src="/pet-creation/app.js?v=20260419h"></script>
   </body>
 </html>

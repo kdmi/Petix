@@ -1,6 +1,7 @@
 const path = require("path");
 
 const HANDLERS = {
+  battles: require("../../server-routes/admin/battles"),
   characters: require("../../server-routes/admin/characters"),
   "delete-character": require("../../server-routes/admin/delete-character"),
   waitlist: require("../../server-routes/admin/waitlist"),

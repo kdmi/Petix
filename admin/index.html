@@ -27,7 +27,7 @@
         display: flex !important;
       }
     </style>
-    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260314a" />
+    <link rel="stylesheet" href="/pet-creation/styles.css?v=20260419g" />
   </head>
   <body class="app-booting" data-page="admin">
     <main class="creation-page">
@@ -173,8 +173,15 @@
 
         <div class="attrs-layout">
           <div class="attrs-main">
-            <h1>Distribute attributes</h1>
-            <p>Attributes increase your battle advantage.</p>
+            <h1 id="attrsTitle">Distribute attributes</h1>
+            <p id="attrsDescription">Attributes increase your battle advantage.</p>
+            <div class="attrs-blocked hidden" id="attrsBlockedState">
+              <h2 id="attrsBlockedTitle">Upgrade unavailable</h2>
+              <p id="attrsBlockedText">This pet can't be upgraded right now.</p>
+              <button class="primary-btn attrs-blocked-btn" id="attrsBlockedBtn" type="button">
+                Go to My Pets
+              </button>
+            </div>
             <div class="attrs-list" id="attrsList"></div>
           </div>
 
@@ -183,26 +190,32 @@
               <div class="attrs-pet-image-wrap">
                 <img class="attrs-pet-image" src="/assets/character/current-pet.jpg" alt="" width="248" height="248" />
               </div>
-              <span class="attrs-pet-level">Lvl. 1</span>
-              <span class="attrs-pet-rarity">Legendary</span>
+              <span class="attrs-pet-name" id="attrsPetName">Current pet</span>
+              <span class="attrs-pet-level" id="attrsPetLevel">Lvl. 1</span>
+              <span class="attrs-pet-rarity" id="attrsPetRarity">Legendary</span>
               <span class="attrs-exp-label">Experience</span>
-              <span class="attrs-exp-value">0/500</span>
+              <span class="attrs-exp-value" id="attrsExpValue">0/500</span>
               <span class="attrs-exp-track"></span>
-              <span class="attrs-exp-progress"></span>
+              <span class="attrs-exp-progress" id="attrsExpProgress"></span>
             </div>
 
-            <div class="attrs-side-panel">
+            <div class="attrs-side-panel" id="attrsSidePanel">
               <div class="attrs-points-card">
-                <span>Points<br />to distribute</span>
+                <span id="attrsPointsLabel">Points<br />to distribute</span>
                 <strong id="pointsLeft">15</strong>
               </div>
 
-              <div class="attrs-hold-copy">
+              <div class="attrs-upgrade-summary hidden" id="attrsUpgradeSummary">
+                <p class="attrs-upgrade-summary-title">Staged changes</p>
+                <div class="attrs-upgrade-summary-list" id="attrsUpgradeSummaryList"></div>
+              </div>
+
+              <div class="attrs-hold-copy" id="attrsHoldCopy">
                 <p class="attrs-hold-title">Extra points for $PETIX hold</p>
                 <p class="attrs-hold-text">If your wallet holds $PETIX, you can get extra experience rewards</p>
               </div>
 
-              <div class="attrs-rewards-wrap">
+              <div class="attrs-rewards-wrap" id="attrsRewardsWrap">
                 <button class="attrs-rewards-btn" id="claimRewardsBtn" type="button" disabled aria-disabled="true">
                   <span class="attrs-rewards-icon" aria-hidden="true"></span>
                   <span>Claim rewards</span>
@@ -275,6 +288,9 @@
           <div class="admin-nav" role="tablist" aria-label="Admin sections">
             <button class="admin-nav-btn active" id="adminNavCharacters" type="button" role="tab" aria-selected="true">
               Characters
+            </button>
+            <button class="admin-nav-btn" id="adminNavBattles" type="button" role="tab" aria-selected="false">
+              Battles
             </button>
             <button class="admin-nav-btn" id="adminNavWaitlist" type="button" role="tab" aria-selected="false">
               Waitlist
@@ -389,6 +405,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <script src="/assets/vendor/tweetnacl-fast.min.js"></script>
-    <script src="/pet-creation/app.js?v=20260319b"></script>
+    <script src="/pet-creation/battle-round-direction.js?v=20260419b"></script>
+    <script src="/pet-creation/admin-panel-state.js?v=20260419a"></script>
+    <script src="/pet-creation/upgrade-screen-state.js?v=20260418a"></script>
+    <script src="/pet-creation/app.js?v=20260419h"></script>
   </body>
 </html>

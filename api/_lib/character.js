@@ -1,6 +1,11 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
+const { buildBattleStateView } = require("./battle-energy");
+const {
+  getExperienceForNextLevel,
+  normalizeProgression,
+} = require("./battle-progression");
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const TOTAL_ATTRIBUTE_POINTS = 15;
@@ -42,7 +47,6 @@ const IMAGE_GENERATION_ERROR_MESSAGE =
 const SHEET_FETCH_TIMEOUT_MS = 6000;
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
 const GEMINI_IMAGE_TIMEOUT_MS = 45000;
-const LEVEL_UP_EXPERIENCE = 500;
 const LOCAL_FALLBACK_IMAGE_PATH = path.join(
   process.cwd(),
   "assets",
@@ -893,12 +897,7 @@ function normalizeAttributes(stats) {
 }
 
 function normalizeCharacterProgress(record) {
-  return {
-    level: Math.max(1, Math.floor(Number(record?.level) || 1)),
-    experience: Math.max(0, Math.floor(Number(record?.experience) || 0)),
-    softCurrency: Math.max(0, Math.floor(Number(record?.softCurrency) || 0)),
-    attributePointsAvailable: Math.max(0, Math.floor(Number(record?.attributePointsAvailable) || 0)),
-  };
+  return normalizeProgression(record);
 }
 
 function getAttributePointBudget(record) {
@@ -918,16 +917,87 @@ function validateSkillAllocation(stats, expectedTotal = TOTAL_ATTRIBUTE_POINTS) 
   return isValid && sum === expectedTotal;
 }
 
+function normalizeAttributeIncrements(attributeIncrements) {
+  return ATTRIBUTE_KEYS.reduce((acc, key) => {
+    const rawValue = attributeIncrements?.[key];
+    acc[key] = rawValue === undefined ? 0 : Number(rawValue);
+    return acc;
+  }, {});
+}
+
+function getAttributeIncrementSpend(attributeIncrements) {
+  const normalized = normalizeAttributeIncrements(attributeIncrements);
+  return ATTRIBUTE_KEYS.reduce((total, key) => total + normalized[key], 0);
+}
+
+function validateAttributeIncrements(attributeIncrements, availablePoints = Infinity) {
+  const payload =
+    attributeIncrements && typeof attributeIncrements === "object" && !Array.isArray(attributeIncrements)
+      ? attributeIncrements
+      : null;
+
+  if (!payload) {
+    return false;
+  }
+
+  const keys = Object.keys(payload);
+  if (!keys.length || keys.some((key) => !ATTRIBUTE_KEYS.includes(key))) {
+    return false;
+  }
+
+  const normalized = normalizeAttributeIncrements(payload);
+  const spendTotal = getAttributeIncrementSpend(normalized);
+
+  if (
+    !ATTRIBUTE_KEYS.every((key) => Number.isInteger(normalized[key]) && normalized[key] >= 0) ||
+    spendTotal <= 0
+  ) {
+    return false;
+  }
+
+  const maxSpend = Number.isFinite(Number(availablePoints))
+    ? Math.max(0, Math.floor(Number(availablePoints)))
+    : Infinity;
+
+  return spendTotal <= maxSpend;
+}
+
+function applyAttributeIncrements(attributes, attributeIncrements) {
+  const normalizedAttributes = normalizeAttributes(attributes);
+  const normalizedIncrements = normalizeAttributeIncrements(attributeIncrements);
+
+  return ATTRIBUTE_KEYS.reduce((acc, key) => {
+    acc[key] = normalizedAttributes[key] + normalizedIncrements[key];
+    return acc;
+  }, {});
+}
+
+function buildCharacterImageUrl(record) {
+  if (!record) {
+    return "";
+  }
+
+  const version = encodeURIComponent(record.updatedAt || record.createdAt || Date.now());
+  const characterId = encodeURIComponent(record.id || "");
+
+  return (
+    record.imageUrl ||
+    record.image?.url ||
+    (characterId ? `/api/character/image?id=${characterId}&v=${version}` : "")
+  );
+}
+
 function serializeCharacterRecord(record) {
   if (!record) return null;
 
   const rarity = getRarityConfig(record.rarity);
   const powers = Array.isArray(record.powers) ? record.powers : [];
-  const selectedPower = powers.find((power) => power.id === record.selectedPowerId) || null;
+  const selectedPower =
+    record.selectedPower ||
+    powers.find((power) => power.id === record.selectedPowerId) ||
+    null;
   const progress = normalizeCharacterProgress(record);
-  const version = encodeURIComponent(record.updatedAt || record.createdAt || Date.now());
-  const characterId = encodeURIComponent(record.id);
-  const imageUrl = record.image?.url || `/api/character/image?id=${characterId}&v=${version}`;
+  const imageUrl = buildCharacterImageUrl(record);
 
   return {
     id: record.id,
@@ -938,7 +1008,7 @@ function serializeCharacterRecord(record) {
     rarity: rarity.label,
     level: progress.level,
     experience: progress.experience,
-    experienceForNextLevel: LEVEL_UP_EXPERIENCE,
+    experienceForNextLevel: getExperienceForNextLevel(progress.level),
     softCurrency: progress.softCurrency,
     attributePointsAvailable: progress.attributePointsAvailable,
     attributePoints: getAttributePointBudget(record),
@@ -957,16 +1027,26 @@ function serializeCharacterRecord(record) {
   };
 }
 
+function serializeBattleState(record, { wallet = "" } = {}) {
+  return buildBattleStateView(record, { wallet });
+}
+
 module.exports = {
   ATTRIBUTE_KEYS,
   DRAFT_TTL_MS,
   TOTAL_ATTRIBUTE_POINTS,
+  applyAttributeIncrements,
+  buildCharacterImageUrl,
   buildCharacterDraft,
+  getAttributeIncrementSpend,
   getAttributePointBudget,
-  LEVEL_UP_EXPERIENCE,
+  getExperienceForNextLevel,
   normalizeAttributes,
+  normalizeAttributeIncrements,
   normalizeCharacterProgress,
   normalizeCreatureType,
+  serializeBattleState,
   serializeCharacterRecord,
+  validateAttributeIncrements,
   validateSkillAllocation,
 };
