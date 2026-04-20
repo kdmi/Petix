@@ -6664,6 +6664,9 @@ function normalizeAdminBattleRecord(record) {
 
   return cloneBattleRecord({
     battleId: String(record.battleId),
+    replayUrl:
+      String(record.replayUrl || "").trim() ||
+      `/dashboard/?screen=arena&battleId=${encodeURIComponent(String(record.battleId || "").trim())}`,
     createdAt: record.createdAt || null,
     completedAt: record.completedAt || null,
     roundCount: Math.max(0, Math.floor(Number(record.roundCount) || 0)),
@@ -6713,6 +6716,18 @@ function applyAdminWalletPivot(wallet) {
   state.adminWalletQuery = next.query;
   state.adminPage = next.page;
   renderAdminTable();
+}
+
+function buildAdminWalletPivotButton(wallet) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "admin-wallet-btn";
+  button.textContent = shortenAddress(wallet || "");
+  button.title = wallet || "";
+  button.addEventListener("click", () => {
+    applyAdminWalletPivot(wallet || "");
+  });
+  return button;
 }
 
 function renderAdminWaitlistTable(records) {
@@ -6794,7 +6809,12 @@ function renderAdminBattlesTable(records) {
     attackerTitle.textContent = record.attackerPet?.name || "Unknown attacker";
     const attackerMeta = document.createElement("span");
     attackerMeta.className = "admin-battle-participant-meta";
-    attackerMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.attackerPet?.level) || 1))} · ${record.attackerPet?.rarity || "Common"} · ${shortenAddress(record.attackerPet?.wallet || "")}`;
+    attackerMeta.append(
+      document.createTextNode(
+        `Lvl ${Math.max(1, Math.floor(Number(record.attackerPet?.level) || 1))} · ${record.attackerPet?.rarity || "Common"} · `
+      ),
+      buildAdminWalletPivotButton(record.attackerPet?.wallet || "")
+    );
     attackerLine.append(attackerTitle, attackerMeta);
 
     const versusLine = document.createElement("span");
@@ -6807,14 +6827,27 @@ function renderAdminBattlesTable(records) {
     defenderTitle.textContent = record.defenderPet?.name || "Unknown defender";
     const defenderMeta = document.createElement("span");
     defenderMeta.className = "admin-battle-participant-meta";
-    defenderMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.defenderPet?.level) || 1))} · ${record.defenderPet?.rarity || "Common"} · ${shortenAddress(record.defenderPet?.wallet || "")}`;
+    defenderMeta.append(
+      document.createTextNode(
+        `Lvl ${Math.max(1, Math.floor(Number(record.defenderPet?.level) || 1))} · ${record.defenderPet?.rarity || "Common"} · `
+      ),
+      buildAdminWalletPivotButton(record.defenderPet?.wallet || "")
+    );
     defenderLine.append(defenderTitle, defenderMeta);
 
-    const battleMeta = document.createElement("span");
-    battleMeta.className = "admin-battle-id";
-    battleMeta.textContent = record.battleId;
+    const battleMeta = document.createElement("a");
+    battleMeta.className = "admin-battle-id admin-battle-link";
+    battleMeta.href = record.replayUrl;
+    battleMeta.target = "_blank";
+    battleMeta.rel = "noreferrer";
+    battleMeta.textContent = "Open replay";
+    battleMeta.title = record.battleId;
 
-    matchupStack.append(attackerLine, versusLine, defenderLine, battleMeta);
+    const battleIdMeta = document.createElement("span");
+    battleIdMeta.className = "admin-battle-id";
+    battleIdMeta.textContent = record.battleId;
+
+    matchupStack.append(attackerLine, versusLine, defenderLine, battleMeta, battleIdMeta);
     matchupCell.appendChild(matchupStack);
 
     const winnerCell = document.createElement("td");
