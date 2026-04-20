@@ -4307,6 +4307,21 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   word-break: break-all;
 }
 
+.admin-battle-link {
+  color: #004ee4;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-battle-link:hover,
+.admin-battle-link:focus-visible {
+  color: #00359e;
+  outline: none;
+}
+
 .admin-battle-winner-cell {
   font-weight: 700;
 }

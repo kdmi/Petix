@@ -105,6 +105,33 @@ test("GET /api/battles/[battleId] returns a stored replay for participants", asy
   });
 });
 
+test("GET /api/battles/[battleId] allows the admin wallet to inspect any stored replay", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ auth, battleStore, battleByIdRoute }) => {
+    const attackerWallet = createWallet("7");
+    const defenderWallet = createWallet("8");
+    const adminWallet = "AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9";
+
+    await battleStore.saveBattleRecord(
+      createReadyBattleRecord({
+        id: "battle_admin_replay_access",
+        attackerOwnerWallet: attackerWallet,
+        defenderOwnerWallet: defenderWallet,
+        attackerPetId: "pet_alpha",
+        defenderPetId: "pet_beta",
+      })
+    );
+
+    const response = await invokeJsonHandler(battleByIdRoute, {
+      headers: createInternalHeaders(auth, adminWallet),
+      url: "/api/battles/battle_admin_replay_access",
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.status, "ready");
+    assert.equal(response.body.id, "battle_admin_replay_access");
+  });
+});
+
 test("GET /api/battles/[battleId] rejects non-participants and missing replays with explicit errors", async () => {
   await withIsolatedBattleHistoryEnv(async ({ auth, battleStore, battleByIdRoute }) => {
     const attackerWallet = createWallet("4");
