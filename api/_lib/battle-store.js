@@ -31,41 +31,6 @@ function cloneValue(value) {
   return value ? JSON.parse(JSON.stringify(value)) : null;
 }
 
-function normalizeRewardTransition(value, fallbackRewardKind = "") {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  return {
-    wallet: String(value.wallet || "").trim() || null,
-    petId: String(value.petId || "").trim() || null,
-    rewardKind: String(value.rewardKind || fallbackRewardKind || "").trim() || null,
-    progressionState: cloneValue(value.progressionState || null),
-  };
-}
-
-function normalizeFinalizationState(value, battleStatus = "ready") {
-  const normalizedRewardStatus = String(
-    value?.rewardStatus || (battleStatus === "ready" ? "applied" : "not_applied")
-  ).trim();
-  const rewardStatus =
-    normalizedRewardStatus === "pending" ||
-    normalizedRewardStatus === "applied" ||
-    normalizedRewardStatus === "not_applied"
-      ? normalizedRewardStatus
-      : battleStatus === "ready"
-        ? "applied"
-        : "not_applied";
-
-  return {
-    rewardStatus,
-    attackerAppliedAt: value?.attackerAppliedAt || null,
-    defenderAppliedAt: value?.defenderAppliedAt || null,
-    lastAttemptAt: value?.lastAttemptAt || null,
-    lastAttemptResult: value?.lastAttemptResult || null,
-  };
-}
-
 function normalizeBattleRecord(record) {
   if (!record || typeof record !== "object" || !record.id) {
     return null;
@@ -89,12 +54,6 @@ function normalizeBattleRecord(record) {
     rounds: Array.isArray(record.rounds) ? cloneValue(record.rounds) : [],
     result: cloneValue(record.result || null),
     error: record.error || null,
-    failureStage: record.failureStage || null,
-    finalizationState: normalizeFinalizationState(record.finalizationState, record.status || "ready"),
-    rewardTransitions: {
-      attacker: normalizeRewardTransition(record.rewardTransitions?.attacker, "attacker"),
-      defender: normalizeRewardTransition(record.rewardTransitions?.defender, "defender"),
-    },
   };
 }
 
@@ -119,7 +78,6 @@ function isReplayableBattleRecord(record) {
   return Boolean(
     record &&
       record.status === "ready" &&
-      record.finalizationState?.rewardStatus === "applied" &&
       record.result &&
       record.attackerSnapshot &&
       record.defenderSnapshot
@@ -155,7 +113,7 @@ function serializeAdminBattlePet(snapshot, wallet) {
 }
 
 function buildAdminCompletedBattleEntry(record) {
-  if (!record) {
+  if (!isReplayableBattleRecord(record)) {
     return null;
   }
 
@@ -166,11 +124,6 @@ function buildAdminCompletedBattleEntry(record) {
     roundCount: Array.isArray(record.rounds) ? record.rounds.length : 0,
     winnerPetId: String(record.result?.winnerPetId || "").trim(),
     narrationMode: String(record.narrationMode || "template").trim() || "template",
-    status: String(record.status || "ready"),
-    rewardStatus: String(record.finalizationState?.rewardStatus || "not_applied"),
-    failureStage: record.failureStage || null,
-    error: record.error || null,
-    finalizationState: cloneValue(record.finalizationState || null),
     attackerPet: serializeAdminBattlePet(record.attackerSnapshot, record.attackerOwnerWallet || null),
     defenderPet: serializeAdminBattlePet(record.defenderSnapshot, record.defenderOwnerWallet || null),
   };
@@ -349,10 +302,9 @@ async function loadLocalDbSnapshot() {
   }
 }
 
-async function loadBlobDbSnapshot({ fresh = false } = {}) {
+async function loadBlobDbSnapshot() {
   const blobResult = await get(BATTLES_BLOB_PATH, {
     access: "public",
-    useCache: fresh ? false : undefined,
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
@@ -368,9 +320,9 @@ async function loadBlobDbSnapshot({ fresh = false } = {}) {
   return normalizeDbShape(raw ? JSON.parse(raw) : EMPTY_BATTLES_DB);
 }
 
-async function readDb({ fresh = false } = {}) {
+async function readDb() {
   if (isBlobDbEnabled()) {
-    return loadBlobDbSnapshot({ fresh });
+    return loadBlobDbSnapshot();
   }
 
   return loadLocalDbSnapshot();
@@ -442,15 +394,15 @@ async function updateBattleRecord(battleId, updater) {
   return normalizeBattleRecord(db.records[battleId] || null);
 }
 
-async function getBattleRecord(battleId, { fresh = false } = {}) {
+async function getBattleRecord(battleId) {
   if (!battleId) return null;
 
-  const db = await readDb({ fresh });
+  const db = await readDb();
   return normalizeBattleRecord(db.records[battleId] || null);
 }
 
-async function listBattleRecords({ fresh = false } = {}) {
-  const db = await readDb({ fresh });
+async function listBattleRecords() {
+  const db = await readDb();
   return Object.values(db.records)
     .map((record) => normalizeBattleRecord(record))
     .filter(Boolean)
@@ -471,7 +423,7 @@ async function listBattleHistoryForWallet(wallet, { limit, cursor } = {}) {
 
   const pageSize = resolveBattleHistoryPageSize(limit);
   const cursorState = decodeBattleHistoryCursor(cursor);
-  const historyEntries = (await listBattleRecords({ fresh: true }))
+  const historyEntries = (await listBattleRecords())
     .map((record) => buildBattleHistoryEntry(record, normalizedWallet))
     .filter(Boolean);
 
@@ -498,41 +450,14 @@ async function listBattleHistoryForWallet(wallet, { limit, cursor } = {}) {
 }
 
 async function listAdminCompletedBattles() {
-  const records = await listBattleRecords({ fresh: true });
-  const completedBattles = records
-    .filter((record) => isReplayableBattleRecord(record))
-    .map((record) => buildAdminCompletedBattleEntry(record))
-    .filter(Boolean);
-  const battles = records
+  const battles = (await listBattleRecords())
     .map((record) => buildAdminCompletedBattleEntry(record))
     .filter(Boolean);
 
   return {
-    summary: buildAdminBattleSummary(completedBattles),
+    summary: buildAdminBattleSummary(battles),
     battles: battles.map((entry) => cloneValue(entry)),
   };
-}
-
-async function listFinalizableBattleRecordsForWallet(wallet) {
-  const normalizedWallet = String(wallet || "").trim();
-  if (!normalizedWallet) {
-    return [];
-  }
-
-  return (await listBattleRecords({ fresh: true })).filter((record) => {
-    if (!record || record.status !== "ready") {
-      return false;
-    }
-
-    if (record.finalizationState?.rewardStatus === "applied") {
-      return false;
-    }
-
-    return (
-      String(record.attackerOwnerWallet || "") === normalizedWallet ||
-      String(record.defenderOwnerWallet || "") === normalizedWallet
-    );
-  });
 }
 
 module.exports = {
@@ -543,7 +468,6 @@ module.exports = {
   listAdminCompletedBattles,
   listBattleHistoryForWallet,
   listBattleRecords,
-  listFinalizableBattleRecordsForWallet,
   saveBattleRecord,
   updateBattleRecord,
 };

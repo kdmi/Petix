@@ -5,7 +5,6 @@ const path = require("path");
 const INTERNAL_SECRET = "petix-battle-history-internal-secret";
 const BATTLE_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/battle-store.js");
 const BATTLE_LIB_PATH = path.resolve(__dirname, "../../../api/_lib/battle.js");
-const BATTLE_FINALIZATION_PATH = path.resolve(__dirname, "../../../api/_lib/battle-finalization.js");
 const BATTLE_MATCHMAKING_PATH = path.resolve(__dirname, "../../../api/_lib/battle-matchmaking.js");
 const CHARACTER_LIB_PATH = path.resolve(__dirname, "../../../api/_lib/character.js");
 const CHARACTER_ACTION_ROUTE_PATH = path.resolve(__dirname, "../../../api/character/[action].js");
@@ -15,11 +14,6 @@ const BATTLE_BY_ID_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/[b
 const OPPONENTS_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/opponents.js");
 const CHARACTER_IMAGE_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/image.js");
 const CHARACTER_UPGRADE_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/upgrade.js");
-const ADMIN_BATTLES_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/battles.js");
-const ADMIN_CHARACTERS_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/characters.js");
-const ADMIN_DELETE_CHARACTER_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/delete-character.js");
-const ADMIN_WAITLIST_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/waitlist.js");
-const ADMIN_WAITLIST_EXPORT_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/waitlist-export.js");
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
 
@@ -53,13 +47,7 @@ async function withIsolatedBattleHistoryEnv(run) {
     freshRequire(CHARACTER_LIB_PATH);
     freshRequire(BATTLE_MATCHMAKING_PATH);
     freshRequire(BATTLE_LIB_PATH);
-    freshRequire(BATTLE_FINALIZATION_PATH);
     freshRequire(CHARACTER_UPGRADE_ROUTE_PATH);
-    freshRequire(ADMIN_BATTLES_ROUTE_PATH);
-    freshRequire(ADMIN_CHARACTERS_ROUTE_PATH);
-    freshRequire(ADMIN_DELETE_CHARACTER_ROUTE_PATH);
-    freshRequire(ADMIN_WAITLIST_ROUTE_PATH);
-    freshRequire(ADMIN_WAITLIST_EXPORT_ROUTE_PATH);
     const characterActionRoute = freshRequire(CHARACTER_ACTION_ROUTE_PATH);
     const adminActionRoute = freshRequire(ADMIN_ACTION_ROUTE_PATH);
     const battlesRoute = freshRequire(BATTLES_ROUTE_PATH);
@@ -83,13 +71,7 @@ async function withIsolatedBattleHistoryEnv(run) {
     clearModule(CHARACTER_ACTION_ROUTE_PATH);
     clearModule(ADMIN_ACTION_ROUTE_PATH);
     clearModule(CHARACTER_UPGRADE_ROUTE_PATH);
-    clearModule(ADMIN_BATTLES_ROUTE_PATH);
-    clearModule(ADMIN_CHARACTERS_ROUTE_PATH);
-    clearModule(ADMIN_DELETE_CHARACTER_ROUTE_PATH);
-    clearModule(ADMIN_WAITLIST_ROUTE_PATH);
-    clearModule(ADMIN_WAITLIST_EXPORT_ROUTE_PATH);
     clearModule(BATTLE_LIB_PATH);
-    clearModule(BATTLE_FINALIZATION_PATH);
     clearModule(BATTLE_MATCHMAKING_PATH);
     clearModule(CHARACTER_LIB_PATH);
     clearModule(OPPONENTS_ROUTE_PATH);

@@ -2247,11 +2247,6 @@ body.share-modal-open {
   padding: 32px;
 }
 
-.arena-panel.is-recovery-pending {
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  box-shadow: 0 24px 52px -24px rgba(245, 158, 11, 0.3);
-}
-
 .arena-panel-actions {
   align-items: center;
   display: flex;
@@ -4307,41 +4302,8 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   word-break: break-all;
 }
 
-.admin-battle-link {
-  color: #004ee4;
-  font-family: "Figtree", Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.admin-battle-link:hover,
-.admin-battle-link:focus-visible {
-  color: #00359e;
-  outline: none;
-}
-
 .admin-battle-winner-cell {
   font-weight: 700;
-}
-
-.admin-battle-lifecycle-cell {
-  min-width: 240px;
-}
-
-.admin-battle-lifecycle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.admin-battle-lifecycle-meta {
-  color: var(--gray-500);
-  display: block;
-  font-size: 12px;
-  line-height: 18px;
-  width: 100%;
 }
 
 .admin-battle-mode-badge {
@@ -4362,22 +4324,6 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
 .admin-battle-mode-badge--template {
   background: #f2f4f7;
   color: #344054;
-}
-
-.admin-battle-mode-badge--ready,
-.admin-battle-mode-badge--applied {
-  background: #ecfdf3;
-  color: #027a48;
-}
-
-.admin-battle-mode-badge--pending {
-  background: #fffaeb;
-  color: #b54708;
-}
-
-.admin-battle-mode-badge--failed {
-  background: #fef3f2;
-  color: #b42318;
 }
 
 .admin-action-stack {

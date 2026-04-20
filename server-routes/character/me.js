@@ -4,7 +4,6 @@ const {
   serializeCharacterRecord,
 } = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
-const { reconcileWalletBattleFinalization } = require("../../api/_lib/battle-finalization");
 const { getWalletProfile } = require("../../api/_lib/store");
 
 module.exports = async (req, res) => {
@@ -26,8 +25,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  await reconcileWalletBattleFinalization(session.wallet).catch(() => null);
-  const profile = await getWalletProfile(session.wallet, { fresh: true });
+  const profile = await getWalletProfile(session.wallet);
   const latestCharacter = profile.characters[profile.characters.length - 1] || null;
 
   json(res, 200, {

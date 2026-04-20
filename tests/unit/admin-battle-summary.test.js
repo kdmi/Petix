@@ -57,7 +57,7 @@ test("listAdminCompletedBattles summarizes total battles and average rounds from
   });
 });
 
-test("listAdminCompletedBattles keeps completed-only summary metrics while still returning investigation rows", async () => {
+test("listAdminCompletedBattles ignores non-ready battles", async () => {
   await withIsolatedBattleHistoryEnv(async ({ battleStore }) => {
     await battleStore.saveBattleRecord(
       createBattleWithRounds({
@@ -77,9 +77,7 @@ test("listAdminCompletedBattles keeps completed-only summary metrics while still
     assert.equal(payload.summary.totalCompletedBattles, 1);
     assert.deepEqual(
       payload.battles.map((battle) => battle.battleId),
-      ["battle_generating_hidden", "battle_ready_visible"]
+      ["battle_ready_visible"]
     );
-    assert.equal(payload.battles[0].status, "generating");
-    assert.equal(payload.battles[0].rewardStatus, "not_applied");
   });
 });

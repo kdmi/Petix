@@ -3118,36 +3118,19 @@ async function fetchArenaBattleRecord(battleId) {
   return apiRequest(`/api/battles/${encodeURIComponent(String(battleId || ""))}`, undefined, "GET");
 }
 
-function createArenaRecoveryPendingError(battleId, payload = null) {
-  const error = new Error(
-    payload?.recovery?.message ||
-      "Battle result is taking too long. Check Arena again in a moment."
-  );
-  error.code = "BATTLE_RECOVERY_PENDING";
-  error.battleId = String(battleId || "").trim();
-  error.recovery = payload?.recovery || null;
-  return error;
-}
-
 async function pollArenaBattleRecord(battleId, {
   attempts = ARENA_BATTLE_POLL_ATTEMPTS,
   interval = ARENA_BATTLE_POLL_INTERVAL,
 } = {}) {
-  let lastPayload = null;
-
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const payload = await fetchArenaBattleRecord(battleId);
-    lastPayload = payload;
 
     if (payload?.status === "ready") {
       return payload;
     }
 
     if (payload?.status === "failed") {
-      const error = new Error(payload.error || "Battle generation failed.");
-      error.code = payload.error || "BATTLE_GENERATION_FAILED";
-      error.recovery = payload.recovery || null;
-      throw error;
+      throw new Error(payload.error || "Battle generation failed.");
     }
 
     if (attempt < attempts - 1) {
@@ -3155,7 +3138,7 @@ async function pollArenaBattleRecord(battleId, {
     }
   }
 
-  throw createArenaRecoveryPendingError(battleId, lastPayload);
+  throw new Error("Battle result is taking too long. Please try again.");
 }
 
 async function refreshArenaProfileState() {
@@ -3313,13 +3296,6 @@ function resolveArenaReplayMessage(error) {
   const normalizedMessage = String(error?.message || "").trim();
   const normalizedCode = String(error?.code || "").trim();
 
-  if (normalizedCode === "BATTLE_RECOVERY_PENDING") {
-    return (
-      error?.recovery?.message ||
-      "This battle is still getting ready. Please check Arena again in a moment."
-    );
-  }
-
   if (normalizedCode === "BATTLE_REPLAY_FORBIDDEN" || /not available to the current wallet/i.test(normalizedMessage)) {
     return "This replay is available only to the wallets that took part in the battle.";
   }
@@ -3400,18 +3376,6 @@ async function ensureArenaReplayBattle(battleId, { source = "link" } = {}) {
 
     throw new Error("This replay isn't available right now.");
   } catch (error) {
-    if (error?.code === "BATTLE_RECOVERY_PENDING") {
-      setArenaReplayRequest(
-        normalizedBattleId,
-        "waiting",
-        resolveArenaReplayMessage(error),
-        source
-      );
-      state.activeBattle = null;
-      renderArena();
-      return false;
-    }
-
     setArenaReplayRequest(normalizedBattleId, "unavailable", resolveArenaReplayMessage(error), source);
     state.activeBattle = null;
     renderArena();
@@ -5693,7 +5657,6 @@ function renderArena() {
   }
 
   arenaBattleState.classList.toggle("is-live-battle", Boolean(isBattleScreen));
-  arenaIdleState.classList.toggle("is-recovery-pending", replayRequest?.status === "waiting");
 
   arenaStartFightBtn.disabled = !canStartFight;
   arenaStartFightBtn.classList.toggle("disabled", !canStartFight);
@@ -6026,33 +5989,8 @@ async function startFightFlow(characterId) {
   } catch (error) {
     if (createdBattleId) {
       await refreshArenaProfileState().catch(() => null);
-      void loadArenaHistory({ force: true }).catch(() => null);
     } else {
       state.energyCurrent = Math.min(state.energyMax, state.energyCurrent + 1);
-    }
-
-    if (createdBattleId && error?.code === "BATTLE_RECOVERY_PENDING") {
-      resetArenaRevealSession();
-      state.activeBattle = null;
-      state.isFightPreparing = false;
-      state.fightPreparingCharacterId = "";
-      setArenaReplayRequest(
-        createdBattleId,
-        "waiting",
-        resolveArenaReplayMessage(error),
-        "live-timeout"
-      );
-      state.arenaSelectedHistoryBattleId = createdBattleId;
-      syncDashboardRouteState("arena", {
-        battleId: createdBattleId,
-        replace: true,
-      });
-      updateEnergyUi();
-      renderCabinet();
-      renderArena();
-      moveTo("arena");
-      showToast("Battle is still being prepared. You can reopen it from Arena in a moment.");
-      return;
     }
 
     setArenaRevealRecovery(
@@ -6525,12 +6463,12 @@ function updateAdminCount(records) {
 
   if (state.adminSection === "battles") {
     if (state.isAdminBattlesLoading && !state.hasLoadedAdminBattles) {
-      adminCount.textContent = "Loading battle attempts...";
+      adminCount.textContent = "Loading completed battles...";
       return;
     }
 
     const total = records.length;
-    const baseLabel = `${total} battle attempt${total === 1 ? "" : "s"}`;
+    const baseLabel = `${total} completed battle${total === 1 ? "" : "s"}`;
     adminCount.textContent = state.adminBattleQuery.trim() ? `${baseLabel} found` : baseLabel;
     return;
   }
@@ -6726,26 +6664,11 @@ function normalizeAdminBattleRecord(record) {
 
   return cloneBattleRecord({
     battleId: String(record.battleId),
-    replayUrl:
-      String(record.replayUrl || "").trim() ||
-      `/dashboard/?screen=arena&battleId=${encodeURIComponent(String(record.battleId || "").trim())}`,
     createdAt: record.createdAt || null,
     completedAt: record.completedAt || null,
     roundCount: Math.max(0, Math.floor(Number(record.roundCount) || 0)),
     winnerPetId: String(record.winnerPetId || "").trim(),
-    status: String(record.status || "ready").trim() || "ready",
-    rewardStatus: String(record.rewardStatus || "not_applied").trim() || "not_applied",
-    failureStage: String(record.failureStage || "").trim(),
-    error: String(record.error || "").trim(),
     narrationMode: String(record.narrationMode || "template").trim() || "template",
-    finalizationState: record.finalizationState
-      ? {
-          attackerAppliedAt: record.finalizationState.attackerAppliedAt || null,
-          defenderAppliedAt: record.finalizationState.defenderAppliedAt || null,
-          lastAttemptAt: record.finalizationState.lastAttemptAt || null,
-          lastAttemptResult: String(record.finalizationState.lastAttemptResult || "").trim(),
-        }
-      : null,
     attackerPet: record.attackerPet
       ? {
           id: String(record.attackerPet.id || "").trim(),
@@ -6770,14 +6693,6 @@ function normalizeAdminBattleRecord(record) {
 function getAdminBattleWinnerLabel(record) {
   const winnerPetId = String(record?.winnerPetId || "").trim();
   if (!winnerPetId) {
-    if (record?.status === "failed") {
-      return "Failed launch";
-    }
-
-    if (record?.status === "generating") {
-      return "Pending";
-    }
-
     return "Unknown";
   }
 
@@ -6792,53 +6707,12 @@ function getAdminBattleWinnerLabel(record) {
   return "Unknown";
 }
 
-function getAdminBattleLifecycleMeta(record) {
-  const parts = [];
-
-  if (record?.failureStage) {
-    parts.push(`Stage: ${record.failureStage}`);
-  }
-
-  if (record?.finalizationState?.lastAttemptResult) {
-    parts.push(`Attempt: ${record.finalizationState.lastAttemptResult}`);
-  }
-
-  if (record?.error) {
-    parts.push(`Error: ${record.error}`);
-  }
-
-  if (record?.rewardStatus === "applied") {
-    const rewardAppliedAt =
-      record?.finalizationState?.defenderAppliedAt ||
-      record?.finalizationState?.attackerAppliedAt ||
-      record?.completedAt ||
-      null;
-    if (rewardAppliedAt) {
-      parts.push(`Rewards: ${formatDateTime(rewardAppliedAt)}`);
-    }
-  }
-
-  return parts.length ? parts.join(" · ") : "No investigation flags.";
-}
-
 function applyAdminWalletPivot(wallet) {
   const next = getAdminWalletPivotState(wallet);
   state.adminSection = "characters";
   state.adminWalletQuery = next.query;
   state.adminPage = next.page;
   renderAdminTable();
-}
-
-function buildAdminWalletPivotButton(wallet) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "admin-wallet-btn";
-  button.textContent = shortenAddress(wallet || "");
-  button.title = wallet || "";
-  button.addEventListener("click", () => {
-    applyAdminWalletPivot(wallet || "");
-  });
-  return button;
 }
 
 function renderAdminWaitlistTable(records) {
@@ -6897,10 +6771,10 @@ function renderAdminBattlesTable(records) {
   if (adminTableHeadRow) {
     adminTableHeadRow.innerHTML = `
       <th scope="col">Matchup</th>
-      <th scope="col">Outcome</th>
+      <th scope="col">Winner</th>
       <th scope="col">Rounds</th>
       <th scope="col">Completed</th>
-      <th scope="col">Lifecycle</th>
+      <th scope="col">Narration</th>
     `;
   }
 
@@ -6920,12 +6794,7 @@ function renderAdminBattlesTable(records) {
     attackerTitle.textContent = record.attackerPet?.name || "Unknown attacker";
     const attackerMeta = document.createElement("span");
     attackerMeta.className = "admin-battle-participant-meta";
-    attackerMeta.append(
-      document.createTextNode(
-        `Lvl ${Math.max(1, Math.floor(Number(record.attackerPet?.level) || 1))} · ${record.attackerPet?.rarity || "Common"} · `
-      ),
-      buildAdminWalletPivotButton(record.attackerPet?.wallet || "")
-    );
+    attackerMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.attackerPet?.level) || 1))} · ${record.attackerPet?.rarity || "Common"} · ${shortenAddress(record.attackerPet?.wallet || "")}`;
     attackerLine.append(attackerTitle, attackerMeta);
 
     const versusLine = document.createElement("span");
@@ -6938,27 +6807,14 @@ function renderAdminBattlesTable(records) {
     defenderTitle.textContent = record.defenderPet?.name || "Unknown defender";
     const defenderMeta = document.createElement("span");
     defenderMeta.className = "admin-battle-participant-meta";
-    defenderMeta.append(
-      document.createTextNode(
-        `Lvl ${Math.max(1, Math.floor(Number(record.defenderPet?.level) || 1))} · ${record.defenderPet?.rarity || "Common"} · `
-      ),
-      buildAdminWalletPivotButton(record.defenderPet?.wallet || "")
-    );
+    defenderMeta.textContent = `Lvl ${Math.max(1, Math.floor(Number(record.defenderPet?.level) || 1))} · ${record.defenderPet?.rarity || "Common"} · ${shortenAddress(record.defenderPet?.wallet || "")}`;
     defenderLine.append(defenderTitle, defenderMeta);
 
-    const battleMeta = document.createElement("a");
-    battleMeta.className = "admin-battle-id admin-battle-link";
-    battleMeta.href = record.replayUrl;
-    battleMeta.target = "_blank";
-    battleMeta.rel = "noreferrer";
-    battleMeta.textContent = "Open replay";
-    battleMeta.title = record.battleId;
+    const battleMeta = document.createElement("span");
+    battleMeta.className = "admin-battle-id";
+    battleMeta.textContent = record.battleId;
 
-    const battleIdMeta = document.createElement("span");
-    battleIdMeta.className = "admin-battle-id";
-    battleIdMeta.textContent = record.battleId;
-
-    matchupStack.append(attackerLine, versusLine, defenderLine, battleMeta, battleIdMeta);
+    matchupStack.append(attackerLine, versusLine, defenderLine, battleMeta);
     matchupCell.appendChild(matchupStack);
 
     const winnerCell = document.createElement("td");
@@ -6971,39 +6827,13 @@ function renderAdminBattlesTable(records) {
     const completedCell = document.createElement("td");
     completedCell.textContent = formatDateTime(record.completedAt || record.createdAt);
 
-    const lifecycleCell = document.createElement("td");
-    lifecycleCell.className = "admin-battle-lifecycle-cell";
-    const lifecycleStack = document.createElement("div");
-    lifecycleStack.className = "admin-battle-lifecycle";
-
-    const statusBadge = document.createElement("span");
-    statusBadge.className = `admin-battle-mode-badge admin-battle-mode-badge--${record.status === "failed" ? "failed" : record.status === "generating" ? "pending" : "ready"}`;
-    statusBadge.textContent =
-      record.status === "failed"
-        ? "Failed"
-        : record.status === "generating"
-          ? "Pending"
-          : "Ready";
-
-    const rewardBadge = document.createElement("span");
-    rewardBadge.className = `admin-battle-mode-badge admin-battle-mode-badge--${record.rewardStatus === "applied" ? "applied" : record.rewardStatus === "pending" ? "pending" : "template"}`;
-    rewardBadge.textContent =
-      record.rewardStatus === "applied"
-        ? "Rewards applied"
-        : record.rewardStatus === "pending"
-          ? "Rewards pending"
-          : "No rewards";
-
+    const narrationCell = document.createElement("td");
     const narrationBadge = document.createElement("span");
     narrationBadge.className = `admin-battle-mode-badge admin-battle-mode-badge--${record.narrationMode === "ai" ? "ai" : "template"}`;
     narrationBadge.textContent = record.narrationMode === "ai" ? "AI" : "Template";
-    const lifecycleMeta = document.createElement("span");
-    lifecycleMeta.className = "admin-battle-lifecycle-meta";
-    lifecycleMeta.textContent = getAdminBattleLifecycleMeta(record);
-    lifecycleStack.append(statusBadge, rewardBadge, narrationBadge, lifecycleMeta);
-    lifecycleCell.appendChild(lifecycleStack);
+    narrationCell.appendChild(narrationBadge);
 
-    row.append(matchupCell, winnerCell, roundsCell, completedCell, lifecycleCell);
+    row.append(matchupCell, winnerCell, roundsCell, completedCell, narrationCell);
     adminTableBody.appendChild(row);
   });
 }
@@ -7021,7 +6851,7 @@ function renderAdminTable() {
     state.adminSection === "waitlist"
       ? "Search by email, source, page or user agent"
       : state.adminSection === "battles"
-        ? "Search by battle id, pet, wallet or status"
+        ? "Search by battle id, pet or wallet"
         : "Search by wallet address";
 
   if (adminSearchInput) {
@@ -7068,7 +6898,7 @@ function renderAdminTable() {
   }
 
   if (state.adminSection === "battles" && state.isAdminBattlesLoading) {
-    setAdminEmptyState("Loading battle attempts...", true);
+    setAdminEmptyState("Loading completed battles...", true);
     if (adminPagination) adminPagination.classList.add("hidden");
     return;
   }
@@ -7105,8 +6935,8 @@ function renderAdminTable() {
           : "No waitlist entries yet."
         : state.adminSection === "battles"
           ? state.adminBattleQuery.trim()
-            ? "No battle attempts found for this search."
-            : "No battle attempts yet."
+            ? "No completed battles found for this search."
+            : "No completed battles yet."
         : state.adminWalletQuery.trim()
           ? "No characters found for this wallet search."
           : "No created characters yet.";
@@ -7329,7 +7159,7 @@ async function loadAdminBattles({ force = false } = {}) {
     state.adminBattles = [];
     state.adminBattleSummary = null;
     state.adminBattleErrorMessage =
-      typeof error?.message === "string" ? error.message : "Failed to load battle attempts.";
+      typeof error?.message === "string" ? error.message : "Failed to load completed battles.";
   } finally {
     state.isAdminBattlesLoading = false;
     state.hasLoadedAdminBattles = true;

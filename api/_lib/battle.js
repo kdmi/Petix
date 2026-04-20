@@ -9,11 +9,6 @@ const { buildCharacterImageUrl, serializeCharacterRecord } = require("./characte
 
 const MAX_BATTLE_STEPS = 200;
 const ATTACK_ADVANTAGE = 3;
-const BATTLE_REWARD_STATUS = {
-  PENDING: "pending",
-  APPLIED: "applied",
-  NOT_APPLIED: "not_applied",
-};
 const DAMAGE_VARIANCE_TABLE = [
   { threshold: 0.25, multiplier: 0.9 },
   { threshold: 0.75, multiplier: 1.0 },
@@ -389,106 +384,7 @@ function buildBattleResult({
   };
 }
 
-function createBattleFinalizationState({
-  rewardStatus = BATTLE_REWARD_STATUS.PENDING,
-  attackerAppliedAt = null,
-  defenderAppliedAt = null,
-  lastAttemptAt = null,
-  lastAttemptResult = null,
-} = {}) {
-  return {
-    rewardStatus:
-      rewardStatus === BATTLE_REWARD_STATUS.PENDING ||
-      rewardStatus === BATTLE_REWARD_STATUS.APPLIED ||
-      rewardStatus === BATTLE_REWARD_STATUS.NOT_APPLIED
-        ? rewardStatus
-        : BATTLE_REWARD_STATUS.PENDING,
-    attackerAppliedAt: attackerAppliedAt || null,
-    defenderAppliedAt: defenderAppliedAt || null,
-    lastAttemptAt: lastAttemptAt || null,
-    lastAttemptResult: lastAttemptResult || null,
-  };
-}
-
-function buildBattleRewardTransitions({ battle, progression }) {
-  return {
-    attacker: {
-      wallet: battle?.attackerOwnerWallet || null,
-      petId: battle?.attackerPetId || null,
-      rewardKind: "attacker",
-      progressionState: cloneValue(progression?.attacker || null),
-    },
-    defender: {
-      wallet: battle?.defenderOwnerWallet || null,
-      petId: battle?.defenderPetId || null,
-      rewardKind: "defender",
-      progressionState: cloneValue(progression?.defender || null),
-    },
-  };
-}
-
-function getBattleRewardStatus(battle) {
-  if (!battle) {
-    return BATTLE_REWARD_STATUS.NOT_APPLIED;
-  }
-
-  if (battle.status === "failed" || battle.status === "generating") {
-    return battle.finalizationState?.rewardStatus || BATTLE_REWARD_STATUS.NOT_APPLIED;
-  }
-
-  if (battle.finalizationState?.rewardStatus) {
-    return battle.finalizationState.rewardStatus;
-  }
-
-  return battle.status === "ready"
-    ? BATTLE_REWARD_STATUS.APPLIED
-    : BATTLE_REWARD_STATUS.NOT_APPLIED;
-}
-
-function isBattleReplayReady(battle) {
-  return Boolean(
-    battle &&
-      battle.status === "ready" &&
-      getBattleRewardStatus(battle) === BATTLE_REWARD_STATUS.APPLIED &&
-      battle.result &&
-      battle.attackerSnapshot &&
-      battle.defenderSnapshot
-  );
-}
-
-function buildBattleRecoveryPayload(battle) {
-  const rewardStatus = getBattleRewardStatus(battle);
-  if (!battle) {
-    return {
-      historyVisible: false,
-      message: "Battle recovery is not available.",
-    };
-  }
-
-  if (battle.status === "failed") {
-    return {
-      historyVisible: false,
-      message: "This fight attempt did not finish and granted no rewards.",
-    };
-  }
-
-  if (battle.status === "ready" && rewardStatus === BATTLE_REWARD_STATUS.PENDING) {
-    return {
-      historyVisible: false,
-      message: "Battle result is being finalized. Please check again in a moment.",
-    };
-  }
-
-  return {
-    historyVisible: isBattleReplayReady(battle),
-    message:
-      battle.status === "ready"
-        ? "Battle replay is ready."
-        : "Battle is still preparing.",
-  };
-}
-
-function buildGeneratingBattleRecord(battle, options = {}) {
+function buildGeneratingBattleRecord(battle) {
   return {
     id: battle.id,
     status: "generating",
@@ -507,38 +403,6 @@ function buildGeneratingBattleRecord(battle, options = {}) {
     rounds: [],
     result: null,
     error: null,
-    failureStage: options.failureStage || null,
-    finalizationState: createBattleFinalizationState({
-      rewardStatus: BATTLE_REWARD_STATUS.NOT_APPLIED,
-      lastAttemptResult: options.lastAttemptResult || "awaiting_completion",
-    }),
-    rewardTransitions: {
-      attacker: null,
-      defender: null,
-    },
-  };
-}
-
-function buildReadyBattleRecord({
-  battle,
-  progression,
-  narration,
-}) {
-  return {
-    ...battle,
-    narrationMode: narration?.narrationMode || "template",
-    rounds: narration?.rounds || battle.rounds,
-    result: {
-      ...battle.result,
-      finalSummaryText: narration?.finalSummaryText || battle.result?.finalSummaryText || "",
-    },
-    error: null,
-    failureStage: null,
-    finalizationState: createBattleFinalizationState({
-      rewardStatus: BATTLE_REWARD_STATUS.PENDING,
-      lastAttemptResult: "pending_finalization",
-    }),
-    rewardTransitions: buildBattleRewardTransitions({ battle, progression }),
   };
 }
 
@@ -740,18 +604,10 @@ function formatBattleResponse(battle) {
     return null;
   }
 
-  const rewardStatus = getBattleRewardStatus(battle);
-  const recovery = buildBattleRecoveryPayload(battle);
-
-  if (
-    battle.status === "generating" ||
-    (battle.status === "ready" && rewardStatus !== BATTLE_REWARD_STATUS.APPLIED)
-  ) {
+  if (battle.status === "generating") {
     return {
       id: battle.id,
       status: "generating",
-      rewardStatus,
-      recovery,
     };
   }
 
@@ -759,16 +615,13 @@ function formatBattleResponse(battle) {
     return {
       id: battle.id,
       status: "failed",
-      rewardStatus,
       error: battle.error || "BATTLE_GENERATION_FAILED",
-      recovery,
     };
   }
 
   return {
     id: battle.id,
     status: "ready",
-    rewardStatus,
     narrationMode: battle.narrationMode || "template",
     attacker: serializeBattleParticipant(battle.attackerSnapshot),
     defender: serializeBattleParticipant(battle.defenderSnapshot),
@@ -779,20 +632,13 @@ function formatBattleResponse(battle) {
 }
 
 module.exports = {
-  BATTLE_REWARD_STATUS,
   MAX_BATTLE_STEPS,
   applyProgressionToCharacterRecord,
   buildBattleParticipant,
-  buildBattleRecoveryPayload,
   buildBattleRevealBundle,
-  buildBattleRewardTransitions,
-  buildReadyBattleRecord,
   buildGeneratingBattleRecord,
-  createBattleFinalizationState,
   createBattleSimulation,
   formatBattleResponse,
-  getBattleRewardStatus,
-  isBattleReplayReady,
   resolveAttackerParticipant,
   serializeBattlePreviewCandidate,
 };
