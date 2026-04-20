@@ -5,12 +5,16 @@ const {
   json,
   parseJsonBody,
 } = require("../_lib/auth");
-const { generateBattleNarration } = require("../_lib/battle-narration");
 const {
-  applyProgressionToCharacterRecord,
+  applyFallbackNarration,
+  generateBattleNarrationWithBudget,
+} = require("../_lib/battle-narration");
+const {
   buildBattleRevealBundle,
   buildBattleParticipant,
+  buildReadyBattleRecord,
   buildGeneratingBattleRecord,
+  createBattleFinalizationState,
   createBattleSimulation,
   resolveAttackerParticipant,
 } = require("../_lib/battle");
@@ -22,7 +26,10 @@ const {
   buildRevealOpponentCandidates,
   selectAuthoritativeOpponent,
 } = require("../_lib/battle-matchmaking");
-const { createPassiveBattleNotification } = require("../_lib/notification");
+const {
+  reconcileBattleFinalization,
+  reconcileWalletBattleFinalization,
+} = require("../_lib/battle-finalization");
 const {
   getWalletProfile,
   listAllCharacters,
@@ -47,7 +54,7 @@ function getRequestUrl(req) {
   return new URL(req.url, `http://${req.headers.host || "localhost"}`);
 }
 
-async function markBattleFailed(battleId, error) {
+async function markBattleFailed(battleId, error, failureStage = "battle_generation") {
   if (!battleId) {
     return;
   }
@@ -65,74 +72,30 @@ async function markBattleFailed(battleId, error) {
       rounds: [],
       result: null,
       narrationMode: null,
+      failureStage,
+      finalizationState: createBattleFinalizationState({
+        rewardStatus: "not_applied",
+        lastAttemptAt: new Date().toISOString(),
+        lastAttemptResult: error?.code || "BATTLE_GENERATION_FAILED",
+      }),
+      rewardTransitions: {
+        attacker: null,
+        defender: null,
+      },
     };
   }).catch(() => null);
 }
 
-async function applyAttackerBattleMutation({
-  wallet,
-  petId,
-  progressionState,
-}) {
+async function reserveAttackerBattleEnergy(wallet) {
   let previousProfile = null;
-  const now = new Date().toISOString();
 
   await updateWalletProfile(wallet, async (current) => {
     previousProfile = current;
     const nextBattleState = consumeBattleEnergy(current.battleState, { wallet });
-    let characterFound = false;
-
-    const characters = current.characters.map((character) => {
-      if (character.id !== petId) {
-        return character;
-      }
-
-      characterFound = true;
-      return applyProgressionToCharacterRecord(character, progressionState, now);
-    });
-
-    if (!characterFound) {
-      throw new Error("Attacker pet was not found.");
-    }
 
     return {
       ...current,
       battleState: nextBattleState,
-      characters,
-    };
-  });
-
-  return previousProfile;
-}
-
-async function applyDefenderBattleMutation({
-  wallet,
-  petId,
-  progressionState,
-}) {
-  let previousProfile = null;
-  const now = new Date().toISOString();
-
-  await updateWalletProfile(wallet, async (current) => {
-    previousProfile = current;
-    let characterFound = false;
-
-    const characters = current.characters.map((character) => {
-      if (character.id !== petId) {
-        return character;
-      }
-
-      characterFound = true;
-      return applyProgressionToCharacterRecord(character, progressionState, now);
-    });
-
-    if (!characterFound) {
-      throw new Error("Defender pet was not found.");
-    }
-
-    return {
-      ...current,
-      characters,
     };
   });
 
@@ -152,6 +115,7 @@ module.exports = async (req, res) => {
     const requestUrl = getRequestUrl(req);
     const limit = requestUrl.searchParams.get("limit");
     const cursor = requestUrl.searchParams.get("cursor");
+    await reconcileWalletBattleFinalization(session.wallet).catch(() => null);
     const history = await listBattleHistoryForWallet(session.wallet, { limit, cursor });
 
     json(res, 200, history);
@@ -171,9 +135,10 @@ module.exports = async (req, res) => {
 
   let battleId = "";
   let attackerPreviousProfile = null;
-  let defenderPreviousProfile = null;
   let attacker = null;
   let defender = null;
+  let readyBattlePersisted = false;
+  let failureStage = "request_validation";
 
   try {
     const body = await parseJsonBody(req);
@@ -223,63 +188,64 @@ module.exports = async (req, res) => {
     });
     const generatingRecord = buildGeneratingBattleRecord(simulation.battle);
 
-    attackerPreviousProfile = await applyAttackerBattleMutation({
-      wallet: attacker.wallet,
-      petId: attacker.character.id,
-      progressionState: simulation.progression.attacker,
-    });
+    failureStage = "energy_reservation";
+    attackerPreviousProfile = await reserveAttackerBattleEnergy(attacker.wallet);
 
+    failureStage = "attempt_persistence";
     await saveBattleRecord(generatingRecord);
 
-    defenderPreviousProfile = await applyDefenderBattleMutation({
-      wallet: defender.wallet,
-      petId: defender.character.id,
-      progressionState: simulation.progression.defender,
+    failureStage = "narration";
+    const narration = await generateBattleNarrationWithBudget(simulation.battle, {
+      timeoutMs: Number(process.env.BATTLE_NARRATION_BUDGET_MS) || 4000,
+    }).catch(() => applyFallbackNarration(simulation.battle));
+    const readyBattle = buildReadyBattleRecord({
+      battle: simulation.battle,
+      progression: simulation.progression,
+      narration,
     });
 
-    const narration = await generateBattleNarration(simulation.battle);
-    const readyBattle = {
-      ...simulation.battle,
-      narrationMode: narration.narrationMode || "template",
-      rounds: narration.rounds,
-      result: {
-        ...simulation.battle.result,
-        finalSummaryText: narration.finalSummaryText,
-      },
-    };
-
+    failureStage = "ready_persistence";
     await saveBattleRecord(readyBattle);
+    readyBattlePersisted = true;
 
-    await createPassiveBattleNotification({
-      wallet: defender.wallet,
-      petId: defender.character.id,
-      petName:
-        defender.character.name ||
-        defender.character.displayName ||
-        defender.character.creatureType ||
-        "Pet",
-      battleId,
-      xpGained: readyBattle.result?.defenderRewards?.xpGained || 0,
-      levelUp: Boolean(readyBattle.result?.defenderRewards?.levelUp),
-      newLevel: readyBattle.result?.defenderRewards?.newLevel,
-    }).catch(() => null);
+    failureStage = "reward_finalization";
+    await reconcileBattleFinalization(battleId).catch(() => null);
 
     json(res, 200, {
       battleId,
       status: "generating",
+      recovery: {
+        statusUrl: `/api/battles/${encodeURIComponent(battleId)}`,
+        historyVisible: false,
+        message:
+          "Battle is still preparing. Keep this battle id for recovery until the result becomes ready.",
+      },
       reveal,
     });
   } catch (error) {
-    if (defenderPreviousProfile && defender?.wallet) {
-      await restoreWalletProfile(defender.wallet, defenderPreviousProfile).catch(() => null);
-    }
-
-    if (attackerPreviousProfile && attacker?.wallet) {
+    if (!readyBattlePersisted && attackerPreviousProfile && attacker?.wallet) {
       await restoreWalletProfile(attacker.wallet, attackerPreviousProfile).catch(() => null);
     }
 
-    if (battleId) {
-      await markBattleFailed(battleId, error);
+    if (battleId && !readyBattlePersisted) {
+      await markBattleFailed(battleId, error, failureStage);
+    } else if (battleId && readyBattlePersisted) {
+      await updateBattleRecord(battleId, (current) => {
+        if (!current) {
+          return null;
+        }
+
+        return {
+          ...current,
+          failureStage: current.failureStage || failureStage || "reward_finalization",
+          finalizationState: createBattleFinalizationState({
+            ...current.finalizationState,
+            rewardStatus: current.finalizationState?.rewardStatus || "pending",
+            lastAttemptAt: new Date().toISOString(),
+            lastAttemptResult: error?.code || error?.message || "reward_finalization_failed",
+          }),
+        };
+      }).catch(() => null);
     }
 
     if (error?.code === "DAILY_BATTLE_LIMIT_REACHED") {
@@ -314,10 +280,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const attackerProfile =
-      attacker?.wallet === session.wallet
-        ? await getWalletProfile(session.wallet).catch(() => null)
-        : null;
+    const attackerProfile = await getWalletProfile(session.wallet, { fresh: true }).catch(() => null);
     const hasNoEnergy = attackerProfile?.battleState?.energyCurrent === 0;
 
     json(res, 400, {

@@ -1,4 +1,5 @@
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
+const DEFAULT_BATTLE_NARRATION_BUDGET_MS = 4000;
 
 const SYSTEM_PROMPT = [
   "You write battle narration for a cartoony sci-fi pet battleground game.",
@@ -304,7 +305,7 @@ function extractJsonText(rawText) {
   return objectMatch ? objectMatch[0] : withoutFence;
 }
 
-async function requestAiNarration(battle) {
+async function requestAiNarration(battle, { timeoutMs = GEMINI_TEXT_TIMEOUT_MS } = {}) {
   if (!canUseAiNarration()) {
     return null;
   }
@@ -333,7 +334,7 @@ async function requestAiNarration(battle) {
         },
       }),
     },
-    GEMINI_TEXT_TIMEOUT_MS,
+    timeoutMs,
     "Battle narration request"
   );
 
@@ -410,11 +411,16 @@ function parseAiNarrationResponse(rawText, battle) {
   };
 }
 
-async function generateBattleNarration(battle) {
+async function generateBattleNarration(
+  battle,
+  {
+    timeoutMs = GEMINI_TEXT_TIMEOUT_MS,
+  } = {}
+) {
   const fallback = applyFallbackNarration(battle);
 
   try {
-    const aiText = await requestAiNarration(battle);
+    const aiText = await requestAiNarration(battle, { timeoutMs });
     if (!aiText) {
       return fallback;
     }
@@ -429,9 +435,19 @@ async function generateBattleNarration(battle) {
   }
 }
 
+async function generateBattleNarrationWithBudget(
+  battle,
+  {
+    timeoutMs = DEFAULT_BATTLE_NARRATION_BUDGET_MS,
+  } = {}
+) {
+  return generateBattleNarration(battle, { timeoutMs });
+}
+
 module.exports = {
   applyFallbackNarration,
   buildFallbackNarration,
   buildFallbackFinalSummary,
   generateBattleNarration,
+  generateBattleNarrationWithBudget,
 };

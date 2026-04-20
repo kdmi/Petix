@@ -55,6 +55,11 @@
     return source.filter((record) =>
       [
         record?.battleId,
+        record?.status,
+        record?.rewardStatus,
+        record?.failureStage,
+        record?.error,
+        record?.finalizationState?.lastAttemptResult,
         record?.attackerPet?.name,
         record?.attackerPet?.wallet,
         record?.defenderPet?.name,

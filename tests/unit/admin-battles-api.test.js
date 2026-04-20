@@ -90,3 +90,46 @@ test("GET /api/admin/battles enforces admin authorization", async () => {
     assert.equal(forbidden.body.error, "Forbidden.");
   });
 });
+
+test("GET /api/admin/battles includes lifecycle metadata for failed and pending attempts", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ adminActionRoute, auth, battleStore }) => {
+    await battleStore.saveBattleRecord({
+      id: "battle_admin_failed",
+      status: "failed",
+      battleType: "pvp_random",
+      createdAt: "2026-04-20T10:00:00.000Z",
+      completedAt: "2026-04-20T10:00:05.000Z",
+      attackerPetId: "pet_attacker",
+      defenderPetId: "pet_defender",
+      attackerOwnerWallet: createWallet("9"),
+      defenderOwnerWallet: createWallet("1"),
+      attackerSnapshot: null,
+      defenderSnapshot: null,
+      rounds: [],
+      result: null,
+      error: "BATTLE_GENERATION_FAILED",
+      failureStage: "narration",
+      finalizationState: {
+        rewardStatus: "not_applied",
+        attackerAppliedAt: null,
+        defenderAppliedAt: null,
+        lastAttemptAt: "2026-04-20T10:00:05.000Z",
+        lastAttemptResult: "BATTLE_GENERATION_FAILED",
+      },
+    });
+
+    const response = await invokeJsonHandler(adminActionRoute, {
+      method: "GET",
+      url: "/api/admin/battles",
+      headers: createInternalHeaders(auth, ADMIN_WALLET),
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.summary.totalCompletedBattles, 0);
+    assert.equal(response.body.battles[0].battleId, "battle_admin_failed");
+    assert.equal(response.body.battles[0].status, "failed");
+    assert.equal(response.body.battles[0].rewardStatus, "not_applied");
+    assert.equal(response.body.battles[0].failureStage, "narration");
+    assert.equal(response.body.battles[0].finalizationState.lastAttemptResult, "BATTLE_GENERATION_FAILED");
+  });
+});

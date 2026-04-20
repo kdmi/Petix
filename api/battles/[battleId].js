@@ -1,6 +1,7 @@
 const { getSessionFromRequest, handleCors, json } = require("../_lib/auth");
 const { formatBattleResponse } = require("../_lib/battle");
 const { getBattleRecord } = require("../_lib/battle-store");
+const { reconcileBattleFinalization } = require("../_lib/battle-finalization");
 
 function getBattleIdFromRequest(req) {
   const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
@@ -31,7 +32,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const battle = await getBattleRecord(battleId);
+  let battle = await getBattleRecord(battleId, { fresh: true });
   if (!battle) {
     json(res, 404, {
       error: "BATTLE_NOT_FOUND",
@@ -50,5 +51,6 @@ module.exports = async (req, res) => {
     return;
   }
 
+  battle = await reconcileBattleFinalization(battleId).catch(() => battle);
   json(res, 200, formatBattleResponse(battle));
 };

@@ -37,6 +37,7 @@ const EMPTY_WALLET_PROFILE = {
   characters: [],
   notifications: [],
   battleState: normalizeBattleState(null),
+  battleRewardLedger: {},
 };
 
 let writeQueue = Promise.resolve();
@@ -64,7 +65,55 @@ function cloneWalletProfile(profile) {
       ? profile.notifications.map((record) => cloneRecord(record))
       : [],
     battleState: normalizeBattleState(profile?.battleState),
+    battleRewardLedger: normalizeBattleRewardLedger(profile?.battleRewardLedger),
   };
+}
+
+function normalizeBattleRewardLedgerEntry(rawValue, battleId) {
+  if (!rawValue || typeof rawValue !== "object") {
+    return null;
+  }
+
+  const rewards = Object.fromEntries(
+    Object.entries(rawValue.rewards || {})
+      .map(([rewardKind, reward]) => {
+        const normalizedKind = String(rewardKind || "").trim();
+        if (!normalizedKind || !reward || typeof reward !== "object") {
+          return null;
+        }
+
+        return [
+          normalizedKind,
+          {
+            rewardKind: normalizedKind,
+            petId: String(reward.petId || "").trim() || null,
+            appliedAt: reward.appliedAt || null,
+          },
+        ];
+      })
+      .filter(Boolean)
+  );
+
+  return {
+    battleId: String(rawValue.battleId || battleId || "").trim() || null,
+    appliedAt: rawValue.appliedAt || null,
+    rewards,
+  };
+}
+
+function normalizeBattleRewardLedger(rawValue) {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(rawValue)
+      .map(([battleId, entry]) => {
+        const normalizedEntry = normalizeBattleRewardLedgerEntry(entry, battleId);
+        return normalizedEntry?.battleId ? [normalizedEntry.battleId, normalizedEntry] : null;
+      })
+      .filter(Boolean)
+  );
 }
 
 function normalizeWalletProfile(rawValue) {
@@ -132,9 +181,10 @@ async function readBlobText(stream) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function loadLegacyBlobDbSnapshot() {
+async function loadLegacyBlobDbSnapshot({ fresh = false } = {}) {
   const blobResult = await get(DB_BLOB_PATH, {
     access: "public",
+    useCache: fresh ? false : undefined,
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
@@ -235,11 +285,12 @@ async function listBlobPathnames(prefix) {
   return blobs;
 }
 
-async function loadWalletProfileFromBlobPath(pathname) {
+async function loadWalletProfileFromBlobPath(pathname, { fresh = false } = {}) {
   if (!pathname) return null;
 
   const blobResult = await get(pathname, {
     access: "public",
+    useCache: fresh ? false : undefined,
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
@@ -255,7 +306,7 @@ async function loadWalletProfileFromBlobPath(pathname) {
   return normalizeWalletProfile(raw ? JSON.parse(raw) : EMPTY_WALLET_PROFILE);
 }
 
-async function loadBlobWalletProfile(wallet) {
+async function loadBlobWalletProfile(wallet, { fresh = false } = {}) {
   const blobs = await listBlobPathnames(buildWalletProfileBlobPrefix(wallet));
   const latest = blobs.reduce((current, candidate) => {
     return isNewerBlob(candidate, current) ? candidate : current;
@@ -265,10 +316,10 @@ async function loadBlobWalletProfile(wallet) {
     return null;
   }
 
-  return loadWalletProfileFromBlobPath(latest.pathname);
+  return loadWalletProfileFromBlobPath(latest.pathname, { fresh });
 }
 
-async function loadAllBlobWalletProfiles() {
+async function loadAllBlobWalletProfiles({ fresh = false } = {}) {
   const blobs = await listBlobPathnames(`${WALLET_PROFILE_BLOB_PREFIX}/`);
   const latestByWallet = new Map();
 
@@ -284,7 +335,7 @@ async function loadAllBlobWalletProfiles() {
 
   const entries = await Promise.all(
     [...latestByWallet.entries()].map(async ([wallet, blob]) => {
-      const profile = await loadWalletProfileFromBlobPath(blob.pathname);
+      const profile = await loadWalletProfileFromBlobPath(blob.pathname, { fresh });
       return [wallet, profile];
     })
   );
@@ -333,21 +384,80 @@ async function withDbMutation(mutate) {
   return writeQueue;
 }
 
-async function getWalletProfile(wallet) {
+async function getWalletProfile(wallet, { fresh = false } = {}) {
   if (!wallet) return cloneWalletProfile(EMPTY_WALLET_PROFILE);
 
   if (isBlobDbEnabled()) {
-    const profile = await loadBlobWalletProfile(wallet);
+    const profile = await loadBlobWalletProfile(wallet, { fresh });
     if (profile) {
       return profile;
     }
 
-    const legacySnapshot = await loadLegacyBlobDbSnapshot();
+    const legacySnapshot = await loadLegacyBlobDbSnapshot({ fresh });
     return normalizeWalletProfile(legacySnapshot?.db?.records?.[wallet]);
   }
 
   const db = await readDb();
   return normalizeWalletProfile(db.records[wallet]);
+}
+
+function getWalletBattleRewardLedgerEntry(profile, battleId) {
+  const normalizedBattleId = String(battleId || "").trim();
+  if (!normalizedBattleId) {
+    return null;
+  }
+
+  return normalizeBattleRewardLedgerEntry(
+    profile?.battleRewardLedger?.[normalizedBattleId],
+    normalizedBattleId
+  );
+}
+
+function hasWalletBattleReward(profile, battleId, rewardKind) {
+  const normalizedRewardKind = String(rewardKind || "").trim();
+  if (!normalizedRewardKind) {
+    return false;
+  }
+
+  const entry = getWalletBattleRewardLedgerEntry(profile, battleId);
+  return Boolean(entry?.rewards?.[normalizedRewardKind]);
+}
+
+function recordWalletBattleReward(profile, battleId, reward) {
+  const normalizedBattleId = String(battleId || "").trim();
+  const normalizedRewardKind = String(reward?.rewardKind || "").trim();
+  if (!normalizedBattleId || !normalizedRewardKind) {
+    return cloneWalletProfile(profile || EMPTY_WALLET_PROFILE);
+  }
+
+  const nextProfile = cloneWalletProfile(profile || EMPTY_WALLET_PROFILE);
+  const currentEntry =
+    getWalletBattleRewardLedgerEntry(nextProfile, normalizedBattleId) ||
+    normalizeBattleRewardLedgerEntry(
+      {
+        battleId: normalizedBattleId,
+        appliedAt: reward?.appliedAt || null,
+        rewards: {},
+      },
+      normalizedBattleId
+    );
+
+  currentEntry.appliedAt = reward?.appliedAt || currentEntry.appliedAt || new Date().toISOString();
+  currentEntry.rewards = {
+    ...(currentEntry.rewards || {}),
+    [normalizedRewardKind]: {
+      rewardKind: normalizedRewardKind,
+      petId: String(reward?.petId || "").trim() || null,
+      appliedAt: reward?.appliedAt || currentEntry.appliedAt,
+    },
+  };
+
+  nextProfile.battleRewardLedger = {
+    ...(nextProfile.battleRewardLedger || {}),
+    [normalizedBattleId]: currentEntry,
+  };
+
+  return nextProfile;
 }
 
 function sortCharactersByRecent(left, right) {
@@ -388,11 +498,11 @@ async function findCharacterRecordById(characterId) {
   return null;
 }
 
-async function readDb() {
+async function readDb({ fresh = false } = {}) {
   if (isBlobDbEnabled()) {
     const [legacySnapshot, blobProfiles] = await Promise.all([
-      loadLegacyBlobDbSnapshot(),
-      loadAllBlobWalletProfiles(),
+      loadLegacyBlobDbSnapshot({ fresh }),
+      loadAllBlobWalletProfiles({ fresh }),
     ]);
 
     return mergeRecordMaps(legacySnapshot?.db?.records || {}, blobProfiles);
@@ -642,10 +752,13 @@ module.exports = {
   createImageStore,
   deleteCharacterById,
   findCharacterRecordById,
+  getWalletBattleRewardLedgerEntry,
   getWalletProfile,
+  hasWalletBattleReward,
   isBlobImageStoreEnabled,
   listAllCharacters,
   readDb,
+  recordWalletBattleReward,
   saveWalletProfile,
   updateWalletProfile,
 };
