@@ -73,10 +73,11 @@ test("GET /api/battles returns the current wallet history summaries", async () =
   });
 });
 
-test("GET /api/battles/[battleId] returns a stored replay for participants", async () => {
+test("GET /api/battles/[battleId] returns a stored replay for any authenticated wallet", async () => {
   await withIsolatedBattleHistoryEnv(async ({ auth, battleStore, battleByIdRoute }) => {
     const attackerWallet = createWallet("2");
     const defenderWallet = createWallet("3");
+    const viewerWallet = createWallet("4");
 
     await battleStore.saveBattleRecord(
       createReadyBattleRecord({
@@ -92,7 +93,7 @@ test("GET /api/battles/[battleId] returns a stored replay for participants", asy
     );
 
     const response = await invokeJsonHandler(battleByIdRoute, {
-      headers: createInternalHeaders(auth, attackerWallet),
+      headers: createInternalHeaders(auth, viewerWallet),
       url: "/api/battles/battle_replay",
     });
 
@@ -105,7 +106,7 @@ test("GET /api/battles/[battleId] returns a stored replay for participants", asy
   });
 });
 
-test("GET /api/battles/[battleId] allows the admin wallet to inspect any stored replay", async () => {
+test("GET /api/battles/[battleId] still allows the admin wallet to inspect any stored replay", async () => {
   await withIsolatedBattleHistoryEnv(async ({ auth, battleStore, battleByIdRoute }) => {
     const attackerWallet = createWallet("7");
     const defenderWallet = createWallet("8");
@@ -132,29 +133,9 @@ test("GET /api/battles/[battleId] allows the admin wallet to inspect any stored 
   });
 });
 
-test("GET /api/battles/[battleId] rejects non-participants and missing replays with explicit errors", async () => {
+test("GET /api/battles/[battleId] still rejects missing replays with explicit errors", async () => {
   await withIsolatedBattleHistoryEnv(async ({ auth, battleStore, battleByIdRoute }) => {
     const attackerWallet = createWallet("4");
-    const defenderWallet = createWallet("5");
-    const outsiderWallet = createWallet("9");
-
-    await battleStore.saveBattleRecord(
-      createReadyBattleRecord({
-        id: "battle_locked",
-        attackerOwnerWallet: attackerWallet,
-        defenderOwnerWallet: defenderWallet,
-      })
-    );
-
-    const forbidden = await invokeJsonHandler(battleByIdRoute, {
-      headers: createInternalHeaders(auth, outsiderWallet),
-      url: "/api/battles/battle_locked",
-    });
-    assert.equal(forbidden.statusCode, 403);
-    assert.deepEqual(forbidden.body, {
-      error: "BATTLE_REPLAY_FORBIDDEN",
-      message: "This battle replay is not available to the current wallet.",
-    });
 
     const missing = await invokeJsonHandler(battleByIdRoute, {
       headers: createInternalHeaders(auth, attackerWallet),

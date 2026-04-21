@@ -1,4 +1,4 @@
-const { getSessionFromRequest, handleCors, isAdminSession, json } = require("../_lib/auth");
+const { getSessionFromRequest, handleCors, json } = require("../_lib/auth");
 const { formatBattleResponse } = require("../_lib/battle");
 const { getBattleRecord } = require("../_lib/battle-store");
 
@@ -36,17 +36,6 @@ module.exports = async (req, res) => {
     json(res, 404, {
       error: "BATTLE_NOT_FOUND",
       message: "Battle replay is not available.",
-    });
-    return;
-  }
-
-  const isAttacker = battle.attackerOwnerWallet === session.wallet;
-  const isDefender = battle.defenderOwnerWallet === session.wallet;
-  const isAdmin = isAdminSession(session);
-  if (!isAttacker && !isDefender && !isAdmin) {
-    json(res, 403, {
-      error: "BATTLE_REPLAY_FORBIDDEN",
-      message: "This battle replay is not available to the current wallet.",
     });
     return;
   }
