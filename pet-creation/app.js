@@ -7498,7 +7498,10 @@ function moveTo(step, { replace = true } = {}) {
   syncDashboardTabs(step);
   if (getPageMode() === "dashboard") {
     syncDashboardRouteState(step, {
-      battleId: step === "arena" ? getSelectedArenaBattleId() : "",
+      battleId:
+        step === "arena"
+          ? getSelectedArenaBattleId() || getArenaRequestedBattleId()
+          : "",
       petId: step === "upgrade" ? state.upgradePetId : "",
       replace,
     });
