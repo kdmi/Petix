@@ -23,7 +23,7 @@ const {
   buildRevealOpponentCandidates,
   selectAuthoritativeOpponent,
 } = require("../_lib/battle-matchmaking");
-const { createPassiveBattleNotification } = require("../_lib/notification");
+const { buildPassiveBattleNotification } = require("../_lib/notification");
 const {
   getWalletProfile,
   listAllCharacters,
@@ -49,21 +49,40 @@ function getRequestUrl(req) {
   return new URL(req.url, `http://${req.headers.host || "localhost"}`);
 }
 
-async function markBattleFailed(battleId, error) {
+async function markBattleFailed(battleId, error, baseRecord = null) {
   if (!battleId) {
     return;
   }
 
   await updateBattleRecord(battleId, (current) => {
-    if (!current) {
-      return null;
+    const source = current || baseRecord;
+    const completedAt = new Date().toISOString();
+    const errorCode = error?.code || "BATTLE_GENERATION_FAILED";
+
+    if (!source) {
+      return {
+        id: battleId,
+        status: "failed",
+        battleType: "pvp_random",
+        createdAt: completedAt,
+        completedAt,
+        attackerPetId: null,
+        defenderPetId: null,
+        attackerOwnerWallet: null,
+        defenderOwnerWallet: null,
+        rounds: [],
+        result: null,
+        narrationMode: null,
+        error: errorCode,
+      };
     }
 
     return {
-      ...current,
+      ...source,
+      id: battleId,
       status: "failed",
-      completedAt: new Date().toISOString(),
-      error: error?.code || "BATTLE_GENERATION_FAILED",
+      completedAt,
+      error: errorCode,
       rounds: [],
       result: null,
       narrationMode: null,
@@ -124,6 +143,7 @@ async function applyDefenderBattleMutation({
   petId,
   progressionState,
   coinReward = 0,
+  notification = null,
 }) {
   let previousProfile = null;
   const now = new Date().toISOString();
@@ -152,6 +172,10 @@ async function applyDefenderBattleMutation({
 
     if (coinReward > 0) {
       creditCurrency(next, coinReward);
+    }
+
+    if (notification) {
+      next.notifications = [notification, ...(current.notifications || [])].slice(0, 100);
     }
 
     return next;
@@ -266,10 +290,6 @@ module.exports = async (req, res) => {
       attacker,
       defender,
     });
-    const generatingRecord = {
-      ...buildGeneratingBattleRecord(simulation.battle),
-      coinReward: 0,
-    };
 
     const attackerMutation = await applyAttackerBattleMutation({
       wallet: attacker.wallet,
@@ -280,13 +300,26 @@ module.exports = async (req, res) => {
     attackerPreviousProfile = attackerMutation.previousProfile;
     let attackerCurrency = attackerMutation.updatedCurrency;
 
-    await saveBattleRecord(generatingRecord);
+    const passiveNotification = buildPassiveBattleNotification({
+      wallet: defender.wallet,
+      petId: defender.character.id,
+      petName:
+        defender.character.name ||
+        defender.character.displayName ||
+        defender.character.creatureType ||
+        "Pet",
+      battleId,
+      xpGained: simulation.battle.result?.defenderRewards?.xpGained || 0,
+      levelUp: Boolean(simulation.battle.result?.defenderRewards?.levelUp),
+      newLevel: simulation.battle.result?.defenderRewards?.newLevel,
+    });
 
     defenderPreviousProfile = await applyDefenderBattleMutation({
       wallet: defender.wallet,
       petId: defender.character.id,
       progressionState: simulation.progression.defender,
       coinReward: winnerRole === "defender" ? coinReward : 0,
+      notification: passiveNotification,
     });
 
     const narration = await generateBattleNarration(simulation.battle);
@@ -313,20 +346,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    await createPassiveBattleNotification({
-      wallet: defender.wallet,
-      petId: defender.character.id,
-      petName:
-        defender.character.name ||
-        defender.character.displayName ||
-        defender.character.creatureType ||
-        "Pet",
-      battleId,
-      xpGained: readyBattle.result?.defenderRewards?.xpGained || 0,
-      levelUp: Boolean(readyBattle.result?.defenderRewards?.levelUp),
-      newLevel: readyBattle.result?.defenderRewards?.newLevel,
-    }).catch(() => null);
-
     json(res, 200, {
       battleId,
       status: "ready",
@@ -345,7 +364,12 @@ module.exports = async (req, res) => {
     }
 
     if (battleId) {
-      await markBattleFailed(battleId, error);
+      await markBattleFailed(battleId, error, {
+        attackerPetId: attacker?.character?.id || null,
+        defenderPetId: defender?.character?.id || null,
+        attackerOwnerWallet: attacker?.wallet || null,
+        defenderOwnerWallet: defender?.wallet || null,
+      });
     }
 
     if (error?.code === "DAILY_BATTLE_LIMIT_REACHED") {
