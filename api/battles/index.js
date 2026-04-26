@@ -12,6 +12,7 @@ const {
   buildBattleParticipant,
   buildGeneratingBattleRecord,
   createBattleSimulation,
+  formatBattleResponse,
   resolveAttackerParticipant,
 } = require("../_lib/battle");
 const {
@@ -328,8 +329,9 @@ module.exports = async (req, res) => {
 
     json(res, 200, {
       battleId,
-      status: "generating",
+      status: "ready",
       reveal,
+      battle: formatBattleResponse(readyBattle),
       coinReward: winnerRole === "attacker" ? coinReward : 0,
       currency: attackerCurrency || { balance: 0, totalEarned: 0 },
     });
