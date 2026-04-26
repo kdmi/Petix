@@ -40,14 +40,22 @@
           <button class="dashboard-tab" id="dashboardTabArena" type="button">Arena</button>
         </nav>
         <div class="topbar-actions">
-          <div class="dashboard-energy" id="dashboardEnergy" aria-label="Energy 3 of 3">
-            <img src="/assets/dashboard/energy-bolt.svg" alt="" width="20" height="20" />
-            <p><span id="dashboardEnergyCurrent">3</span> <em id="dashboardEnergyMax">of 3</em></p>
-            <span class="dashboard-energy-tooltip" id="dashboardEnergyTooltip" aria-hidden="true">
-              Energy refills every day. Come back tomorrow!
-            </span>
+          <div class="topbar-cluster">
+            <div class="dashboard-points hidden" id="dashboardPoints" aria-label="Points balance">
+              <img src="/assets/dashboard/points-coin.svg" alt="" width="24" height="24" />
+              <span data-role="points-value">0</span>
+            </div>
+            <div class="dashboard-energy" id="dashboardEnergy" aria-label="Energy 3">
+              <img src="/assets/dashboard/energy-bolt.svg" alt="" width="24" height="24" />
+              <p><span id="dashboardEnergyCurrent">3</span></p>
+              <span class="dashboard-energy-tooltip" id="dashboardEnergyTooltip" aria-hidden="true">
+                Energy refills every day. Come back tomorrow!
+              </span>
+            </div>
+            <button class="topbar-burger" id="connectTrigger" type="button" aria-label="Menu">
+              <img src="/assets/dashboard/menu-burger.svg" alt="" width="24" height="24" />
+            </button>
           </div>
-          <button class="connect-trigger" id="connectTrigger" type="button">Connect wallet</button>
           <div class="wallet-menu hidden" id="walletMenu">
             <button class="wallet-menu-item" id="walletMenuCreatePet" type="button">Create pet</button>
             <button class="wallet-menu-item" id="walletMenuDashboard" type="button">My Pets</button>

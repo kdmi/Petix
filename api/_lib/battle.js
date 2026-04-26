@@ -628,6 +628,7 @@ function formatBattleResponse(battle) {
     startingHp: battle.startingHp,
     rounds: Array.isArray(battle.rounds) ? battle.rounds.map((round) => ({ ...round })) : [],
     result: cloneValue(battle.result),
+    coinReward: Math.max(0, Math.floor(Number(battle.coinReward) || 0)),
   };
 }
 
