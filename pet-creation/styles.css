@@ -63,13 +63,9 @@ body[data-page="dashboard"] .dashboard-topbar {
 
 body[data-page="dashboard"] .dashboard-topbar.is-battle-header {
   align-items: center;
-  display: flex;
+  display: grid;
   gap: 24px;
-  justify-content: space-between;
-}
-
-body[data-page="dashboard"] .dashboard-topbar.is-battle-header .topbar-actions {
-  margin-left: auto;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
 }
 
 body[data-page="dashboard"] .dashboard-tabs {
@@ -117,9 +113,9 @@ body[data-page="dashboard"] .dashboard-energy {
 body[data-page="dashboard"] .dashboard-energy img {
   align-self: center;
   display: block;
-  flex: 0 0 20px;
-  height: 20px;
-  width: 20px;
+  flex: 0 0 24px;
+  height: 24px;
+  width: 24px;
 }
 
 body[data-page="dashboard"] .dashboard-energy p {
@@ -227,7 +223,7 @@ body[data-page="dashboard"] .dashboard-energy.has-empty-energy:focus-within .das
   position: absolute;
   right: 0;
   top: 48px;
-  z-index: 40;
+  z-index: 1000;
 }
 
 .wallet-menu-item {
@@ -3090,6 +3086,49 @@ body.share-modal-open {
   width: 337px;
 }
 
+.arena-live-result-cta {
+  align-items: center;
+  background: #eaecf0;
+  border-radius: 8px;
+  display: flex;
+  gap: 25px;
+  justify-content: center;
+  left: 50%;
+  padding: 12px;
+  position: absolute;
+  top: 484px;
+  transform: translateX(-50%);
+  width: max-content;
+}
+
+.arena-live-result-cta-label {
+  color: #000000;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  margin: 0;
+}
+
+.arena-live-result-cta-value {
+  align-items: center;
+  color: #039855;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  gap: 6px;
+  line-height: 24px;
+  margin: 0;
+}
+
+.arena-live-result-cta-icon {
+  display: block;
+  flex: 0 0 24px;
+  height: 24px;
+  width: 24px;
+}
+
 .arena-live-result-actions {
   align-items: center;
   display: flex;
@@ -3097,7 +3136,7 @@ body.share-modal-open {
   justify-content: center;
   left: 50%;
   position: absolute;
-  top: 485px;
+  top: 556px;
   transform: translateX(-50%);
 }
 
@@ -3654,7 +3693,7 @@ body.share-modal-open {
 
 .arena-live-shell.is-result-entering.is-result-landing .arena-live-rounds,
 .arena-live-shell.is-result-final .arena-live-rounds {
-  transform: translateY(370px);
+  transform: translateY(445px);
   width: 600px;
 }
 
@@ -4769,23 +4808,18 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     position: fixed;
     right: 16px;
     top: 12px;
-    z-index: 30;
+    z-index: 1000;
   }
 
   .brand img {
     width: 90.4px;
   }
 
-  .connect-trigger {
-    font-size: 14px;
-    font-weight: 700;
-    height: 32px;
-    line-height: 20px;
-    padding: 0 16px;
-  }
-
   .wallet-menu {
-    top: 40px;
+    position: fixed;
+    right: 16px;
+    top: 56px;
+    width: max-content;
   }
 
   .progress-wrap {
@@ -5297,6 +5331,10 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     justify-self: end;
   }
 
+  body[data-page="dashboard"] .topbar-cluster {
+    gap: 16px;
+  }
+
   body[data-page="dashboard"] .dashboard-energy {
     margin-right: 0;
   }
@@ -5338,10 +5376,9 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     height: 32px;
   }
 
-  body[data-page="dashboard"] .dashboard-topbar.is-arena-stage-header .connect-trigger {
-    font-size: 14px;
+  body[data-page="dashboard"] .dashboard-topbar.is-arena-stage-header .topbar-burger {
     height: 32px;
-    padding: 0 16px;
+    width: 32px;
   }
 
   #screenAdmin {
@@ -5754,13 +5791,9 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     height: 32px;
   }
 
-  body[data-page="dashboard"] .dashboard-topbar.is-battle-header .connect-trigger {
+  body[data-page="dashboard"] .dashboard-topbar.is-battle-header .topbar-burger {
     height: 32px;
-    max-width: 120px;
-    overflow: hidden;
-    padding: 0 16px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 32px;
   }
 
   #screenArena:has(.arena-battle.is-live-battle) {
@@ -6403,11 +6436,17 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     transform: none;
   }
 
+  .arena-live-result-cta {
+    left: 50%;
+    top: 456px;
+    transform: translateX(-50%);
+  }
+
   .arena-live-result-actions {
     gap: 12px;
     justify-content: space-between;
     left: 16px;
-    top: 495px;
+    top: 531px;
     transform: none;
     width: 328px;
   }
@@ -6424,7 +6463,7 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     left: 50%;
     top: 186px;
     transition: none;
-    transform: translateX(-50%) translateY(329px);
+    transform: translateX(-50%) translateY(364px);
     width: 296px;
   }
 
@@ -7031,14 +7070,18 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     height: 311px;
   }
 
+  .arena-live-result-cta {
+    top: 532px;
+  }
+
   .arena-live-result-actions {
-    top: 503px;
+    top: 602px;
   }
 
   .arena-live-shell.is-result-entering.is-result-landing .arena-live-rounds,
   .arena-live-shell.is-result-final .arena-live-rounds {
     left: 50%;
-    top: 519px;
+    top: 615px;
     transform: translateX(-50%) translateY(0);
     width: 520px;
   }
@@ -7059,4 +7102,81 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   .arena-live-shell.is-result-final .arena-live-round-main {
     width: 520px;
   }
+}
+
+/* Points currency: header cluster (T031) */
+
+.topbar-cluster {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.topbar-burger {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 32px;
+  height: 32px;
+  justify-content: center;
+  padding: 4px;
+  width: 32px;
+}
+
+.topbar-burger:hover {
+  background: var(--gray-200, #eaecf0);
+}
+
+.topbar-burger:focus-visible {
+  outline: 2px solid #101828;
+  outline-offset: 2px;
+}
+
+.topbar-burger img {
+  display: block;
+  height: 24px;
+  width: 24px;
+}
+
+.dashboard-points {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.dashboard-points.hidden {
+  display: none !important;
+}
+
+.dashboard-points img {
+  display: block;
+  flex: 0 0 24px;
+  height: 24px;
+  width: 24px;
+}
+
+.dashboard-points [data-role="points-value"] {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+/* Points currency: history card (T019) */
+
+.arena-history-card-points {
+  align-items: center;
+  color: #067647;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.arena-history-card-points-icon {
+  display: block;
+  height: 14px;
+  width: 14px;
 }

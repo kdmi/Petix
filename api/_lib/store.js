@@ -3,6 +3,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const { del, get, list, put } = require("@vercel/blob");
 const { normalizeBattleState } = require("./battle-energy");
+const { normalizeCurrency } = require("./currency");
 
 const DATA_DIR =
   process.env.NODE_ENV === "production"
@@ -37,6 +38,7 @@ const EMPTY_WALLET_PROFILE = {
   characters: [],
   notifications: [],
   battleState: normalizeBattleState(null),
+  currency: { balance: 0, totalEarned: 0 },
 };
 
 let writeQueue = Promise.resolve();
@@ -64,6 +66,7 @@ function cloneWalletProfile(profile) {
       ? profile.notifications.map((record) => cloneRecord(record))
       : [],
     battleState: normalizeBattleState(profile?.battleState),
+    currency: normalizeCurrency(profile?.currency),
   };
 }
 
@@ -87,6 +90,7 @@ function normalizeWalletProfile(rawValue) {
       characters: [],
       notifications: [],
       battleState: normalizeBattleState(null),
+      currency: { balance: 0, totalEarned: 0 },
     };
   }
 
@@ -96,6 +100,7 @@ function normalizeWalletProfile(rawValue) {
       characters: [cloneRecord(rawValue)],
       notifications: [],
       battleState: normalizeBattleState(null),
+      currency: { balance: 0, totalEarned: 0 },
     };
   }
 

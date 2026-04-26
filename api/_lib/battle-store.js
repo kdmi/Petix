@@ -31,6 +31,14 @@ function cloneValue(value) {
   return value ? JSON.parse(JSON.stringify(value)) : null;
 }
 
+function normalizeCoinReward(rawValue) {
+  const number = Number(rawValue);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(number));
+}
+
 function normalizeBattleRecord(record) {
   if (!record || typeof record !== "object" || !record.id) {
     return null;
@@ -53,6 +61,7 @@ function normalizeBattleRecord(record) {
     defenderSnapshot: cloneValue(record.defenderSnapshot || null),
     rounds: Array.isArray(record.rounds) ? cloneValue(record.rounds) : [],
     result: cloneValue(record.result || null),
+    coinReward: normalizeCoinReward(record.coinReward),
     error: record.error || null,
   };
 }

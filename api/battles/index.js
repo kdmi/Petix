@@ -34,6 +34,7 @@ const {
   saveBattleRecord,
   updateBattleRecord,
 } = require("../_lib/battle-store");
+const { computeCoinReward, creditCurrency } = require("../_lib/currency");
 
 async function restoreWalletProfile(wallet, profile) {
   if (!wallet || !profile) {
@@ -73,8 +74,10 @@ async function applyAttackerBattleMutation({
   wallet,
   petId,
   progressionState,
+  coinReward = 0,
 }) {
   let previousProfile = null;
+  let updatedCurrency = null;
   const now = new Date().toISOString();
 
   await updateWalletProfile(wallet, async (current) => {
@@ -95,20 +98,31 @@ async function applyAttackerBattleMutation({
       throw new Error("Attacker pet was not found.");
     }
 
-    return {
+    const next = {
       ...current,
       battleState: nextBattleState,
       characters,
     };
+
+    if (coinReward > 0) {
+      creditCurrency(next, coinReward);
+    }
+
+    updatedCurrency = next.currency
+      ? { balance: next.currency.balance, totalEarned: next.currency.totalEarned }
+      : null;
+
+    return next;
   });
 
-  return previousProfile;
+  return { previousProfile, updatedCurrency };
 }
 
 async function applyDefenderBattleMutation({
   wallet,
   petId,
   progressionState,
+  coinReward = 0,
 }) {
   let previousProfile = null;
   const now = new Date().toISOString();
@@ -130,13 +144,38 @@ async function applyDefenderBattleMutation({
       throw new Error("Defender pet was not found.");
     }
 
-    return {
+    const next = {
       ...current,
       characters,
     };
+
+    if (coinReward > 0) {
+      creditCurrency(next, coinReward);
+    }
+
+    return next;
   });
 
   return previousProfile;
+}
+
+function resolveWinnerCoinReward({ simulation, attacker, defender }) {
+  const winnerPetId = simulation?.battle?.result?.winnerPetId || null;
+  if (!winnerPetId) {
+    return { amount: 0, winnerRole: null };
+  }
+
+  if (winnerPetId === attacker?.character?.id) {
+    const level = Number(attacker.character?.level) || 1;
+    return { amount: computeCoinReward(level), winnerRole: "attacker" };
+  }
+
+  if (winnerPetId === defender?.character?.id) {
+    const level = Number(defender.character?.level) || 1;
+    return { amount: computeCoinReward(level), winnerRole: "defender" };
+  }
+
+  return { amount: 0, winnerRole: null };
 }
 
 module.exports = async (req, res) => {
@@ -221,13 +260,24 @@ module.exports = async (req, res) => {
       defenderParticipant: defender,
       matchmaking,
     });
-    const generatingRecord = buildGeneratingBattleRecord(simulation.battle);
+    const { amount: coinReward, winnerRole } = resolveWinnerCoinReward({
+      simulation,
+      attacker,
+      defender,
+    });
+    const generatingRecord = {
+      ...buildGeneratingBattleRecord(simulation.battle),
+      coinReward: 0,
+    };
 
-    attackerPreviousProfile = await applyAttackerBattleMutation({
+    const attackerMutation = await applyAttackerBattleMutation({
       wallet: attacker.wallet,
       petId: attacker.character.id,
       progressionState: simulation.progression.attacker,
+      coinReward: winnerRole === "attacker" ? coinReward : 0,
     });
+    attackerPreviousProfile = attackerMutation.previousProfile;
+    let attackerCurrency = attackerMutation.updatedCurrency;
 
     await saveBattleRecord(generatingRecord);
 
@@ -235,6 +285,7 @@ module.exports = async (req, res) => {
       wallet: defender.wallet,
       petId: defender.character.id,
       progressionState: simulation.progression.defender,
+      coinReward: winnerRole === "defender" ? coinReward : 0,
     });
 
     const narration = await generateBattleNarration(simulation.battle);
@@ -246,9 +297,20 @@ module.exports = async (req, res) => {
         ...simulation.battle.result,
         finalSummaryText: narration.finalSummaryText,
       },
+      coinReward,
     };
 
     await saveBattleRecord(readyBattle);
+
+    if (!attackerCurrency && attacker?.wallet) {
+      const freshAttackerProfile = await getWalletProfile(attacker.wallet).catch(() => null);
+      if (freshAttackerProfile?.currency) {
+        attackerCurrency = {
+          balance: freshAttackerProfile.currency.balance,
+          totalEarned: freshAttackerProfile.currency.totalEarned,
+        };
+      }
+    }
 
     await createPassiveBattleNotification({
       wallet: defender.wallet,
@@ -268,6 +330,8 @@ module.exports = async (req, res) => {
       battleId,
       status: "generating",
       reveal,
+      coinReward: winnerRole === "attacker" ? coinReward : 0,
+      currency: attackerCurrency || { balance: 0, totalEarned: 0 },
     });
   } catch (error) {
     if (defenderPreviousProfile && defender?.wallet) {
@@ -326,3 +390,8 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+module.exports.applyAttackerBattleMutation = applyAttackerBattleMutation;
+module.exports.applyDefenderBattleMutation = applyDefenderBattleMutation;
+module.exports.resolveWinnerCoinReward = resolveWinnerCoinReward;
+module.exports.restoreWalletProfile = restoreWalletProfile;

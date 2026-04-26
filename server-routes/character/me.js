@@ -35,5 +35,6 @@ module.exports = async (req, res) => {
     character: serializeCharacterRecord(latestCharacter),
     characters: profile.characters.map(serializeCharacterRecord),
     battleState: serializeBattleState(profile.battleState, { wallet: session.wallet }),
+    currency: profile.currency || { balance: 0, totalEarned: 0 },
   });
 };

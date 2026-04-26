@@ -528,8 +528,8 @@ const dashboardTabArena = document.getElementById("dashboardTabArena");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
 const dashboardEnergy = document.getElementById("dashboardEnergy");
 const dashboardEnergyCurrent = document.getElementById("dashboardEnergyCurrent");
-const dashboardEnergyMax = document.getElementById("dashboardEnergyMax");
 const dashboardEnergyTooltip = document.getElementById("dashboardEnergyTooltip");
+const dashboardPoints = document.getElementById("dashboardPoints");
 const arenaLayout = document.getElementById("arenaLayout");
 const arenaIdleState = document.getElementById("arenaIdleState");
 const arenaBattleState = document.getElementById("arenaBattleState");
@@ -897,6 +897,8 @@ const state = {
   arenaHistoryWalletKey: "",
   arenaReplayRequest: null,
   arenaSelectedHistoryBattleId: "",
+  currency: { balance: 0, totalEarned: 0 },
+  pendingCurrency: null,
 };
 
 function createEmptyAttrs() {
@@ -1009,6 +1011,27 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+const POINTS_FORMAT_ABBREV_THRESHOLD = 10000;
+
+// BEGIN format-coins-mirror
+function formatCoins(value) {
+  const n = Math.max(0, Math.floor(Number(value) || 0));
+  if (n < POINTS_FORMAT_ABBREV_THRESHOLD) {
+    return String(n);
+  }
+  if (n < 1000000) {
+    const truncatedTenths = Math.floor(n / 100) / 10;
+    return truncatedTenths.toFixed(1) + "K";
+  }
+  if (n < 1000000000) {
+    const truncatedTenths = Math.floor(n / 100000) / 10;
+    return truncatedTenths.toFixed(1) + "M";
+  }
+  const truncatedTenths = Math.floor(n / 100000000) / 10;
+  return truncatedTenths.toFixed(1) + "B";
+}
+// END format-coins-mirror
 
 function ensureAdminImageLightbox() {
   if (adminImageLightbox && adminLightboxImage && adminLightboxCaption) {
@@ -1457,9 +1480,9 @@ function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   walletLoggedPanel.classList.remove("hidden");
   walletClose.classList.add("hidden");
   loggedWalletAddress.textContent = walletAddress;
-  connectTrigger.textContent = shortenAddress(walletAddress);
   updateAdminAccessUi();
   updateCreatePetMenuState();
+  updateDashboardPointsUi();
 }
 
 function showWalletAuthState() {
@@ -1510,11 +1533,12 @@ function showWalletAuthState() {
   walletLoggedPanel.classList.add("hidden");
   walletAuthPanel.classList.remove("hidden");
   walletClose.classList.remove("hidden");
+  state.currency = { balance: 0, totalEarned: 0 };
   setWalletStatus("");
-  connectTrigger.textContent = "Connect wallet";
   if (adminSearchInput) adminSearchInput.value = "";
   clearArenaAnimation();
   updateEnergyUi();
+  updateDashboardPointsUi();
   hideWalletMenu();
   updateAdminAccessUi();
   updateCreatePetMenuState();
@@ -1717,6 +1741,20 @@ function syncStateWithPayload(payload = {}) {
   if (payload?.battleState) {
     applyBattleStatePayload(payload.battleState);
     updateEnergyUi();
+  }
+
+  if (payload?.currency && typeof payload.currency === "object") {
+    const newCurrency = {
+      balance: Math.max(0, Math.floor(Number(payload.currency.balance) || 0)),
+      totalEarned: Math.max(0, Math.floor(Number(payload.currency.totalEarned) || 0)),
+    };
+    if (state.isFightPreparing || (state.activeBattle && !isArenaBattleResultPhase(state.activeBattle.phase))) {
+      state.pendingCurrency = newCurrency;
+    } else {
+      state.currency = newCurrency;
+      state.pendingCurrency = null;
+      updateDashboardPointsUi();
+    }
   }
 
   if (Array.isArray(payload.characters)) {
@@ -3913,11 +3951,10 @@ function cloneBattleRecord(record) {
 }
 
 function updateEnergyUi() {
-  if (!dashboardEnergy || !dashboardEnergyCurrent || !dashboardEnergyMax) return;
+  if (!dashboardEnergy || !dashboardEnergyCurrent) return;
 
   dashboardEnergyCurrent.textContent = String(state.energyCurrent);
-  dashboardEnergyMax.textContent = `of ${state.energyMax}`;
-  dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent} of ${state.energyMax}`);
+  dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent}`);
 
   const isEmptyEnergy = state.energyCurrent <= 0;
   dashboardEnergy.classList.toggle("has-empty-energy", isEmptyEnergy);
@@ -3935,6 +3972,14 @@ function updateEnergyUi() {
     dashboardEnergy.removeAttribute("tabindex");
     dashboardEnergy.removeAttribute("aria-describedby");
   }
+}
+
+function updateDashboardPointsUi() {
+  if (!dashboardPoints) return;
+  const balance = state.currency?.balance ?? 0;
+  const valueEl = dashboardPoints.querySelector('[data-role="points-value"]');
+  if (valueEl) valueEl.textContent = formatCoins(balance);
+  dashboardPoints.classList.toggle("hidden", !state.isAuthenticated);
 }
 
 function clearArenaAnimation() {
@@ -4137,6 +4182,7 @@ function buildArenaBattleSummaryFromResolvedBattle(battle) {
     },
     rounds,
     result: resolvedBattle?.result || null,
+    coinReward: Math.max(0, Math.floor(Number(resolvedBattle?.coinReward) || 0)),
   };
 }
 
@@ -4237,6 +4283,8 @@ function getArenaBattleResult(summary) {
       loserSide === "initiator"
         ? summary.result?.attackerRewards
         : summary.result?.defenderRewards;
+    const coinReward = Math.max(0, Math.floor(Number(summary?.coinReward) || 0));
+    const winnerPoints = winnerSide === "initiator" ? coinReward : 0;
 
     return {
       initiatorHp: Math.max(0, Math.floor(Number(summary.result?.attackerEndingHp) || 0)),
@@ -4248,6 +4296,8 @@ function getArenaBattleResult(summary) {
       winnerExp: `+${Math.max(0, Math.floor(Number(winnerReward?.xpGained) || 0))} Exp.`,
       loserExp: `+${Math.max(0, Math.floor(Number(loserReward?.xpGained) || 0))} Exp.`,
       levelUpLabel: winnerReward?.levelUp ? `Lvl ${winnerReward.newLevel}` : "",
+      winnerPoints,
+      winnerPointsText: winnerPoints > 0 ? `+${formatCoins(winnerPoints)}` : "",
     };
   }
 
@@ -4280,6 +4330,8 @@ function getArenaBattleResult(summary) {
     winnerExp: "+200 Exp.",
     loserExp: "+25 Exp.",
     levelUpLabel: "Lvl up",
+    winnerPoints: 0,
+    winnerPointsText: "",
   };
 }
 
@@ -4497,20 +4549,25 @@ function buildArenaRoundSkeletonMarkup(round, index) {
 }
 
 function buildArenaBattleResultLayerMarkup() {
+  // BEGIN result-layer-markup
   return `
     <div class="arena-live-result-layer" aria-hidden="true">
       <p class="arena-live-result-title arena-live-result-title--winner">Winner</p>
 
       <div class="arena-live-result-reward arena-live-result-reward--winner">
         <p class="arena-live-result-exp arena-live-result-exp--winner">+200 Exp.</p>
-        <div class="arena-live-result-pill">
-          <img class="arena-live-result-pill-icon" src="${BATTLE_RESULT_LEVEL_UP_ICON}" alt="" width="12" height="12" />
-          <span class="arena-live-result-pill-text">Lvl up</span>
-        </div>
       </div>
 
       <div class="arena-live-result-trophy-stack" aria-hidden="true">
         <img class="arena-live-result-trophy arena-live-result-trophy--composite" src="${BATTLE_RESULT_TROPHY_COMPOSITE}" alt="" width="305" height="311" />
+      </div>
+
+      <div class="arena-live-result-cta hidden">
+        <p class="arena-live-result-cta-label">Your reward</p>
+        <p class="arena-live-result-cta-value">
+          <span class="arena-live-result-cta-amount"></span>
+          <img class="arena-live-result-cta-icon" src="/assets/dashboard/points-coin.svg" alt="" width="20" height="20" />
+        </p>
       </div>
 
       <p class="arena-live-result-title arena-live-result-title--loser">Loser</p>
@@ -4530,6 +4587,7 @@ function buildArenaBattleResultLayerMarkup() {
       </div>
     </div>
   `;
+  // END result-layer-markup
 }
 
 function applyArenaResultCardMotion(card, role, side, shellWidth) {
@@ -4768,6 +4826,14 @@ function syncArenaBattleScreen(battle, summary) {
     resultPill.classList.toggle("hidden", !result.levelUpLabel);
   }
   if (resultPillText) resultPillText.textContent = result.levelUpLabel;
+  const ctaBlock = shell.querySelector(".arena-live-result-cta");
+  const ctaAmount = shell.querySelector(".arena-live-result-cta-amount");
+  if (ctaBlock) {
+    ctaBlock.classList.toggle("hidden", !result.winnerPointsText);
+  }
+  if (ctaAmount) {
+    ctaAmount.textContent = result.winnerPointsText || "";
+  }
 
   const currentRound = summary.rounds[presentation.currentRoundIndex];
   const currentRoundState = presentation.roundStates[presentation.currentRoundIndex];
@@ -4924,6 +4990,11 @@ function advanceArenaBattleRound(battle) {
       scheduleArenaTimeout(() => {
         if (!state.activeBattle || state.activeBattle.id !== battle.id) return;
         state.activeBattle.phase = "battle-result-enter";
+        if (state.pendingCurrency) {
+          state.currency = state.pendingCurrency;
+          state.pendingCurrency = null;
+          updateDashboardPointsUi();
+        }
         renderArena();
       }, getArenaBattleDelay(battle, ARENA_BATTLE_RESULT_DELAY, ARENA_BATTLE_FAST_FORWARD_RESULT_DELAY));
     }
@@ -5540,6 +5611,14 @@ function buildArenaHistoryCardMarkup(entry) {
 
       <div class="arena-history-card-meta">
         <span>${escapeHtml(battleTime)}</span>
+        ${
+          Number(entry?.coinReward) > 0 && entry?.outcome === "win"
+            ? `<span class="arena-history-card-points">
+              <img class="arena-history-card-points-icon" src="/assets/dashboard/points-coin.svg" alt="" width="14" height="14" />
+              +${escapeHtml(formatCoins(entry.coinReward))} Points
+            </span>`
+            : ""
+        }
         <span>Open replay</span>
       </div>
     </a>
@@ -5998,6 +6077,11 @@ async function startFightFlow(characterId) {
     );
     state.isFightPreparing = false;
     state.fightPreparingCharacterId = "";
+    if (state.pendingCurrency) {
+      state.currency = state.pendingCurrency;
+      state.pendingCurrency = null;
+      updateDashboardPointsUi();
+    }
     updateEnergyUi();
     renderCabinet();
     renderArena();
@@ -8037,7 +8121,7 @@ function init() {
   document.addEventListener("click", (event) => {
     if (
       !walletMenu.classList.contains("hidden") &&
-      event.target !== connectTrigger &&
+      !connectTrigger.contains(event.target) &&
       !walletMenu.contains(event.target)
     ) {
       hideWalletMenu();
