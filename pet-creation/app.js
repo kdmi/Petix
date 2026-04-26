@@ -3161,7 +3161,14 @@ async function pollArenaBattleRecord(battleId, {
   interval = ARENA_BATTLE_POLL_INTERVAL,
 } = {}) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const payload = await fetchArenaBattleRecord(battleId);
+    let payload = null;
+    try {
+      payload = await fetchArenaBattleRecord(battleId);
+    } catch (error) {
+      if (error?.code !== "BATTLE_NOT_FOUND") {
+        throw error;
+      }
+    }
 
     if (payload?.status === "ready") {
       return payload;
@@ -6029,8 +6036,10 @@ async function startFightFlow(characterId) {
       recoveryMessage: "",
     });
 
+    const inlineBattle =
+      createBattlePayload?.battle?.status === "ready" ? createBattlePayload.battle : null;
     const [readyBattle, preparedReveal] = await Promise.all([
-      pollArenaBattleRecord(createdBattleId),
+      inlineBattle ? Promise.resolve(inlineBattle) : pollArenaBattleRecord(createdBattleId),
       preparedPoolPromise.then((preparedPool) =>
         prepareArenaRevealCandidates(revealBundle, preparedPool)
       ),

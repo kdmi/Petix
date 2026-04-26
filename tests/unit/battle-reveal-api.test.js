@@ -62,7 +62,9 @@ test("POST /api/battles returns an authoritative reveal bundle with the selected
 
     assert.equal(response.statusCode, 200);
     assert.match(response.body.battleId, /^battle_/);
-    assert.equal(response.body.status, "generating");
+    assert.equal(response.body.status, "ready");
+    assert.equal(response.body.battle?.status, "ready");
+    assert.equal(response.body.battle?.id, response.body.battleId);
     assert.equal(response.body.reveal.selectedOpponent.id, "pet_rival");
     assert.ok(
       response.body.reveal.carouselCandidates.some((entry) => entry.id === "pet_rival")
