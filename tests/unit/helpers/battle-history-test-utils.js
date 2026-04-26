@@ -26,7 +26,7 @@ function freshRequire(modulePath) {
   return require(modulePath);
 }
 
-async function withIsolatedBattleHistoryEnv(run) {
+async function withIsolatedBattleHistoryEnv(run, options = {}) {
   const originalCwd = process.cwd();
   const originalNodeEnv = process.env.NODE_ENV;
   const originalInternalSecret = process.env.INTERNAL_API_SECRET;
@@ -50,6 +50,11 @@ async function withIsolatedBattleHistoryEnv(run) {
     freshRequire(CHARACTER_UPGRADE_ROUTE_PATH);
     const characterActionRoute = freshRequire(CHARACTER_ACTION_ROUTE_PATH);
     const adminActionRoute = freshRequire(ADMIN_ACTION_ROUTE_PATH);
+
+    if (typeof options.beforeRoutes === "function") {
+      await options.beforeRoutes({ battleStore, store, auth });
+    }
+
     const battlesRoute = freshRequire(BATTLES_ROUTE_PATH);
     const battleByIdRoute = freshRequire(BATTLE_BY_ID_ROUTE_PATH);
     const opponentsRoute = freshRequire(OPPONENTS_ROUTE_PATH);

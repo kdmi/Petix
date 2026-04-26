@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const { updateWalletProfile } = require("./store");
 
-async function createPassiveBattleNotification({
+function buildPassiveBattleNotification({
   wallet,
   petId,
   petName,
@@ -18,7 +18,7 @@ async function createPassiveBattleNotification({
     ? `Your pet ${petName} was challenged, earned +${xpGained} passive XP, and reached Level ${newLevel}.`
     : `Your pet ${petName} was challenged and earned +${xpGained} passive XP.`;
 
-  const notification = {
+  return {
     id: `notif_${crypto.randomUUID()}`,
     wallet,
     type: "pet_was_challenged",
@@ -29,8 +29,15 @@ async function createPassiveBattleNotification({
     createdAt: new Date().toISOString(),
     isRead: false,
   };
+}
 
-  await updateWalletProfile(wallet, async (current) => {
+async function createPassiveBattleNotification(args) {
+  const notification = buildPassiveBattleNotification(args);
+  if (!notification) {
+    return null;
+  }
+
+  await updateWalletProfile(notification.wallet, async (current) => {
     const nextNotifications = [notification, ...(current.notifications || [])].slice(0, 100);
     return {
       ...current,
@@ -42,5 +49,6 @@ async function createPassiveBattleNotification({
 }
 
 module.exports = {
+  buildPassiveBattleNotification,
   createPassiveBattleNotification,
 };

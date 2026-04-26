@@ -78,6 +78,7 @@ module.exports = async (req, res) => {
       };
 
       return {
+        ...current,
         draft: null,
         characters: [...current.characters, completedCharacter],
       };

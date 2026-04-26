@@ -43,6 +43,18 @@ const EMPTY_WALLET_PROFILE = {
 
 let writeQueue = Promise.resolve();
 const walletWriteQueues = new Map();
+const walletProfileReadCache = new Map();
+let dbReadCache = null;
+
+function clearWalletProfileCache(wallet) {
+  if (wallet === undefined || wallet === null) {
+    walletProfileReadCache.clear();
+    dbReadCache = null;
+    return;
+  }
+  walletProfileReadCache.delete(wallet);
+  dbReadCache = null;
+}
 
 async function ensureStorage() {
   await fs.mkdir(IMAGES_DIR, { recursive: true });
@@ -185,7 +197,7 @@ function buildWalletProfileBlobPrefix(wallet) {
 }
 
 function buildWalletProfileBlobPath(wallet) {
-  return `${buildWalletProfileBlobPrefix(wallet)}${Date.now()}-${crypto.randomUUID()}.json`;
+  return `${WALLET_PROFILE_BLOB_PREFIX}/${encodeURIComponent(String(wallet || "").trim())}.json`;
 }
 
 function extractWalletFromProfileBlobPath(pathname) {
@@ -195,7 +207,8 @@ function extractWalletFromProfileBlobPath(pathname) {
   }
 
   const rest = pathname.slice(prefix.length);
-  const [encodedWallet] = rest.split("/");
+  const slashIndex = rest.indexOf("/");
+  const encodedWallet = slashIndex === -1 ? rest.replace(/\.json$/, "") : rest.slice(0, slashIndex);
 
   try {
     return decodeURIComponent(encodedWallet || "");
@@ -261,6 +274,11 @@ async function loadWalletProfileFromBlobPath(pathname) {
 }
 
 async function loadBlobWalletProfile(wallet) {
+  const direct = await loadWalletProfileFromBlobPath(buildWalletProfileBlobPath(wallet));
+  if (direct) {
+    return direct;
+  }
+
   const blobs = await listBlobPathnames(buildWalletProfileBlobPrefix(wallet));
   const latest = blobs.reduce((current, candidate) => {
     return isNewerBlob(candidate, current) ? candidate : current;
@@ -270,7 +288,14 @@ async function loadBlobWalletProfile(wallet) {
     return null;
   }
 
-  return loadWalletProfileFromBlobPath(latest.pathname);
+  const profile = await loadWalletProfileFromBlobPath(latest.pathname);
+  if (!profile) {
+    return null;
+  }
+
+  void writeWalletProfileBlob(wallet, profile).catch(() => null);
+
+  return profile;
 }
 
 async function loadAllBlobWalletProfiles() {
@@ -316,8 +341,9 @@ async function writeWalletProfileBlob(wallet, profile) {
   await put(buildWalletProfileBlobPath(wallet), JSON.stringify(normalizeWalletProfile(profile), null, 2), {
     access: "public",
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "application/json",
-    cacheControlMaxAge: 31536000,
+    cacheControlMaxAge: 0,
   });
 }
 
@@ -341,7 +367,18 @@ async function withDbMutation(mutate) {
 async function getWalletProfile(wallet) {
   if (!wallet) return cloneWalletProfile(EMPTY_WALLET_PROFILE);
 
-  if (isBlobDbEnabled()) {
+  if (!isBlobDbEnabled()) {
+    const db = await readDb();
+    return normalizeWalletProfile(db.records[wallet]);
+  }
+
+  const cached = walletProfileReadCache.get(wallet);
+  if (cached) {
+    const profile = await cached;
+    return cloneWalletProfile(profile);
+  }
+
+  const pending = (async () => {
     const profile = await loadBlobWalletProfile(wallet);
     if (profile) {
       return profile;
@@ -349,10 +386,17 @@ async function getWalletProfile(wallet) {
 
     const legacySnapshot = await loadLegacyBlobDbSnapshot();
     return normalizeWalletProfile(legacySnapshot?.db?.records?.[wallet]);
-  }
+  })();
 
-  const db = await readDb();
-  return normalizeWalletProfile(db.records[wallet]);
+  walletProfileReadCache.set(wallet, pending);
+
+  try {
+    const profile = await pending;
+    return cloneWalletProfile(profile);
+  } catch (error) {
+    walletProfileReadCache.delete(wallet);
+    throw error;
+  }
 }
 
 function sortCharactersByRecent(left, right) {
@@ -394,17 +438,31 @@ async function findCharacterRecordById(characterId) {
 }
 
 async function readDb() {
-  if (isBlobDbEnabled()) {
+  if (!isBlobDbEnabled()) {
+    const snapshot = await loadLocalDbSnapshot();
+    return snapshot.db;
+  }
+
+  if (dbReadCache) {
+    return dbReadCache;
+  }
+
+  const pending = (async () => {
     const [legacySnapshot, blobProfiles] = await Promise.all([
       loadLegacyBlobDbSnapshot(),
       loadAllBlobWalletProfiles(),
     ]);
-
     return mergeRecordMaps(legacySnapshot?.db?.records || {}, blobProfiles);
-  }
+  })();
 
-  const snapshot = await loadLocalDbSnapshot();
-  return snapshot.db;
+  dbReadCache = pending;
+
+  try {
+    return await pending;
+  } catch (error) {
+    dbReadCache = null;
+    throw error;
+  }
 }
 
 async function listAllCharacters() {
@@ -432,6 +490,8 @@ async function saveWalletProfile(wallet, profile) {
     const previous = walletWriteQueues.get(key) || Promise.resolve();
     const next = previous.catch(() => null).then(async () => {
       await writeWalletProfileBlob(wallet, normalized);
+      walletProfileReadCache.delete(wallet);
+      dbReadCache = null;
       return cloneWalletProfile(normalized);
     });
     walletWriteQueues.set(key, next);
@@ -463,6 +523,8 @@ async function updateWalletProfile(wallet, updater) {
         : cloneWalletProfile(EMPTY_WALLET_PROFILE);
 
       await writeWalletProfileBlob(wallet, normalized);
+      walletProfileReadCache.delete(wallet);
+      dbReadCache = null;
       return cloneWalletProfile(normalized);
     });
     walletWriteQueues.set(key, next);
@@ -644,6 +706,7 @@ function createImageStore() {
 }
 
 module.exports = {
+  clearWalletProfileCache,
   createImageStore,
   deleteCharacterById,
   findCharacterRecordById,

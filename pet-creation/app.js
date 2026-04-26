@@ -6020,6 +6020,17 @@ async function startFightFlow(characterId) {
     createdBattleId = String(createBattlePayload?.battleId || "").trim();
     const revealBundle = normalizeArenaRevealBundle(createBattlePayload?.reveal);
 
+    const authoritativeCurrency =
+      createBattlePayload?.currency && typeof createBattlePayload.currency === "object"
+        ? {
+            balance: Math.max(0, Math.floor(Number(createBattlePayload.currency.balance) || 0)),
+            totalEarned: Math.max(0, Math.floor(Number(createBattlePayload.currency.totalEarned) || 0)),
+          }
+        : null;
+    if (authoritativeCurrency) {
+      state.pendingCurrency = authoritativeCurrency;
+    }
+
     if (!createdBattleId) {
       throw new Error("Battle id was not returned.");
     }
@@ -6059,6 +6070,15 @@ async function startFightFlow(characterId) {
     ]);
 
     await refreshArenaProfileState().catch(() => null);
+
+    // refreshArenaProfileState reads /api/character/me, which goes through the
+    // same blob CDN that may briefly serve a stale snapshot (no Points credited
+    // yet) right after a POST. The POST response itself, however, returns the
+    // authoritative currency synchronously — so reassert it here in case the
+    // refresh overwrote pendingCurrency with stale data.
+    if (authoritativeCurrency) {
+      state.pendingCurrency = authoritativeCurrency;
+    }
 
     state.isFightPreparing = false;
     state.fightPreparingCharacterId = "";
