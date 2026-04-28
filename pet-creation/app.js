@@ -7727,6 +7727,7 @@ async function completeCharacterCreation() {
   try {
     const data = await apiRequest("/api/character/create", {
       draftId: state.draft?.id || "",
+      selectedPowerId: state.selectedPowerId || state.draft?.selectedPowerId || "",
       stats: state.attrs,
     });
 
