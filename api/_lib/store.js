@@ -44,6 +44,7 @@ const EMPTY_WALLET_PROFILE = {
 let writeQueue = Promise.resolve();
 const walletWriteQueues = new Map();
 const walletProfileReadCache = new Map();
+const WALLET_PROFILE_READ_CACHE_TTL_MS = 100;
 let dbReadCache = null;
 
 function clearWalletProfileCache(wallet) {
@@ -373,9 +374,12 @@ async function getWalletProfile(wallet) {
   }
 
   const cached = walletProfileReadCache.get(wallet);
-  if (cached) {
-    const profile = await cached;
+  if (cached && cached.expiresAt > Date.now()) {
+    const profile = await cached.promise;
     return cloneWalletProfile(profile);
+  }
+  if (cached) {
+    walletProfileReadCache.delete(wallet);
   }
 
   const pending = (async () => {
@@ -388,7 +392,10 @@ async function getWalletProfile(wallet) {
     return normalizeWalletProfile(legacySnapshot?.db?.records?.[wallet]);
   })();
 
-  walletProfileReadCache.set(wallet, pending);
+  walletProfileReadCache.set(wallet, {
+    promise: pending,
+    expiresAt: Date.now() + WALLET_PROFILE_READ_CACHE_TTL_MS,
+  });
 
   try {
     const profile = await pending;
