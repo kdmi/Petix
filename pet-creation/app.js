@@ -1736,6 +1736,34 @@ function preloadCharacterImage(src, timeoutMs = 4000) {
   });
 }
 
+function applyArenaRewardsToInitiator(rewards, initiatorId) {
+  if (!rewards || !initiatorId) return;
+  const id = String(initiatorId);
+  const newExperience = Math.max(0, Math.floor(Number(rewards.newExperience) || 0));
+  const newLevel = Math.max(1, Math.floor(Number(rewards.newLevel) || 1));
+  const newAttributePointsAvailable = Math.max(
+    0,
+    Math.floor(Number(rewards.newAttributePointsAvailable) || 0)
+  );
+  const updatedAt = new Date().toISOString();
+
+  const merge = (record) => {
+    if (!record || String(record.id || "") !== id) return record;
+    return {
+      ...record,
+      experience: newExperience,
+      level: newLevel,
+      attributePointsAvailable: newAttributePointsAvailable,
+      updatedAt,
+    };
+  };
+
+  state.characters = state.characters.map(merge);
+  if (state.character) {
+    state.character = merge(state.character);
+  }
+}
+
 function syncTypeSelectionWithRecord(record) {
   const creatureType = record?.creatureType || "";
   if (!creatureType) {
@@ -6097,7 +6125,11 @@ async function startFightFlow(characterId) {
       prepareArenaRecordImage(resolvedOpponent),
     ]);
 
+    applyArenaRewardsToInitiator(readyBattle?.result?.attackerRewards, initiator.id);
+
     await refreshArenaProfileState().catch(() => null);
+
+    applyArenaRewardsToInitiator(readyBattle?.result?.attackerRewards, initiator.id);
 
     // refreshArenaProfileState reads /api/character/me, which goes through the
     // same blob CDN that may briefly serve a stale snapshot (no Points credited
