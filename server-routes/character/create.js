@@ -6,7 +6,14 @@ const {
   validateSkillAllocation,
 } = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
-const { updateWalletProfile } = require("../../api/_lib/store");
+const { clearWalletProfileCache, updateWalletProfile } = require("../../api/_lib/store");
+
+const DRAFT_NOT_FOUND_MESSAGE = "Character draft not found. Start again.";
+const DRAFT_RETRY_DELAYS_MS = [200, 400, 800];
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -41,48 +48,75 @@ module.exports = async (req, res) => {
       })
     );
 
-    const profile = await updateWalletProfile(session.wallet, async (current) => {
-      if (!current.draft) {
-        throw new Error("Character draft not found. Start again.");
+    const runUpdate = () =>
+      updateWalletProfile(session.wallet, async (current) => {
+        if (!current.draft) {
+          throw new Error(DRAFT_NOT_FOUND_MESSAGE);
+        }
+
+        if (draftId && String(current.draft.id || "") !== draftId) {
+          throw new Error("Character draft changed. Start again.");
+        }
+
+        const attributePointBudget = getAttributePointBudget(current.draft);
+        if (!validateSkillAllocation(stats, attributePointBudget)) {
+          throw new Error(
+            `Invalid attribute allocation. Exactly ${attributePointBudget} points are required.`
+          );
+        }
+
+        const nextSelectedPowerId = selectedPowerId || current.draft.selectedPowerId;
+        const selectedPower = current.draft.powers.find((power) => power.id === nextSelectedPowerId);
+        if (!selectedPower) {
+          throw new Error("Selected superpower is invalid.");
+        }
+
+        const now = new Date().toISOString();
+        const completedCharacter = {
+          ...current.draft,
+          status: "completed",
+          selectedPowerId: nextSelectedPowerId,
+          attributes: normalizeAttributes(stats),
+          level: 1,
+          experience: 0,
+          softCurrency: 0,
+          attributePointsAvailable: 0,
+          completedAt: now,
+          updatedAt: now,
+        };
+
+        return {
+          ...current,
+          draft: null,
+          characters: [...current.characters, completedCharacter],
+        };
+      });
+
+    let profile;
+    let lastError;
+    for (let attempt = 0; attempt <= DRAFT_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        profile = await runUpdate();
+        if (attempt > 0) {
+          console.log(
+            "[character:create:retry-recovered]",
+            JSON.stringify({ wallet: session.wallet, attempt })
+          );
+        }
+        break;
+      } catch (error) {
+        lastError = error;
+        const retryable = draftId && error.message === DRAFT_NOT_FOUND_MESSAGE;
+        if (!retryable || attempt === DRAFT_RETRY_DELAYS_MS.length) {
+          throw error;
+        }
+        clearWalletProfileCache(session.wallet);
+        await wait(DRAFT_RETRY_DELAYS_MS[attempt]);
       }
-
-      if (draftId && String(current.draft.id || "") !== draftId) {
-        throw new Error("Character draft changed. Start again.");
-      }
-
-      const attributePointBudget = getAttributePointBudget(current.draft);
-      if (!validateSkillAllocation(stats, attributePointBudget)) {
-        throw new Error(
-          `Invalid attribute allocation. Exactly ${attributePointBudget} points are required.`
-        );
-      }
-
-      const nextSelectedPowerId = selectedPowerId || current.draft.selectedPowerId;
-      const selectedPower = current.draft.powers.find((power) => power.id === nextSelectedPowerId);
-      if (!selectedPower) {
-        throw new Error("Selected superpower is invalid.");
-      }
-
-      const now = new Date().toISOString();
-      const completedCharacter = {
-        ...current.draft,
-        status: "completed",
-        selectedPowerId: nextSelectedPowerId,
-        attributes: normalizeAttributes(stats),
-        level: 1,
-        experience: 0,
-        softCurrency: 0,
-        attributePointsAvailable: 0,
-        completedAt: now,
-        updatedAt: now,
-      };
-
-      return {
-        ...current,
-        draft: null,
-        characters: [...current.characters, completedCharacter],
-      };
-    });
+    }
+    if (!profile) {
+      throw lastError;
+    }
 
     const latestCharacter = profile.characters[profile.characters.length - 1] || null;
 
