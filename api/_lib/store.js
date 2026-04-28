@@ -153,6 +153,7 @@ async function readBlobText(stream) {
 async function loadLegacyBlobDbSnapshot() {
   const blobResult = await get(DB_BLOB_PATH, {
     access: "public",
+    useCache: false,
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
@@ -259,6 +260,7 @@ async function loadWalletProfileFromBlobPath(pathname) {
 
   const blobResult = await get(pathname, {
     access: "public",
+    useCache: false,
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
