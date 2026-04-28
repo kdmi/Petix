@@ -1774,26 +1774,37 @@ function syncStateWithPayload(payload = {}) {
     }
   }
 
+  let isStaleProfilePayload = false;
   if (Array.isArray(payload.characters)) {
-    state.characters = payload.characters.map(normalizeCharacterRecord);
-    state.hasHydratedCharacters = true;
-    if (state.characters.length) {
-      void warmArenaOpponentPool().catch(() => {});
-    } else {
-      clearArenaOpponentCache();
+    const incomingIds = new Set(
+      payload.characters.map((record) => record?.id).filter(Boolean)
+    );
+    const knownDropped = state.characters.filter(
+      (record) => record?.id && !incomingIds.has(record.id)
+    );
+    isStaleProfilePayload =
+      state.hasHydratedCharacters && state.characters.length > 0 && knownDropped.length > 0;
+    if (!isStaleProfilePayload) {
+      state.characters = payload.characters.map(normalizeCharacterRecord);
+      state.hasHydratedCharacters = true;
+      if (state.characters.length) {
+        void warmArenaOpponentPool().catch(() => {});
+      } else {
+        clearArenaOpponentCache();
+      }
     }
   }
 
-  if ("draft" in payload) {
+  if ("draft" in payload && !isStaleProfilePayload) {
     state.draft = normalizeCharacterRecord(payload.draft);
   }
 
-  if ("character" in payload) {
+  if ("character" in payload && !isStaleProfilePayload) {
     state.character = normalizeCharacterRecord(payload.character);
     if (payload.character && !("draft" in payload)) {
       state.draft = null;
     }
-  } else if (!state.draft) {
+  } else if (!("character" in payload) && !state.draft) {
     state.character = state.characters[state.characters.length - 1] || null;
   }
 
