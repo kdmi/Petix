@@ -1719,6 +1719,23 @@ function setCharacterImages(src, creatureType) {
   });
 }
 
+function preloadCharacterImage(src, timeoutMs = 4000) {
+  if (!src || src === DEFAULT_CHARACTER_IMAGE) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const img = new Image();
+    img.onload = finish;
+    img.onerror = finish;
+    img.src = src;
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
 function syncTypeSelectionWithRecord(record) {
   const creatureType = record?.creatureType || "";
   if (!creatureType) {
@@ -7659,6 +7676,7 @@ async function startCharacterCreation() {
     ]);
 
     syncStateWithPayload(data);
+    await preloadCharacterImage(state.draft?.imageUrl);
     moveTo("powers");
   } catch (error) {
     moveTo("type");
