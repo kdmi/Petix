@@ -1773,7 +1773,7 @@ function syncStateWithPayload(payload = {}) {
 
   if ("character" in payload) {
     state.character = normalizeCharacterRecord(payload.character);
-    if (payload.character) {
+    if (payload.character && !("draft" in payload)) {
       state.draft = null;
     }
   } else if (!state.draft) {
