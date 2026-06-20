@@ -550,6 +550,26 @@
         justify-content: space-between !important;
         gap: 24px !important;
         padding: 0 clamp(20px, 6vw, 64px) !important;
+        height: 96px !important;
+      }
+
+      /* Root container heights are baked per breakpoint to fit the
+         original 254/280px footer. Shrink them by the same delta so
+         a 96px footer doesn't leave an empty band below. */
+      @media (min-width: 1400px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 3882px !important;
+        }
+      }
+      @media (min-width: 810px) and (max-width: 1399.98px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 3933px !important;
+        }
+      }
+      @media (max-width: 809.98px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 5143px !important;
+        }
       }
 
       .framer-105p8lt .framer-1mhyzhh {
