@@ -542,6 +542,64 @@
         background: #344054;
         outline: none;
       }
+
+      .framer-105p8lt {
+        display: none !important;
+      }
+
+      .petix-landing-footer {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 24px clamp(20px, 6vw, 64px);
+        border-top: 1px solid #eaecf0;
+        background: #ffffff;
+        font-family: "Figtree", Arial, sans-serif;
+      }
+
+      .petix-landing-footer-logo {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+      }
+
+      .petix-landing-footer-logo img {
+        display: block;
+        height: 32px;
+        width: auto;
+      }
+
+      .petix-landing-footer-links {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+      }
+
+      .petix-landing-footer-links a {
+        color: #667085;
+        font-size: 15px;
+        font-weight: 500;
+        text-decoration: none;
+      }
+
+      .petix-landing-footer-links a:hover,
+      .petix-landing-footer-links a:focus-visible {
+        color: #101828;
+        outline: none;
+      }
+
+      @media (max-width: 480px) {
+        .petix-landing-footer {
+          padding: 20px;
+          gap: 16px;
+        }
+
+        .petix-landing-footer-links {
+          gap: 20px;
+        }
+      }
     </style>
     <!-- End of headEnd -->
 </head>
@@ -1130,9 +1188,31 @@
 	      node.replaceWith(link);
 	    };
 
+	    const replaceLandingFooter = () => {
+	      document.querySelectorAll(".framer-105p8lt").forEach((node) => node.remove());
+
+	      if (document.querySelector(".petix-landing-footer")) {
+	        return;
+	      }
+
+	      const footer = document.createElement("footer");
+	      footer.className = "petix-landing-footer";
+	      footer.innerHTML = `
+	        <a class="petix-landing-footer-logo" href="/" aria-label="Petix">
+	          <img src="/assets/petix-logo.svg" alt="Petix" width="100" height="32" />
+	        </a>
+	        <nav class="petix-landing-footer-links" aria-label="Petix social links">
+	          <a href="https://github.com/kdmi/Petix" target="_blank" rel="noopener noreferrer">GitHub</a>
+	          <a href="https://x.com/petixfun" target="_blank" rel="noopener noreferrer">@petixfun</a>
+	        </nav>
+	      `;
+
+	      const host = document.querySelector(".framer-DwVgb") || document.body;
+	      host.appendChild(footer);
+	    };
+
 	    const updateLandingFooterLinks = () => {
-	      linkFooterItem(".framer-n1t8vm", "https://github.com/kdmi/Petix", "GitHub");
-	      linkFooterItem(".framer-16rrykd", "https://x.com/petixfun", "@petixfun");
+	      replaceLandingFooter();
 	    };
 
 	    if (document.readyState === "loading") {
