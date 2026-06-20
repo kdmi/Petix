@@ -916,6 +916,30 @@ function wait(ms) {
   });
 }
 
+const DRAFT_NOT_FOUND_MESSAGE = "Character draft not found. Start again.";
+const DRAFT_RETRY_DELAYS_MS = [1000, 2000, 4000, 6000];
+
+async function requestWithDraftRetry(run) {
+  let lastError;
+  for (let attempt = 0; attempt <= DRAFT_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      const message = typeof error?.message === "string" ? error.message : "";
+      const isRetryable =
+        Boolean(state.draft?.id) &&
+        message === DRAFT_NOT_FOUND_MESSAGE &&
+        attempt < DRAFT_RETRY_DELAYS_MS.length;
+      if (!isRetryable) {
+        throw error;
+      }
+      await wait(DRAFT_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  throw lastError;
+}
+
 function shuffleArray(items = []) {
   const shuffled = [...items];
 
@@ -1824,7 +1848,21 @@ function syncStateWithPayload(payload = {}) {
   }
 
   if ("draft" in payload && !isStaleProfilePayload) {
-    state.draft = normalizeCharacterRecord(payload.draft);
+    const incomingDraft = normalizeCharacterRecord(payload.draft);
+    const localDraftId = state.draft?.id;
+    const incomingDraftId = incomingDraft?.id;
+    const payloadConfirmsCreate =
+      "character" in payload && payload.character && localDraftId &&
+      payload.character.id === localDraftId;
+    // Defend against stale /me reads from Vercel Blob CDN: if we already
+    // hold a draft locally and the incoming payload doesn't know about it,
+    // keep ours. The exception is when the payload is the create response
+    // for our draft — that legitimately clears it.
+    if (localDraftId && incomingDraftId !== localDraftId && !payloadConfirmsCreate) {
+      // ignore — incoming draft is stale (CDN pre-write snapshot)
+    } else {
+      state.draft = incomingDraft;
+    }
   }
 
   if ("character" in payload && !isStaleProfilePayload) {
@@ -7753,10 +7791,12 @@ async function savePowerSelectionAndContinue() {
   }, 8000);
 
   try {
-    const data = await apiRequest("/api/character/select-power", {
-      draftId: state.draft?.id || "",
-      selectedPowerId: state.selectedPowerId,
-    });
+    const data = await requestWithDraftRetry(() =>
+      apiRequest("/api/character/select-power", {
+        draftId: state.draft?.id || "",
+        selectedPowerId: state.selectedPowerId,
+      })
+    );
 
     syncStateWithPayload(data);
     moveTo("attrs");
@@ -7786,11 +7826,13 @@ async function completeCharacterCreation() {
   updateAttrsStep();
 
   try {
-    const data = await apiRequest("/api/character/create", {
-      draftId: state.draft?.id || "",
-      selectedPowerId: state.selectedPowerId || state.draft?.selectedPowerId || "",
-      stats: state.attrs,
-    });
+    const data = await requestWithDraftRetry(() =>
+      apiRequest("/api/character/create", {
+        draftId: state.draft?.id || "",
+        selectedPowerId: state.selectedPowerId || state.draft?.selectedPowerId || "",
+        stats: state.attrs,
+      })
+    );
 
     syncStateWithPayload(data);
     moveTo("success");
