@@ -3930,7 +3930,9 @@ function renderAttrsPetCard(record) {
   applyRarityBadge(attrsPetRarity, resolvedRecord?.rarity);
 
   if (attrsPetName) {
-    attrsPetName.textContent = getRecordDisplayName(resolvedRecord);
+    const showName = isUpgradeStep();
+    attrsPetName.textContent = showName ? getRecordDisplayName(resolvedRecord) : "";
+    attrsPetName.classList.toggle("hidden", !showName);
   }
   if (attrsPetLevel) {
     attrsPetLevel.textContent = `Lvl. ${getRecordLevel(resolvedRecord)}`;
