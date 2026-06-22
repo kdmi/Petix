@@ -6519,7 +6519,23 @@ async function runFarmAction(characterId, path) {
   let result = false;
   try {
     result = await apiRequest(path, { petId: characterId });
-    await refreshCharactersFromServer();
+    // Trust the POST response (authoritative) instead of re-reading /api/character/me:
+    // right after the wallet-profile write the blob CDN can briefly serve a stale
+    // snapshot, which would revert the just-started farm and leave the button in
+    // Default. Same approach as the battle currency fix (commit 7c6201f).
+    if (result && result.character && result.character.id) {
+      const authoritative = normalizeCharacterRecord(result.character);
+      const idx = state.characters.findIndex(
+        (record) => String(record.id) === String(authoritative.id)
+      );
+      if (idx >= 0) {
+        state.characters[idx] = authoritative;
+      }
+    }
+    if (result && typeof result.balance === "number") {
+      state.currency = { ...state.currency, balance: result.balance };
+      state.pendingCurrency = null;
+    }
   } catch (error) {
     showToast(error.message || "Action failed.");
     result = false;
