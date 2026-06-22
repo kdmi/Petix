@@ -22,7 +22,8 @@ const DEFAULTS = Object.freeze({
   SLOT_PRICES: Object.freeze([5000, 10000, 20000, 35000, 60000, 100000, 160000]),
   MAX_CHARACTER_SLOTS: 10,
   MIN_WITHDRAW: 200,
-  WITHDRAW_FEE_PCT: 5,
+  WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
+  WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
   POINTS_PER_PETIX: 1,
 });
 
@@ -79,6 +80,7 @@ function validateConfigPatch(patch) {
     "MAX_CHARACTER_SLOTS",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
+    "WITHDRAW_ENABLED",
     "POINTS_PER_PETIX",
   ];
   for (const key of numericKeys) {

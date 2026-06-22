@@ -1522,6 +1522,495 @@ function closeWalletModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
+// === Withdraw modal (admin-only entry point via the Points balance) ===
+// Visual + interaction parity with the Withdraw.dc.html design. Backend wiring
+// (real withdrawal request) is intentionally not implemented yet — the success
+// view is client-side only.
+// Withdraw limits/fee mirror the runtime economy-config (MIN_WITHDRAW, WITHDRAW_FEE_PCT),
+// fetched from /api/withdraw/config on open. These are only fallbacks until then.
+// The fee line is hidden entirely when the fee is 0.
+const WITHDRAW_MIN_DEFAULT = 200;
+const WITHDRAW_FEE_PCT_DEFAULT = 0;
+const WITHDRAW_TOKEN_SYMBOL = "$PETIX";
+const SOLSCAN_TX_BASE = "https://solscan.io/tx/";
+
+const withdrawState = {
+  built: false,
+  open: false,
+  view: "form", // "form" | "success"
+  amount: 0,
+  inputText: "0",
+  withdrawn: 0,
+  balance: 0,
+  min: WITHDRAW_MIN_DEFAULT,
+  feePct: WITHDRAW_FEE_PCT_DEFAULT,
+  tokenSymbol: WITHDRAW_TOKEN_SYMBOL,
+  enabled: false,
+  configured: false,
+  configLoaded: false,
+  busy: false, // транзакция в процессе (подпись/отправка/подтверждение)
+  errorMessage: "",
+  lastSignature: "",
+  refs: null,
+  pointerMove: null,
+  pointerUp: null,
+};
+
+function withdrawTokenSymbol() {
+  return withdrawState.tokenSymbol || WITHDRAW_TOKEN_SYMBOL;
+}
+
+// Ленивая загрузка @solana/web3.js (IIFE-бандл, global `solanaWeb3`) — только при первом
+// открытии вывода, чтобы не раздувать страницы для всех пользователей.
+let solanaWeb3LoadPromise = null;
+function ensureSolanaWeb3Loaded() {
+  if (window.solanaWeb3) return Promise.resolve(window.solanaWeb3);
+  if (solanaWeb3LoadPromise) return solanaWeb3LoadPromise;
+  solanaWeb3LoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/@solana/web3.js@1/lib/index.iife.min.js";
+    script.async = true;
+    script.onload = () =>
+      window.solanaWeb3
+        ? resolve(window.solanaWeb3)
+        : reject(new Error("Failed to initialize Solana library."));
+    script.onerror = () => {
+      solanaWeb3LoadPromise = null;
+      reject(new Error("Failed to load Solana library."));
+    };
+    document.head.appendChild(script);
+  });
+  return solanaWeb3LoadPromise;
+}
+
+// Находит провайдер кошелька; предпочитает подключённый с адресом текущей сессии.
+async function resolveWithdrawProvider() {
+  let candidate = null;
+  for (const key of Object.keys(walletConfigs)) {
+    const provider = walletConfigs[key].getProvider?.();
+    if (!provider) continue;
+    const pk = provider.publicKey?.toString?.();
+    if (pk && state.walletAddress && pk === state.walletAddress) {
+      candidate = provider;
+      break;
+    }
+    if (!candidate) candidate = provider;
+  }
+  if (!candidate) {
+    throw new Error("No Solana wallet detected. Open this page in your wallet's in-app browser.");
+  }
+  if (!candidate.publicKey) {
+    try {
+      await candidate.connect();
+    } catch {
+      throw new Error("Wallet connection was rejected.");
+    }
+  }
+  const pk = candidate.publicKey?.toString?.();
+  if (state.walletAddress && pk && pk !== state.walletAddress) {
+    throw new Error("Connected wallet doesn't match your signed-in address.");
+  }
+  return candidate;
+}
+
+function mapWithdrawError(error, fallback) {
+  const message = (error && (error.message || "")) || "";
+  const code = error && (error.code ?? error.errorCode);
+  if (code === 4001 || /reject|denied|cancell?ed/i.test(message)) {
+    return new Error("Signing was canceled.");
+  }
+  return new Error(message || fallback || "Withdrawal failed.");
+}
+
+function withdrawMin() {
+  return Math.max(0, Math.floor(withdrawState.min || 0));
+}
+
+function withdrawFeePct() {
+  return Math.max(0, Number(withdrawState.feePct) || 0);
+}
+
+// Pull live withdraw settings from /api/withdraw/config (доступно любому авторизованному):
+// { enabled, configured, min, feePct, tokenSymbol, decimals }.
+function applyWithdrawConfig(config) {
+  if (!config || typeof config !== "object") return;
+  if (Number.isFinite(Number(config.min))) {
+    withdrawState.min = Math.max(0, Math.floor(Number(config.min)));
+  }
+  if (Number.isFinite(Number(config.feePct))) {
+    withdrawState.feePct = Math.max(0, Number(config.feePct));
+  }
+  if (typeof config.enabled === "boolean") withdrawState.enabled = config.enabled;
+  if (typeof config.configured === "boolean") withdrawState.configured = config.configured;
+  if (config.tokenSymbol) withdrawState.tokenSymbol = String(config.tokenSymbol);
+}
+
+async function refreshWithdrawConfig() {
+  try {
+    const res = await apiRequest("/api/withdraw/config", {}, "GET");
+    applyWithdrawConfig(res);
+    withdrawState.configLoaded = true;
+    if (withdrawState.open && withdrawState.view === "form") {
+      // Re-clamp the current amount into the (possibly new) min/max bounds.
+      setWithdrawAmount(withdrawState.amount);
+    }
+  } catch {
+    // Keep whatever min/fee we already have (cached or defaults) — non-fatal.
+  }
+}
+
+function formatWithdrawNumber(value) {
+  return Math.round(Math.max(0, Number(value) || 0)).toLocaleString("en-US");
+}
+
+function withdrawMax() {
+  return Math.max(0, Math.floor(withdrawState.balance || 0));
+}
+
+function clampWithdraw(value) {
+  return Math.max(0, Math.min(withdrawMax(), Math.round(Number(value) || 0)));
+}
+
+function canWithdraw() {
+  const amount = withdrawState.amount || 0;
+  return amount >= withdrawMin() && amount <= withdrawMax();
+}
+
+function withdrawValueFromX(clientX) {
+  const slider = withdrawState.refs?.slider;
+  const max = withdrawMax();
+  const min = withdrawMin();
+  if (!slider || max <= min) return withdrawState.amount;
+  const rect = slider.getBoundingClientRect();
+  const usable = Math.max(1, rect.width - 20);
+  let p = (clientX - rect.left - 10) / usable;
+  p = Math.max(0, Math.min(1, p));
+  return min + p * (max - min);
+}
+
+function setWithdrawAmount(value) {
+  const amount = clampWithdraw(value);
+  withdrawState.amount = amount;
+  withdrawState.inputText = String(amount);
+  renderWithdrawForm();
+}
+
+function ensureWithdrawModal() {
+  if (withdrawState.built) return withdrawState.refs;
+
+  const closeIcon =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">' +
+    '<path d="M1.5 1.5 L10.5 10.5 M10.5 1.5 L1.5 10.5" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>';
+
+  const overlay = document.createElement("div");
+  overlay.className = "withdraw-overlay hidden";
+  overlay.id = "withdrawOverlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML =
+    '<section class="withdraw-modal" role="dialog" aria-modal="true" aria-labelledby="withdrawTitle">' +
+      '<div class="withdraw-view" data-view="form">' +
+        '<div class="withdraw-header">' +
+          '<span class="withdraw-title" id="withdrawTitle">Your balance</span>' +
+          '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+        '</div>' +
+        '<div class="withdraw-balance"><span class="withdraw-balance-value" data-role="balance">0</span></div>' +
+        '<div class="withdraw-input">' +
+          '<input class="withdraw-input-field" type="text" inputmode="numeric" placeholder="0" data-role="amount-input" aria-label="Withdraw amount" />' +
+          '<span class="withdraw-input-symbol" data-role="symbol">$PETIX</span>' +
+        '</div>' +
+        '<div class="withdraw-slider-block">' +
+          '<div class="withdraw-slider-labels">' +
+            '<span data-role="min-label">Min: 200</span>' +
+            '<span class="withdraw-max" data-role="max-label" role="button" tabindex="0">Max: 0</span>' +
+          '</div>' +
+          '<div class="withdraw-slider" data-role="slider" tabindex="0" role="slider" aria-label="Withdraw amount">' +
+            '<div class="withdraw-slider-track"></div>' +
+            '<div class="withdraw-slider-fill" data-role="fill"></div>' +
+            '<div class="withdraw-slider-dots"><span></span><span></span><span></span><span></span><span></span></div>' +
+            '<div class="withdraw-slider-handle" data-role="handle"></div>' +
+          '</div>' +
+        '</div>' +
+        '<button class="withdraw-submit" type="button" data-role="submit">Withdraw</button>' +
+        '<div class="withdraw-error hidden" data-role="error" role="alert"></div>' +
+        '<div class="withdraw-fee hidden" data-role="fee-wrap"><span data-role="fee"></span></div>' +
+      '</div>' +
+      '<div class="withdraw-view hidden" data-view="success">' +
+        '<div class="withdraw-header">' +
+          '<span class="withdraw-title">Withdraw</span>' +
+          '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+        '</div>' +
+        '<div class="withdraw-success">' +
+          '<div class="withdraw-success-badge">' +
+            '<svg width="38" height="38" viewBox="0 0 38 38" fill="none"><path d="M9 19.5 L16 26.5 L29 12" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>' +
+          '</div>' +
+          '<span class="withdraw-success-title">Success!</span>' +
+          '<span class="withdraw-success-sub">You withdrew</span>' +
+          '<span class="withdraw-success-amount" data-role="success-amount">0 $PETIX</span>' +
+        '</div>' +
+        '<a class="withdraw-solscan hidden" data-role="solscan" target="_blank" rel="noopener noreferrer">View on Solscan ↗</a>' +
+        '<button class="withdraw-submit" type="button" data-role="done">Done</button>' +
+        '<div class="withdraw-fee"><span>Funds are on their way to your wallet</span></div>' +
+      '</div>' +
+    '</section>';
+  document.body.appendChild(overlay);
+
+  const refs = {
+    overlay,
+    formView: overlay.querySelector('[data-view="form"]'),
+    successView: overlay.querySelector('[data-view="success"]'),
+    balance: overlay.querySelector('[data-role="balance"]'),
+    input: overlay.querySelector('[data-role="amount-input"]'),
+    symbol: overlay.querySelector('[data-role="symbol"]'),
+    minLabel: overlay.querySelector('[data-role="min-label"]'),
+    maxLabel: overlay.querySelector('[data-role="max-label"]'),
+    slider: overlay.querySelector('[data-role="slider"]'),
+    fill: overlay.querySelector('[data-role="fill"]'),
+    handle: overlay.querySelector('[data-role="handle"]'),
+    submit: overlay.querySelector('[data-role="submit"]'),
+    fee: overlay.querySelector('[data-role="fee"]'),
+    feeWrap: overlay.querySelector('[data-role="fee-wrap"]'),
+    error: overlay.querySelector('[data-role="error"]'),
+    successAmount: overlay.querySelector('[data-role="success-amount"]'),
+    solscan: overlay.querySelector('[data-role="solscan"]'),
+  };
+  withdrawState.refs = refs;
+  withdrawState.built = true;
+
+  withdrawState.pointerMove = (event) => setWithdrawAmount(withdrawValueFromX(event.clientX));
+  withdrawState.pointerUp = () => {
+    window.removeEventListener("pointermove", withdrawState.pointerMove);
+    window.removeEventListener("pointerup", withdrawState.pointerUp);
+  };
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeWithdrawModal();
+  });
+  overlay.querySelectorAll('[data-role="close"], [data-role="done"]').forEach((button) => {
+    button.addEventListener("click", closeWithdrawModal);
+  });
+  refs.submit.addEventListener("click", onWithdrawSubmit);
+  refs.input.addEventListener("input", onWithdrawInput);
+  refs.maxLabel.addEventListener("click", () => setWithdrawAmount(withdrawMax()));
+  refs.maxLabel.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setWithdrawAmount(withdrawMax());
+    }
+  });
+  refs.slider.addEventListener("pointerdown", onWithdrawSliderDown);
+  refs.slider.addEventListener("keydown", onWithdrawSliderKey);
+
+  return refs;
+}
+
+function onWithdrawInput(event) {
+  const raw = (event.target.value || "").replace(/[^0-9]/g, "");
+  if (raw === "") {
+    withdrawState.inputText = "";
+    withdrawState.amount = 0;
+    renderWithdrawForm({ skipInput: true });
+    return;
+  }
+  let amount = parseInt(raw, 10);
+  const max = withdrawMax();
+  if (amount > max) amount = max;
+  withdrawState.amount = amount;
+  withdrawState.inputText = String(amount);
+  renderWithdrawForm({ skipInput: true });
+}
+
+function onWithdrawSliderKey(event) {
+  const max = withdrawMax();
+  const min = withdrawMin();
+  const step = Math.max(1, Math.round((max - min) / 100));
+  if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+    event.preventDefault();
+    setWithdrawAmount((withdrawState.amount || 0) + step);
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+    event.preventDefault();
+    setWithdrawAmount((withdrawState.amount || 0) - step);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    setWithdrawAmount(min);
+  } else if (event.key === "End") {
+    event.preventDefault();
+    setWithdrawAmount(max);
+  }
+}
+
+function onWithdrawSliderDown(event) {
+  event.preventDefault();
+  setWithdrawAmount(withdrawValueFromX(event.clientX));
+  window.addEventListener("pointermove", withdrawState.pointerMove);
+  window.addEventListener("pointerup", withdrawState.pointerUp);
+}
+
+function renderWithdrawForm(options = {}) {
+  const refs = withdrawState.refs;
+  if (!refs) return;
+  const max = withdrawMax();
+  const min = withdrawMin();
+  const feePct = withdrawFeePct();
+  const amount = Math.min(withdrawState.amount || 0, max);
+  const ratio = max > min ? Math.max(0, Math.min(1, (amount - min) / (max - min))) : 0;
+  const position = `calc(${ratio} * (100% - 20px) + 10px)`;
+  const allowed = amount >= min && amount <= max && withdrawState.enabled && !withdrawState.busy;
+
+  refs.balance.textContent = formatWithdrawNumber(max);
+  refs.symbol.textContent = withdrawTokenSymbol();
+  if (!options.skipInput) refs.input.value = withdrawState.inputText;
+  refs.input.disabled = withdrawState.busy;
+  refs.minLabel.textContent = "Min: " + formatWithdrawNumber(min);
+  refs.maxLabel.textContent = "Max: " + formatWithdrawNumber(max);
+  refs.fill.style.width = position;
+  refs.handle.style.left = position;
+  refs.submit.style.opacity = allowed ? "1" : "0.4";
+  refs.submit.style.cursor = allowed ? "pointer" : "not-allowed";
+  refs.submit.disabled = !allowed;
+  refs.submit.textContent = withdrawState.busy ? "Processing…" : "Withdraw";
+  refs.slider.setAttribute("aria-valuemin", String(min));
+  refs.slider.setAttribute("aria-valuemax", String(max));
+  refs.slider.setAttribute("aria-valuenow", String(amount));
+
+  // Сообщение: ошибка (приоритет) или причина недоступности.
+  let note = withdrawState.errorMessage;
+  if (!note && withdrawState.configLoaded && !withdrawState.busy) {
+    if (!withdrawState.configured) note = "Withdrawals are not available yet.";
+    else if (!withdrawState.enabled) note = "Withdrawals are temporarily disabled.";
+  }
+  if (refs.error) {
+    if (note) {
+      refs.error.textContent = note;
+      refs.error.classList.remove("hidden");
+    } else {
+      refs.error.classList.add("hidden");
+    }
+  }
+
+  // Fee line follows WITHDRAW_FEE_PCT — when the fee is 0, the line hides.
+  if (refs.fee) {
+    if (feePct > 0) {
+      refs.fee.textContent = feePct + "% of your withdraw will be added to rewards pool";
+      refs.feeWrap.classList.remove("hidden");
+    } else {
+      refs.feeWrap.classList.add("hidden");
+    }
+  }
+}
+
+function showWithdrawView() {
+  const refs = withdrawState.refs;
+  if (!refs) return;
+  const isSuccess = withdrawState.view === "success";
+  refs.formView.classList.toggle("hidden", isSuccess);
+  refs.successView.classList.toggle("hidden", !isSuccess);
+  if (isSuccess) {
+    refs.successAmount.textContent =
+      formatWithdrawNumber(withdrawState.withdrawn) + " " + withdrawTokenSymbol();
+    if (refs.solscan) {
+      if (withdrawState.lastSignature) {
+        refs.solscan.href = SOLSCAN_TX_BASE + withdrawState.lastSignature;
+        refs.solscan.classList.remove("hidden");
+      } else {
+        refs.solscan.classList.add("hidden");
+      }
+    }
+  }
+}
+
+// Реальный вывод: prepare (списание + co-sign tx) → подпись/отправка кошельком → confirm.
+async function onWithdrawSubmit() {
+  if (withdrawState.busy) return;
+  if (!canWithdraw() || !withdrawState.enabled) return;
+  const amount = withdrawState.amount;
+  withdrawState.busy = true;
+  withdrawState.errorMessage = "";
+  renderWithdrawForm();
+
+  let recordId = "";
+  try {
+    const web3 = await ensureSolanaWeb3Loaded();
+    const provider = await resolveWithdrawProvider();
+
+    const prep = await apiRequest("/api/withdraw/prepare", { amount });
+    recordId = prep.recordId;
+
+    const bytes = Uint8Array.from(atob(prep.txBase64), (ch) => ch.charCodeAt(0));
+    const tx = web3.Transaction.from(bytes);
+
+    let signature = "";
+    try {
+      const result = await provider.signAndSendTransaction(tx);
+      signature = String((result && (result.signature || result)) || "");
+    } catch (signError) {
+      await apiRequest("/api/withdraw/cancel", { recordId }).catch(() => null);
+      throw mapWithdrawError(signError, "Signing was canceled.");
+    }
+    if (!signature) {
+      await apiRequest("/api/withdraw/cancel", { recordId }).catch(() => null);
+      throw new Error("Wallet did not return a transaction signature.");
+    }
+
+    try {
+      await apiRequest("/api/withdraw/confirm", { recordId, signature });
+    } catch (confirmError) {
+      // Реальный сбой tx (Points возвращены на сервере). Сетевые ошибки игнорируем —
+      // транзакция уже отправлена (сигнатура есть), токены в пути.
+      if (confirmError && confirmError.code === "TX_FAILED") {
+        throw new Error("Transaction failed on-chain. Your Points were refunded.");
+      }
+    }
+
+    // Успех: обновляем локальный баланс и показываем success.
+    withdrawState.withdrawn = prep.petixSent || amount;
+    withdrawState.lastSignature = signature;
+    withdrawState.balance = Math.max(0, withdrawState.balance - amount);
+    if (state.currency) {
+      state.currency.balance = Math.max(0, (state.currency.balance || 0) - amount);
+    }
+    updateDashboardPointsUi();
+    withdrawState.view = "success";
+    showWithdrawView();
+  } catch (error) {
+    withdrawState.errorMessage = (error && error.message) || "Withdrawal failed.";
+  } finally {
+    withdrawState.busy = false;
+    if (withdrawState.view !== "success") renderWithdrawForm();
+  }
+}
+
+function openWithdrawModal() {
+  if (!state.isAdmin) return;
+  ensureWithdrawModal();
+  hideWalletMenu();
+  withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
+  withdrawState.view = "form";
+  withdrawState.busy = false;
+  withdrawState.errorMessage = "";
+  withdrawState.lastSignature = "";
+  const max = withdrawMax();
+  const min = withdrawMin();
+  const init = max > min ? Math.round(min + (max - min) * 0.5) : max;
+  withdrawState.amount = clampWithdraw(init);
+  withdrawState.inputText = String(withdrawState.amount);
+  withdrawState.open = true;
+  showWithdrawView();
+  renderWithdrawForm();
+  void refreshWithdrawConfig();
+  withdrawState.refs.overlay.classList.remove("hidden");
+  withdrawState.refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+}
+
+function closeWithdrawModal() {
+  if (!withdrawState.refs) return;
+  withdrawState.open = false;
+  withdrawState.view = "form";
+  withdrawState.refs.overlay.classList.add("hidden");
+  withdrawState.refs.overlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("withdraw-modal-open");
+}
+
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   state.isAuthenticated = true;
   state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
@@ -4171,6 +4660,19 @@ function updateDashboardPointsUi() {
   const valueEl = dashboardPoints.querySelector('[data-role="points-value"]');
   if (valueEl) valueEl.textContent = formatCoins(balance);
   dashboardPoints.classList.toggle("hidden", !state.isAuthenticated);
+
+  // Withdraw is admin-only for now — only admins get a clickable balance.
+  const withdrawable = state.isAuthenticated && state.isAdmin;
+  dashboardPoints.classList.toggle("is-withdrawable", withdrawable);
+  if (withdrawable) {
+    dashboardPoints.setAttribute("role", "button");
+    dashboardPoints.setAttribute("tabindex", "0");
+    dashboardPoints.setAttribute("title", "Withdraw");
+  } else {
+    dashboardPoints.removeAttribute("role");
+    dashboardPoints.removeAttribute("tabindex");
+    dashboardPoints.removeAttribute("title");
+  }
 }
 
 function clearArenaAnimation() {
@@ -7914,6 +8416,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
+          ${ecoNumberRow("Withdraw enabled (1=on, 0=off)", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED)}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
@@ -7957,7 +8460,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -8709,6 +9212,19 @@ function init() {
     openWalletModal();
   });
 
+  if (dashboardPoints) {
+    dashboardPoints.addEventListener("click", () => {
+      if (state.isAdmin) openWithdrawModal();
+    });
+    dashboardPoints.addEventListener("keydown", (event) => {
+      if (!state.isAdmin) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openWithdrawModal();
+      }
+    });
+  }
+
   walletClose.addEventListener("click", closeWalletModal);
   walletOverlay.addEventListener("click", (event) => {
     if (event.target === walletOverlay) closeWalletModal();
@@ -8859,6 +9375,9 @@ function init() {
     }
     if (event.key === "Escape" && state.isShareModalOpen) {
       closeSuccessShareModal();
+    }
+    if (event.key === "Escape" && withdrawState.open) {
+      closeWithdrawModal();
     }
     if (event.key === "Escape") closeAdminImageLightbox();
     if (event.key === "Escape") hideWalletMenu();
