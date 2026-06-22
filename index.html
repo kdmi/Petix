@@ -542,6 +542,90 @@
         background: #344054;
         outline: none;
       }
+
+      .framer-105p8lt[data-border="true"] {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 24px !important;
+        padding: 0 clamp(20px, 6vw, 64px) !important;
+        height: 96px !important;
+      }
+
+      /* Root container heights are baked per breakpoint to fit the
+         original 254/280px footer. Shrink them by the same delta so
+         a 96px footer doesn't leave an empty band below. */
+      @media (min-width: 1400px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 3882px !important;
+        }
+      }
+      @media (min-width: 810px) and (max-width: 1399.98px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 3933px !important;
+        }
+      }
+      @media (max-width: 809.98px) {
+        .framer-DwVgb.framer-72rtr7 {
+          height: 5143px !important;
+        }
+      }
+
+      .framer-105p8lt .framer-1mhyzhh {
+        position: static !important;
+        transform: none !important;
+        left: auto !important;
+        top: auto !important;
+      }
+
+      .framer-105p8lt .framer-12qulzg {
+        position: static !important;
+        transform: none !important;
+        left: auto !important;
+        top: auto !important;
+        width: auto !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 28px !important;
+      }
+
+      .framer-105p8lt .framer-1krhc12 {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 28px !important;
+      }
+
+      .framer-105p8lt .framer-15k2rxr,
+      .framer-105p8lt .framer-1uxfe5q {
+        gap: 0 !important;
+        width: auto !important;
+        flex-direction: row !important;
+        align-items: center !important;
+      }
+
+      .framer-105p8lt .framer-n1t8vm,
+      .framer-105p8lt .framer-16rrykd {
+        width: auto !important;
+        white-space: nowrap !important;
+        word-break: normal !important;
+        word-wrap: normal !important;
+      }
+
+      .framer-105p8lt .framer-n1t8vm p,
+      .framer-105p8lt .framer-16rrykd p {
+        white-space: nowrap !important;
+      }
+
+      .framer-105p8lt .framer-n1t8vm a,
+      .framer-105p8lt .framer-16rrykd a {
+        color: inherit;
+        text-decoration: none;
+        white-space: nowrap;
+      }
     </style>
     <!-- End of headEnd -->
 </head>
@@ -1130,7 +1214,21 @@
 	      node.replaceWith(link);
 	    };
 
+	    const pruneLandingFooterClutter = () => {
+	      const trimSelectors = [
+	        ".framer-jb9pr2", // "Company" column header
+	        ".framer-1ydng6c", // Docs link
+	        ".framer-1koapps", // Legal column (header + Privacy + Terms)
+	        ".framer-1l89j6p", // "Social" column header
+	        ".framer-19gajdi", // right column (© Petix + Contact us)
+	      ];
+	      trimSelectors.forEach((selector) => {
+	        document.querySelectorAll(selector).forEach((node) => node.remove());
+	      });
+	    };
+
 	    const updateLandingFooterLinks = () => {
+	      pruneLandingFooterClutter();
 	      linkFooterItem(".framer-n1t8vm", "https://github.com/kdmi/Petix", "GitHub");
 	      linkFooterItem(".framer-16rrykd", "https://x.com/petixfun", "@petixfun");
 	    };

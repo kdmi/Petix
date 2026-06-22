@@ -933,6 +933,30 @@ function wait(ms) {
   });
 }
 
+const DRAFT_NOT_FOUND_MESSAGE = "Character draft not found. Start again.";
+const DRAFT_RETRY_DELAYS_MS = [1000, 2000, 4000, 6000];
+
+async function requestWithDraftRetry(run) {
+  let lastError;
+  for (let attempt = 0; attempt <= DRAFT_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      const message = typeof error?.message === "string" ? error.message : "";
+      const isRetryable =
+        Boolean(state.draft?.id) &&
+        message === DRAFT_NOT_FOUND_MESSAGE &&
+        attempt < DRAFT_RETRY_DELAYS_MS.length;
+      if (!isRetryable) {
+        throw error;
+      }
+      await wait(DRAFT_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  throw lastError;
+}
+
 function shuffleArray(items = []) {
   const shuffled = [...items];
 
@@ -1796,6 +1820,51 @@ function setCharacterImages(src, creatureType) {
   });
 }
 
+function preloadCharacterImage(src, timeoutMs = 4000) {
+  if (!src || src === DEFAULT_CHARACTER_IMAGE) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const img = new Image();
+    img.onload = finish;
+    img.onerror = finish;
+    img.src = src;
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
+function applyArenaRewardsToInitiator(rewards, initiatorId) {
+  if (!rewards || !initiatorId) return;
+  const id = String(initiatorId);
+  const newExperience = Math.max(0, Math.floor(Number(rewards.newExperience) || 0));
+  const newLevel = Math.max(1, Math.floor(Number(rewards.newLevel) || 1));
+  const newAttributePointsAvailable = Math.max(
+    0,
+    Math.floor(Number(rewards.newAttributePointsAvailable) || 0)
+  );
+  const updatedAt = new Date().toISOString();
+
+  const merge = (record) => {
+    if (!record || String(record.id || "") !== id) return record;
+    return {
+      ...record,
+      experience: newExperience,
+      level: newLevel,
+      attributePointsAvailable: newAttributePointsAvailable,
+      updatedAt,
+    };
+  };
+
+  state.characters = state.characters.map(merge);
+  if (state.character) {
+    state.character = merge(state.character);
+  }
+}
+
 function syncTypeSelectionWithRecord(record) {
   const creatureType = record?.creatureType || "";
   if (!creatureType) {
@@ -1845,26 +1914,51 @@ function syncStateWithPayload(payload = {}) {
       typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
   }
 
+  let isStaleProfilePayload = false;
   if (Array.isArray(payload.characters)) {
-    state.characters = payload.characters.map(normalizeCharacterRecord);
-    state.hasHydratedCharacters = true;
-    if (state.characters.length) {
-      void warmArenaOpponentPool().catch(() => {});
-    } else {
-      clearArenaOpponentCache();
+    const incomingIds = new Set(
+      payload.characters.map((record) => record?.id).filter(Boolean)
+    );
+    const knownDropped = state.characters.filter(
+      (record) => record?.id && !incomingIds.has(record.id)
+    );
+    isStaleProfilePayload =
+      state.hasHydratedCharacters && state.characters.length > 0 && knownDropped.length > 0;
+    if (!isStaleProfilePayload) {
+      state.characters = payload.characters.map(normalizeCharacterRecord);
+      state.hasHydratedCharacters = true;
+      if (state.characters.length) {
+        void warmArenaOpponentPool().catch(() => {});
+      } else {
+        clearArenaOpponentCache();
+      }
     }
   }
 
-  if ("draft" in payload) {
-    state.draft = normalizeCharacterRecord(payload.draft);
+  if ("draft" in payload && !isStaleProfilePayload) {
+    const incomingDraft = normalizeCharacterRecord(payload.draft);
+    const localDraftId = state.draft?.id;
+    const incomingDraftId = incomingDraft?.id;
+    const payloadConfirmsCreate =
+      "character" in payload && payload.character && localDraftId &&
+      payload.character.id === localDraftId;
+    // Defend against stale /me reads from Vercel Blob CDN: if we already
+    // hold a draft locally and the incoming payload doesn't know about it,
+    // keep ours. The exception is when the payload is the create response
+    // for our draft — that legitimately clears it.
+    if (localDraftId && incomingDraftId !== localDraftId && !payloadConfirmsCreate) {
+      // ignore — incoming draft is stale (CDN pre-write snapshot)
+    } else {
+      state.draft = incomingDraft;
+    }
   }
 
-  if ("character" in payload) {
+  if ("character" in payload && !isStaleProfilePayload) {
     state.character = normalizeCharacterRecord(payload.character);
-    if (payload.character) {
+    if (payload.character && !("draft" in payload)) {
       state.draft = null;
     }
-  } else if (!state.draft) {
+  } else if (!("character" in payload) && !state.draft) {
     state.character = state.characters[state.characters.length - 1] || null;
   }
 
@@ -3924,7 +4018,9 @@ function renderAttrsPetCard(record) {
   applyRarityBadge(attrsPetRarity, resolvedRecord?.rarity);
 
   if (attrsPetName) {
-    attrsPetName.textContent = getRecordDisplayName(resolvedRecord);
+    const showName = isUpgradeStep();
+    attrsPetName.textContent = showName ? getRecordDisplayName(resolvedRecord) : "";
+    attrsPetName.classList.toggle("hidden", !showName);
   }
   if (attrsPetLevel) {
     attrsPetLevel.textContent = `Lvl. ${getRecordLevel(resolvedRecord)}`;
@@ -6157,7 +6253,11 @@ async function startFightFlow(characterId) {
       prepareArenaRecordImage(resolvedOpponent),
     ]);
 
+    applyArenaRewardsToInitiator(readyBattle?.result?.attackerRewards, initiator.id);
+
     await refreshArenaProfileState().catch(() => null);
+
+    applyArenaRewardsToInitiator(readyBattle?.result?.attackerRewards, initiator.id);
 
     // refreshArenaProfileState reads /api/character/me, which goes through the
     // same blob CDN that may briefly serve a stale snapshot (no Points credited
@@ -8211,6 +8311,7 @@ async function startCharacterCreation() {
     ]);
 
     syncStateWithPayload(data);
+    await preloadCharacterImage(state.draft?.imageUrl);
     moveTo("powers");
   } catch (error) {
     moveTo("type");
@@ -8244,10 +8345,12 @@ async function savePowerSelectionAndContinue() {
   }, 8000);
 
   try {
-    const data = await apiRequest("/api/character/select-power", {
-      draftId: state.draft?.id || "",
-      selectedPowerId: state.selectedPowerId,
-    });
+    const data = await requestWithDraftRetry(() =>
+      apiRequest("/api/character/select-power", {
+        draftId: state.draft?.id || "",
+        selectedPowerId: state.selectedPowerId,
+      })
+    );
 
     syncStateWithPayload(data);
     moveTo("attrs");
@@ -8277,10 +8380,13 @@ async function completeCharacterCreation() {
   updateAttrsStep();
 
   try {
-    const data = await apiRequest("/api/character/create", {
-      draftId: state.draft?.id || "",
-      stats: state.attrs,
-    });
+    const data = await requestWithDraftRetry(() =>
+      apiRequest("/api/character/create", {
+        draftId: state.draft?.id || "",
+        selectedPowerId: state.selectedPowerId || state.draft?.selectedPowerId || "",
+        stats: state.attrs,
+      })
+    );
 
     syncStateWithPayload(data);
     moveTo("success");
@@ -8397,7 +8503,11 @@ function init() {
   }
 
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
-    window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
+    const dashboardUrl = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
+    if (window.history && typeof window.history.pushState === "function") {
+      window.history.pushState({}, "", dashboardUrl);
+    }
+    moveTo("cabinet");
   });
 
   if (shareSuccessBtn) {
