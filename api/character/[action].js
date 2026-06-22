@@ -1,7 +1,10 @@
 const path = require("path");
 
 const HANDLERS = {
+  "buy-slot": require("../../server-routes/character/buy-slot"),
   create: require("../../server-routes/character/create"),
+  "farm-claim": require("../../server-routes/character/farm-claim"),
+  "farm-start": require("../../server-routes/character/farm-start"),
   image: require("../../server-routes/character/image"),
   me: require("../../server-routes/character/me"),
   "select-power": require("../../server-routes/character/select-power"),

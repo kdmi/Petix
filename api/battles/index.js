@@ -36,6 +36,7 @@ const {
   updateBattleRecord,
 } = require("../_lib/battle-store");
 const { computeCoinReward, creditCurrency } = require("../_lib/currency");
+const { getEconomyConfig } = require("../_lib/economy-config");
 
 async function restoreWalletProfile(wallet, profile) {
   if (!wallet || !profile) {
@@ -184,20 +185,25 @@ async function applyDefenderBattleMutation({
   return previousProfile;
 }
 
-function resolveWinnerCoinReward({ simulation, attacker, defender }) {
+function resolveWinnerCoinReward({ simulation, attacker, defender, config }) {
   const winnerPetId = simulation?.battle?.result?.winnerPetId || null;
   if (!winnerPetId) {
     return { amount: 0, winnerRole: null };
   }
 
+  // Reward base/level-multiplier come from the runtime-tunable economy config (feature 013).
+  const rewardOptions = config
+    ? { base: config.BATTLE_REWARD_BASE, levelMultiplier: config.BATTLE_LEVEL_K }
+    : {};
+
   if (winnerPetId === attacker?.character?.id) {
     const level = Number(attacker.character?.level) || 1;
-    return { amount: computeCoinReward(level), winnerRole: "attacker" };
+    return { amount: computeCoinReward(level, rewardOptions), winnerRole: "attacker" };
   }
 
   if (winnerPetId === defender?.character?.id) {
     const level = Number(defender.character?.level) || 1;
-    return { amount: computeCoinReward(level), winnerRole: "defender" };
+    return { amount: computeCoinReward(level, rewardOptions), winnerRole: "defender" };
   }
 
   return { amount: 0, winnerRole: null };
@@ -254,6 +260,8 @@ module.exports = async (req, res) => {
     const attackerProfile = await getWalletProfile(attacker.wallet);
     assertBattleEnergyAvailable(attackerProfile.battleState, { wallet: attacker.wallet });
 
+    // Farm and Fight are independent (feature 013): farming no longer blocks battles.
+    const economyConfig = await getEconomyConfig();
     const characters = await listAllCharacters();
     const { opponent, matchmaking } = selectAuthoritativeOpponent({
       attacker,
@@ -289,6 +297,7 @@ module.exports = async (req, res) => {
       simulation,
       attacker,
       defender,
+      config: economyConfig,
     });
 
     const attackerMutation = await applyAttackerBattleMutation({

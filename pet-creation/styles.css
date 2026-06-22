@@ -2147,6 +2147,197 @@ body.share-modal-open {
   width: 16px;
 }
 
+/* Farm + Fight action row pinned to the bottom of a cabinet card (feature 013).
+   Grid (not flex): two equal minmax(0,1fr) tracks guarantee identical widths
+   regardless of each button's padding — flex-basis:0 can't shrink a button below
+   its own padding, which is why the two differently-padded pills came out unequal. */
+.cabinet-card-actions {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 248px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* Both buttons share the row equally; override the fight button's absolute layout */
+.cabinet-card-actions .cabinet-fight-btn,
+.cabinet-card-actions .cabinet-fight-tooltip-wrap {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  top: auto;
+  width: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.cabinet-card-actions .cabinet-fight-tooltip-wrap .cabinet-fight-btn {
+  width: 100%;
+}
+
+.cabinet-farm-btn {
+  align-items: center;
+  background: #eaecf0;
+  border: 0;
+  border-radius: 99px;
+  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.18);
+  box-sizing: border-box;
+  color: #101828;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 0;
+  font-family: "Figtree", Arial, sans-serif;
+  gap: 8px;
+  height: 40px;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 14px;
+  position: relative;
+}
+
+.cabinet-farm-btn__coin {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 24px;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.cabinet-farm-btn__coin img {
+  display: block;
+  height: 24px;
+  width: 24px;
+}
+
+.cabinet-farm-btn__coin--tick svg {
+  display: block;
+  height: 20px;
+  width: 20px;
+}
+
+.cabinet-farm-btn__text {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1;
+  min-width: 0;
+}
+
+.cabinet-farm-btn__title {
+  color: #101828;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.cabinet-farm-btn__sub {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+/* Ready to claim — amber */
+.cabinet-farm-btn--ready {
+  background: #fec84b;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.cabinet-farm-btn--ready .cabinet-farm-btn__sub {
+  color: #93370d;
+}
+
+/* Claimed confirmation — green */
+.cabinet-farm-btn--claimed {
+  background: #d1fadf;
+  border: 1px solid #6ce9a6;
+  cursor: default;
+}
+
+.cabinet-farm-btn--claimed .cabinet-farm-btn__sub {
+  color: #05603a;
+}
+
+/* Farming — a short amber arc runs along the pill contour. The element itself never
+   moves; only the conic-gradient's start angle is animated via the registered
+   @property --farm-ang (transform-rotate would clip a rectangular layer). An inner
+   layer (inset 2px) covers the centre, so only a ~2px ring of the gradient shows. */
+@property --farm-ang {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.cabinet-farm-btn--farming {
+  cursor: default;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.cabinet-farm-btn--farming::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--farm-ang),
+    rgba(247, 144, 9, 0) 0deg,
+    rgba(247, 144, 9, 0) 250deg,
+    #f79009 330deg,
+    #f79009 360deg
+  );
+  animation: cabinet-farm-orbit 1.1s linear infinite;
+}
+
+.cabinet-farm-btn--farming::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 2px;
+  border-radius: 99px;
+  background: #eaecf0;
+}
+
+/* The Points coin gently pulses while farming */
+.cabinet-farm-btn--farming .cabinet-farm-btn__coin {
+  animation: cabinet-coin-pulse 1.2s ease-in-out infinite;
+}
+
+.cabinet-farm-btn.is-busy {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.cabinet-farm-btn:disabled {
+  box-shadow: none;
+}
+
+@keyframes cabinet-farm-orbit {
+  to {
+    --farm-ang: 360deg;
+  }
+}
+
+@keyframes cabinet-coin-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.14);
+  }
+}
+
 @keyframes cabinet-upgrade-glow {
   0%,
   100% {

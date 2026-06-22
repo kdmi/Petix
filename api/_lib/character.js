@@ -6,6 +6,7 @@ const {
   getExperienceForNextLevel,
   normalizeProgression,
 } = require("./battle-progression");
+const { computeFarmEarned, normalizeFarmState } = require("./farm");
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const TOTAL_ATTRIBUTE_POINTS = 15;
@@ -987,7 +988,30 @@ function buildCharacterImageUrl(record) {
   );
 }
 
-function serializeCharacterRecord(record) {
+function buildFarmView(record, rarityLabel, level, { economyConfig, now } = {}) {
+  const farmState = normalizeFarmState(record.farmState);
+  const base = {
+    isFarming: farmState.active,
+    farmState,
+  };
+  // Derived fields require runtime config + a clock; callers that have them
+  // (farm endpoints, character/me) pass economyConfig + now for a full view.
+  if (!economyConfig) {
+    return base;
+  }
+  const nowMs = now == null ? Date.now() : now;
+  const earned = computeFarmEarned(farmState, nowMs, level, rarityLabel, economyConfig);
+  return {
+    ...base,
+    farmRatePerHour: earned.ratePerHour,
+    farmEarnedSoFar: earned.earned,
+    farmCompletedHours: earned.completedHours,
+    farmSecondsRemaining: earned.secondsRemaining,
+    farmReady: earned.active && earned.capped,
+  };
+}
+
+function serializeCharacterRecord(record, options = {}) {
   if (!record) return null;
 
   const rarity = getRarityConfig(record.rarity);
@@ -1024,6 +1048,7 @@ function serializeCharacterRecord(record) {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     completedAt: record.completedAt || null,
+    ...buildFarmView(record, rarity.label, progress.level, options),
   };
 }
 

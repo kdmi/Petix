@@ -303,9 +303,12 @@
             <button class="admin-nav-btn" id="adminNavWaitlist" type="button" role="tab" aria-selected="false">
               Waitlist
             </button>
+            <button class="admin-nav-btn" id="adminNavEconomy" type="button" role="tab" aria-selected="false">
+              Economy
+            </button>
           </div>
 
-          <label class="admin-search">
+          <label class="admin-search" id="adminSearchWrap">
             <span class="visually-hidden" id="adminSearchLabel">Search admin data</span>
             <input
               id="adminSearchInput"
@@ -343,7 +346,7 @@
             </article>
           </div>
 
-          <div class="admin-table-wrap">
+          <div class="admin-table-wrap" id="adminTableWrap">
             <table class="admin-table">
               <thead>
                 <tr id="adminTableHeadRow">
@@ -367,6 +370,8 @@
           </div>
 
           <p class="admin-empty hidden" id="adminEmpty"></p>
+
+          <div class="admin-economy-panel hidden" id="adminEconomyPanel"></div>
         </div>
       </section>
     </main>

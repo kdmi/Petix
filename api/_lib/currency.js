@@ -23,9 +23,15 @@ function normalizeCurrency(raw) {
   };
 }
 
-function computeCoinReward(level) {
+function computeCoinReward(level, options = {}) {
+  // Battle win reward. `options` lets callers inject runtime-tunable economy config
+  // (feature 013); when omitted it falls back to the static currency-config defaults.
+  const base = Number.isFinite(options.base) ? options.base : BASE_WIN_REWARD;
+  const multiplier = Number.isFinite(options.levelMultiplier)
+    ? options.levelMultiplier
+    : LEVEL_MULTIPLIER;
   const safeLevel = Math.max(MIN_LEVEL, Math.floor(Number(level) || MIN_LEVEL));
-  const raw = BASE_WIN_REWARD * (1 + LEVEL_MULTIPLIER * (safeLevel - MIN_LEVEL));
+  const raw = base * (1 + multiplier * (safeLevel - MIN_LEVEL));
   return Math.round(raw);
 }
 

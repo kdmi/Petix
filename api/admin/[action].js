@@ -4,6 +4,8 @@ const HANDLERS = {
   battles: require("../../server-routes/admin/battles"),
   characters: require("../../server-routes/admin/characters"),
   "delete-character": require("../../server-routes/admin/delete-character"),
+  "economy-config": require("../../server-routes/admin/economy-config"),
+  "farm-stats": require("../../server-routes/admin/farm-stats"),
   waitlist: require("../../server-routes/admin/waitlist"),
   "waitlist-export": require("../../server-routes/admin/waitlist-export"),
 };

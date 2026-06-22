@@ -783,6 +783,11 @@ const adminBackToDashboardBtn = document.getElementById("adminBackToDashboardBtn
 const adminNavCharacters = document.getElementById("adminNavCharacters");
 const adminNavBattles = document.getElementById("adminNavBattles");
 const adminNavWaitlist = document.getElementById("adminNavWaitlist");
+const adminNavEconomy = document.getElementById("adminNavEconomy");
+const adminEconomyPanel = document.getElementById("adminEconomyPanel");
+const adminTableWrap = document.getElementById("adminTableWrap");
+const adminSearchWrap = document.getElementById("adminSearchWrap");
+const adminStatsGridEl = document.getElementById("adminStatsGrid");
 const adminPagination = document.getElementById("adminPagination");
 const adminPageInfo = document.getElementById("adminPageInfo");
 const adminPrevBtn = document.getElementById("adminPrevBtn");
@@ -857,6 +862,13 @@ const state = {
   characters: [],
   hasHydratedCharacters: false,
   adminSection: "characters",
+  adminEconomyConfig: null,
+  adminEconomyDefaults: null,
+  adminEconomyStats: null,
+  isAdminEconomyLoading: false,
+  hasLoadedAdminEconomy: false,
+  adminEconomyError: "",
+  isSavingAdminEconomy: false,
   adminCharacters: [],
   hasLoadedAdminCharacters: false,
   adminWalletQuery: "",
@@ -899,6 +911,11 @@ const state = {
   arenaSelectedHistoryBattleId: "",
   currency: { balance: 0, totalEarned: 0 },
   pendingCurrency: null,
+  paidSlots: 0,
+  maxCharacters: MAX_CHARACTERS_PER_WALLET,
+  nextSlotPrice: null,
+  farmActionCharacterId: "",
+  recentClaims: {},
 };
 
 function createEmptyAttrs() {
@@ -1162,7 +1179,7 @@ function updateCreatePetMenuState() {
   walletMenuCreatePet.classList.toggle("disabled", isBlocked);
   walletMenuCreatePet.setAttribute("aria-disabled", isBlocked ? "true" : "false");
   walletMenuCreatePet.title = isBlocked
-    ? `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`
+    ? `Character limit reached. Maximum is ${getMaxCharacterCapacity()}.`
     : "";
 }
 
@@ -1177,8 +1194,17 @@ async function apiRequest(path, body, method = "POST") {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.message || data.error || "Request failed.");
-    if (data.error) {
-      error.code = data.error;
+    if (data.code || data.error) {
+      error.code = data.code || data.error;
+    }
+    if (Array.isArray(data.errors)) {
+      error.errors = data.errors;
+    }
+    if (typeof data.forfeitedMinutes === "number") {
+      error.forfeitedMinutes = data.forfeitedMinutes;
+    }
+    if (typeof data.required === "number") {
+      error.required = data.required;
     }
     throw error;
   }
@@ -1708,8 +1734,59 @@ function getCurrentCharacterName() {
   return "";
 }
 
+function getMaxCharacterCapacity() {
+  const max = Number(state.maxCharacters);
+  return Number.isFinite(max) && max > 0 ? Math.floor(max) : MAX_CHARACTERS_PER_WALLET;
+}
+
 function hasCharacterCreationCapacity() {
-  return state.isAdmin || state.characters.length < MAX_CHARACTERS_PER_WALLET;
+  return state.isAdmin || state.characters.length < getMaxCharacterCapacity();
+}
+
+// Can the wallet unlock another slot for Points? (3 free + up to 7 paid → 10 total)
+function canPurchaseCharacterSlot() {
+  return (
+    !state.isAdmin &&
+    !hasCharacterCreationCapacity() &&
+    typeof state.nextSlotPrice === "number" &&
+    state.nextSlotPrice > 0
+  );
+}
+
+const HOUR_MS_CLIENT = 3600000;
+const FARM_CAP_HOURS_CLIENT = 24;
+
+// Client-side mirror of farm accrual so the card timer ticks live between fetches.
+function computeClientFarmView(record, nowMs) {
+  const farmState = record && record.farmState ? record.farmState : {};
+  const rate = Number(record && record.farmRatePerHour) || 0;
+  if (!record || !record.isFarming || !farmState.startedAt) {
+    return { active: false, earned: 0, remainingSec: 0, ready: false, ratePerHour: rate };
+  }
+  const startedMs = Date.parse(farmState.startedAt);
+  const elapsed = Number.isFinite(startedMs) ? Math.max(0, nowMs - startedMs) : 0;
+  const elapsedHours = Math.floor(elapsed / HOUR_MS_CLIENT);
+  const completedHours = Math.min(elapsedHours, FARM_CAP_HOURS_CLIENT);
+  const capped = elapsedHours >= FARM_CAP_HOURS_CLIENT;
+  return {
+    active: true,
+    earned: Math.floor(completedHours * rate),
+    remainingSec: capped ? 0 : Math.max(0, Math.ceil((FARM_CAP_HOURS_CLIENT * HOUR_MS_CLIENT - elapsed) / 1000)),
+    ready: capped,
+    ratePerHour: rate,
+  };
+}
+
+function formatFarmCountdown(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function formatPoints(value) {
+  return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
 }
 
 function setCharacterImages(src, creatureType) {
@@ -1755,6 +1832,17 @@ function syncStateWithPayload(payload = {}) {
       state.pendingCurrency = null;
       updateDashboardPointsUi();
     }
+  }
+
+  if (typeof payload.maxCharacters === "number") {
+    state.maxCharacters = Math.max(1, Math.floor(payload.maxCharacters));
+  }
+  if (typeof payload.paidSlots === "number") {
+    state.paidSlots = Math.max(0, Math.floor(payload.paidSlots));
+  }
+  if ("nextSlotPrice" in payload) {
+    state.nextSlotPrice =
+      typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
   }
 
   if (Array.isArray(payload.characters)) {
@@ -1829,7 +1917,7 @@ function resetCharacterState({ keepTypeSelection = false, keepCharacters = false
 function openCreatePetFromMenu() {
   hideWalletMenu();
   if (!hasCharacterCreationCapacity()) {
-    showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+    showToast(`Character limit reached. Maximum is ${getMaxCharacterCapacity()}.`);
     return;
   }
   window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
@@ -1998,7 +2086,7 @@ async function restoreCharacterState() {
 
     syncStateWithPayload(data);
 
-    if (pageMode === "creation" && !state.isAdmin && state.characters.length >= MAX_CHARACTERS_PER_WALLET) {
+    if (pageMode === "creation" && !state.isAdmin && state.characters.length >= getMaxCharacterCapacity()) {
       moveTo("cabinet");
       return true;
     }
@@ -6158,7 +6246,7 @@ function renderCabinet() {
     createAnotherBtn.setAttribute("aria-disabled", canCreateAnother ? "false" : "true");
     createAnotherBtn.title = canCreateAnother
       ? ""
-      : `Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`;
+      : `Character limit reached. Maximum is ${getMaxCharacterCapacity()}.`;
   }
 
   if (!records.length) {
@@ -6174,11 +6262,14 @@ function renderCabinet() {
       const isPreparingThisFight =
         state.isFightPreparing && String(state.fightPreparingCharacterId) === String(record.id);
       const shouldRenderFightButton = ENABLE_ARENA;
+      const isFarmBusy = String(state.farmActionCharacterId) === String(record.id);
+      const farmView = computeClientFarmView(record, Date.now());
+      // Farm and Fight are independent — farming never disables the fight button.
       const isFightButtonDisabled = !canFight || isPreparingThisFight;
       const hasNoEnergy = state.energyCurrent <= 0 && !state.isFightPreparing;
       const fightButtonMarkup = `
             <button
-              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}${!canFight ? " disabled" : ""}"
+              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}${isFightButtonDisabled ? " disabled" : ""}"
               type="button"
               data-character-id="${record.id}"
               ${isFightButtonDisabled ? 'disabled aria-disabled="true"' : ""}
@@ -6186,6 +6277,7 @@ function renderCabinet() {
               ${getFightButtonMarkup({ isLoading: isPreparingThisFight })}
             </button>
       `;
+      const farmControlMarkup = buildCabinetFarmControl(record, farmView, isFarmBusy);
       const statsMarkup = ATTRS.map((attr) => {
         const value = record.attributes[attr.key];
         return `
@@ -6230,6 +6322,8 @@ function renderCabinet() {
               <img class="success-card-power-icon" src="${SUCCESS_POWER_ICON}" alt="" width="20" height="20" />
               <p class="success-card-power-text">${getSelectedPowerDescription(record)}</p>
             </div>
+            <div class="cabinet-card-actions">
+            ${farmControlMarkup}
             ${
               shouldRenderFightButton
                 ? `
@@ -6248,11 +6342,197 @@ function renderCabinet() {
             `
                 : ""
             }
+            </div>
           </div>
         </article>
       `;
     })
     .join("");
+
+  const slotBusy = state.farmActionCharacterId === "__slot__";
+  const buySlotCta = canPurchaseCharacterSlot()
+    ? `
+      <div class="cabinet-buy-slot-wrap" style="grid-column:1/-1;display:flex;justify-content:center;margin-top:12px;">
+        <button data-action="buy-slot" type="button" class="cabinet-buy-slot-btn"
+          style="border:none;border-radius:16px;padding:12px 20px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;font-size:14px;display:flex;align-items:center;gap:8px;${slotBusy ? "opacity:0.6;cursor:wait;" : ""}"
+          ${slotBusy ? 'disabled aria-disabled="true"' : ""}>
+          <span aria-hidden="true">➕</span> Buy character slot · ${formatPoints(state.nextSlotPrice)} Points
+        </button>
+      </div>`
+    : "";
+  cabinetCard.innerHTML = cabinetCard.innerHTML + buySlotCta;
+
+  syncFarmTimerTicker();
+}
+
+function isCabinetScreenActive() {
+  return state.step === "cabinet";
+}
+
+let farmTimerInterval = 0;
+function syncFarmTimerTicker() {
+  const anyFarming = state.characters.some((record) => record.isFarming);
+  if (anyFarming && isCabinetScreenActive()) {
+    if (!farmTimerInterval) {
+      farmTimerInterval = window.setInterval(tickFarmTimers, 1000);
+    }
+  } else if (farmTimerInterval) {
+    window.clearInterval(farmTimerInterval);
+    farmTimerInterval = 0;
+  }
+}
+
+function tickFarmTimers() {
+  if (!isCabinetScreenActive() || !cabinetCard) {
+    syncFarmTimerTicker();
+    return;
+  }
+  const now = Date.now();
+  let needsRerender = false;
+  const cards = cabinetCard.querySelectorAll(".cabinet-farm-btn--farming[data-farm-card]");
+  cards.forEach((cardEl) => {
+    const id = cardEl.getAttribute("data-farm-card");
+    const record = state.characters.find((item) => String(item.id) === String(id));
+    if (!record) return;
+    const view = computeClientFarmView(record, now);
+    if (view.ready) {
+      needsRerender = true; // cycle finished → swap to Claim
+      return;
+    }
+    const remEl = cardEl.querySelector("[data-farm-remaining]");
+    if (remEl) remEl.textContent = formatFarmCountdown(view.remainingSec);
+  });
+  if (needsRerender) {
+    renderCabinet();
+  }
+}
+
+async function refreshCharactersFromServer() {
+  const data = await apiRequest("/api/character/me", {}, "GET");
+  syncStateWithPayload(data);
+}
+
+async function runFarmAction(characterId, path) {
+  if (state.farmActionCharacterId) return false;
+  state.farmActionCharacterId = characterId;
+  renderCabinet();
+  let result = false;
+  try {
+    result = await apiRequest(path, { petId: characterId });
+    await refreshCharactersFromServer();
+  } catch (error) {
+    showToast(error.message || "Action failed.");
+    result = false;
+  } finally {
+    state.farmActionCharacterId = "";
+    renderCabinet();
+    updateDashboardPointsUi();
+  }
+  return result;
+}
+
+async function startFarmFlow(characterId) {
+  if (!characterId) return;
+  await runFarmAction(characterId, "/api/character/farm-start");
+}
+
+async function claimFarmFlow(characterId) {
+  if (!characterId) return;
+  const data = await runFarmAction(characterId, "/api/character/farm-claim");
+  if (data && typeof data.claimed === "number") {
+    // Show the transient "Claimed" confirmation for ~2s, then revert to default.
+    if (!state.recentClaims) state.recentClaims = {};
+    state.recentClaims[characterId] = { amount: data.claimed, until: Date.now() + 2200 };
+    renderCabinet();
+    if (cabinetCard) {
+      const card = cabinetCard.querySelector(
+        `.cabinet-character[data-character-id="${characterId}"]`
+      );
+      fireClaimConfetti(card ? card.querySelector(".cabinet-farm-btn") : null);
+    }
+    window.setTimeout(() => {
+      if (state.recentClaims) delete state.recentClaims[characterId];
+      if (isCabinetScreenActive()) renderCabinet();
+    }, 2200);
+  }
+}
+
+async function buySlotFlow() {
+  if (state.farmActionCharacterId) return;
+  state.farmActionCharacterId = "__slot__";
+  renderCabinet();
+  try {
+    await apiRequest("/api/character/buy-slot", {});
+    await refreshCharactersFromServer();
+    showToast("Slot unlocked — create your next pet!");
+  } catch (error) {
+    showToast(error.message || "Couldn't buy a slot.");
+  } finally {
+    state.farmActionCharacterId = "";
+    renderCabinet();
+    updateDashboardPointsUi();
+  }
+}
+
+const FARM_TICK_SVG =
+  '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 6.8" stroke="#039855" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const FARM_COIN_IMG =
+  '<img src="/assets/dashboard/farm-coin.svg" alt="" width="24" height="24" />';
+const FARM_COIN_ACTIVE_IMG =
+  '<img src="/assets/dashboard/farm-coin-active.svg" alt="" width="24" height="24" />';
+
+// Earn / Farming / Claim / Claimed control for a cabinet card (feature 013, Figma states).
+function buildCabinetFarmControl(record, farmView, isBusy) {
+  const id = record.id;
+  const coin = `<span class="cabinet-farm-btn__coin">${FARM_COIN_IMG}</span>`;
+  const busyCls = isBusy ? " is-busy" : "";
+  const busyAttr = isBusy ? 'disabled aria-disabled="true"' : "";
+
+  // Transient "Claimed" confirmation (~2s after a successful claim).
+  const claimed = state.recentClaims && state.recentClaims[id];
+  if (claimed && claimed.until > Date.now()) {
+    return `
+      <div class="cabinet-farm-btn cabinet-farm-btn--claimed">
+        <span class="cabinet-farm-btn__coin cabinet-farm-btn__coin--tick">${FARM_TICK_SVG}</span>
+        <span class="cabinet-farm-btn__text">
+          <span class="cabinet-farm-btn__title">Claimed</span>
+          <span class="cabinet-farm-btn__sub">${formatPoints(claimed.amount)} coins</span>
+        </span>
+      </div>`;
+  }
+
+  if (!farmView.active) {
+    const rate = Math.round(farmView.ratePerHour || 0);
+    return `
+      <button class="cabinet-farm-btn cabinet-farm-btn--default${busyCls}" data-action="farm-start" data-character-id="${id}" type="button" ${busyAttr}>
+        ${coin}
+        <span class="cabinet-farm-btn__text">
+          <span class="cabinet-farm-btn__title">Farm</span>
+          <span class="cabinet-farm-btn__sub">${rate} per hour</span>
+        </span>
+      </button>`;
+  }
+
+  if (farmView.ready) {
+    return `
+      <button class="cabinet-farm-btn cabinet-farm-btn--ready${busyCls}" data-action="farm-claim" data-character-id="${id}" type="button" ${busyAttr}>
+        ${coin}
+        <span class="cabinet-farm-btn__text">
+          <span class="cabinet-farm-btn__title">Claim</span>
+          <span class="cabinet-farm-btn__sub">${formatPoints(farmView.earned)} coins</span>
+        </span>
+      </button>`;
+  }
+
+  // Farming (active, cycle not finished): loader ring + live countdown, no action.
+  return `
+    <div class="cabinet-farm-btn cabinet-farm-btn--farming" data-farm-card="${id}" aria-disabled="true">
+      <span class="cabinet-farm-btn__coin">${FARM_COIN_ACTIVE_IMG}</span>
+      <span class="cabinet-farm-btn__text">
+        <span class="cabinet-farm-btn__title">Farming…</span>
+        <span class="cabinet-farm-btn__sub" data-farm-remaining>${formatFarmCountdown(farmView.remainingSec)}</span>
+      </span>
+    </div>`;
 }
 
 function buildStagedUpgradePayload() {
@@ -6984,7 +7264,41 @@ function renderAdminBattlesTable(records) {
   });
 }
 
+function setAdminNavActiveStates() {
+  [
+    [adminNavCharacters, "characters"],
+    [adminNavBattles, "battles"],
+    [adminNavWaitlist, "waitlist"],
+    [adminNavEconomy, "economy"],
+  ].forEach(([btn, section]) => {
+    if (!btn) return;
+    const isActive = state.adminSection === section;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+}
+
+function updateAdminSectionVisibility(isEconomy) {
+  if (adminEconomyPanel) adminEconomyPanel.classList.toggle("hidden", !isEconomy);
+  if (adminTableWrap) adminTableWrap.classList.toggle("hidden", isEconomy);
+  if (adminSearchWrap) adminSearchWrap.classList.toggle("hidden", isEconomy);
+  if (adminStatsGridEl) adminStatsGridEl.classList.toggle("hidden", isEconomy);
+  if (isEconomy) {
+    if (adminPagination) adminPagination.classList.add("hidden");
+    if (adminEmpty) adminEmpty.classList.add("hidden");
+    if (adminExportBtn) adminExportBtn.classList.add("hidden");
+  }
+}
+
 function renderAdminTable() {
+  const isEconomy = state.adminSection === "economy";
+  updateAdminSectionVisibility(isEconomy);
+  setAdminNavActiveStates();
+  if (isEconomy) {
+    renderAdminEconomy();
+    return;
+  }
+
   if (!adminTableBody) return;
 
   const records = getAdminCurrentRecords();
@@ -7349,12 +7663,22 @@ function loadActiveAdminSection({ force = false } = {}) {
     return loadAdminBattles({ force });
   }
 
+  if (state.adminSection === "economy") {
+    return loadAdminEconomy({ force });
+  }
+
   return loadAdminCharacters({ force });
 }
 
 function switchAdminSection(section) {
   const nextSection =
-    section === "waitlist" ? "waitlist" : section === "battles" ? "battles" : "characters";
+    section === "waitlist"
+      ? "waitlist"
+      : section === "battles"
+        ? "battles"
+        : section === "economy"
+          ? "economy"
+          : "characters";
   if (state.adminSection === nextSection) {
     renderAdminTable();
     return;
@@ -7362,6 +7686,208 @@ function switchAdminSection(section) {
 
   state.adminSection = nextSection;
   loadActiveAdminSection();
+}
+
+async function loadAdminEconomy({ force = false } = {}) {
+  if (!state.isAdmin) {
+    renderAdminTable();
+    return;
+  }
+  if (state.isAdminEconomyLoading) return;
+  if (state.hasLoadedAdminEconomy && !force) {
+    renderAdminTable();
+    return;
+  }
+  state.isAdminEconomyLoading = true;
+  state.adminEconomyError = "";
+  renderAdminTable();
+  try {
+    const [cfgRes, statsRes] = await Promise.all([
+      apiRequest("/api/admin/economy-config", {}, "GET"),
+      apiRequest("/api/admin/farm-stats", {}, "GET"),
+    ]);
+    state.adminEconomyConfig = cfgRes.config || null;
+    state.adminEconomyDefaults = cfgRes.defaults || null;
+    state.adminEconomyStats = statsRes || null;
+    state.hasLoadedAdminEconomy = true;
+  } catch (error) {
+    state.adminEconomyError = error.message || "Failed to load economy data.";
+  } finally {
+    state.isAdminEconomyLoading = false;
+    renderAdminTable();
+  }
+}
+
+function ecoNumberRow(label, key, value) {
+  return `
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#1a1a2e;">
+      ${escapeHtml(label)}
+      <input type="number" step="any" data-eco-key="${key}" value="${escapeHtml(String(value))}"
+        style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+    </label>`;
+}
+
+function renderAdminEconomy() {
+  if (!adminEconomyPanel) return;
+
+  if (!state.isAdmin) {
+    adminEconomyPanel.innerHTML = '<p class="admin-empty">Admin access is not available for this wallet.</p>';
+    return;
+  }
+  if (state.isAdminEconomyLoading && !state.adminEconomyConfig) {
+    adminEconomyPanel.innerHTML = '<p class="admin-empty">Loading economy settings...</p>';
+    return;
+  }
+  if (state.adminEconomyError && !state.adminEconomyConfig) {
+    adminEconomyPanel.innerHTML = `<p class="admin-empty">${escapeHtml(state.adminEconomyError)}</p>`;
+    return;
+  }
+
+  const cfg = state.adminEconomyConfig || {};
+  const stats = state.adminEconomyStats || {};
+  const rarity = cfg.rarityMult || {};
+  const slotPrices = Array.isArray(cfg.SLOT_PRICES) ? cfg.SLOT_PRICES.join(", ") : "";
+
+  const statCard = (label, value) => `
+    <article class="admin-stat-card">
+      <span class="admin-stat-label">${escapeHtml(label)}</span>
+      <strong class="admin-stat-value">${escapeHtml(String(value))}</strong>
+    </article>`;
+
+  const topEarners = Array.isArray(stats.topEarners) ? stats.topEarners.slice(0, 5) : [];
+  const topEarnersHtml = topEarners.length
+    ? topEarners
+        .map(
+          (entry) =>
+            `<li style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #eef0f4;font-size:13px;">
+              <span style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;max-width:60%;">${escapeHtml(String(entry.wallet || ""))}</span>
+              <span>${formatPoints(entry.totalEarned)} pts</span>
+            </li>`
+        )
+        .join("")
+    : '<li style="font-size:13px;color:#6b7280;">No earners yet.</li>';
+
+  adminEconomyPanel.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Emission vs pool budget</h3>
+        <div class="admin-stats-grid">
+          ${statCard("Total emitted", formatPoints(stats.totalEmitted))}
+          ${statCard("Outstanding balance", formatPoints(stats.totalBalance))}
+          ${statCard("Emitted last 24h", formatPoints(stats.emittedLast24h))}
+          ${statCard("Active farmers", stats.activeFarmers ?? 0)}
+          ${statCard("Pool budget", formatPoints(stats.poolBudget))}
+          ${statCard("Pool used", `${stats.poolBudgetUsedPct ?? 0}%`)}
+        </div>
+        <ul style="list-style:none;margin:10px 0 0;padding:0;">
+          <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Top earners</li>
+          ${topEarnersHtml}
+        </ul>
+      </section>
+
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Tunable coefficients</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+          ${ecoNumberRow("Farm base (pts/h, Common L1)", "FARM_BASE", cfg.FARM_BASE)}
+          ${ecoNumberRow("Farm level k", "FARM_LEVEL_K", cfg.FARM_LEVEL_K)}
+          ${ecoNumberRow("Rarity × Common", "rarity:Common", rarity.Common)}
+          ${ecoNumberRow("Rarity × Rare", "rarity:Rare", rarity.Rare)}
+          ${ecoNumberRow("Rarity × Epic", "rarity:Epic", rarity.Epic)}
+          ${ecoNumberRow("Rarity × Legendary", "rarity:Legendary", rarity.Legendary)}
+          ${ecoNumberRow("Battle reward base", "BATTLE_REWARD_BASE", cfg.BATTLE_REWARD_BASE)}
+          ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
+          ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
+          ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
+        </div>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
+          Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
+          <input type="text" data-eco-key="SLOT_PRICES" value="${escapeHtml(slotPrices)}"
+            style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
+          Reason (required, min 3 chars)
+          <input type="text" id="adminEconomyReason" placeholder="Why this change?"
+            style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+        </label>
+        <p id="adminEconomyMsg" style="margin:10px 0 0;font-size:13px;color:#c0392b;"></p>
+        <button data-action="save-economy" type="button"
+          style="margin-top:12px;border:none;border-radius:12px;padding:12px 20px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;font-size:14px;${state.isSavingAdminEconomy ? "opacity:0.6;cursor:wait;" : ""}"
+          ${state.isSavingAdminEconomy ? 'disabled aria-disabled="true"' : ""}>
+          ${state.isSavingAdminEconomy ? "Saving..." : "Save coefficients"}
+        </button>
+      </section>
+    </div>`;
+}
+
+function readEcoNumberInput(key) {
+  if (!adminEconomyPanel) return undefined;
+  const input = adminEconomyPanel.querySelector(`[data-eco-key="${key}"]`);
+  if (!input) return undefined;
+  const raw = String(input.value || "").trim();
+  if (raw === "") return undefined;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : undefined;
+}
+
+async function saveAdminEconomy() {
+  if (state.isSavingAdminEconomy || !adminEconomyPanel) return;
+
+  const reasonInput = adminEconomyPanel.querySelector("#adminEconomyReason");
+  const msgEl = adminEconomyPanel.querySelector("#adminEconomyMsg");
+  const reason = String((reasonInput && reasonInput.value) || "").trim();
+  if (reason.length < 3) {
+    if (msgEl) msgEl.textContent = "Please enter a reason (min 3 characters).";
+    return;
+  }
+
+  const patch = {};
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT"].forEach((key) => {
+    const value = readEcoNumberInput(key);
+    if (value !== undefined) patch[key] = value;
+  });
+
+  const rarityMult = {};
+  let hasRarity = true;
+  ["Common", "Rare", "Epic", "Legendary"].forEach((tier) => {
+    const value = readEcoNumberInput(`rarity:${tier}`);
+    if (value === undefined) hasRarity = false;
+    else rarityMult[tier] = value;
+  });
+  if (hasRarity) patch.rarityMult = rarityMult;
+
+  const slotsInput = adminEconomyPanel.querySelector('[data-eco-key="SLOT_PRICES"]');
+  if (slotsInput && String(slotsInput.value || "").trim()) {
+    const prices = String(slotsInput.value)
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((n) => Number.isFinite(n));
+    patch.SLOT_PRICES = prices;
+  }
+
+  state.isSavingAdminEconomy = true;
+  renderAdminTable();
+
+  try {
+    const res = await apiRequest("/api/admin/economy-config", { patch, reason });
+    state.adminEconomyConfig = res.config || state.adminEconomyConfig;
+    state.adminEconomyDefaults = res.defaults || state.adminEconomyDefaults;
+    state.isSavingAdminEconomy = false;
+    renderAdminTable();
+    showToast("Economy coefficients saved.");
+    void loadAdminEconomy({ force: true });
+  } catch (error) {
+    state.isSavingAdminEconomy = false;
+    renderAdminTable();
+    const target = adminEconomyPanel.querySelector("#adminEconomyMsg");
+    if (target) {
+      const details = Array.isArray(error.errors)
+        ? error.errors.map((e) => `${e.field}: ${e.message}`).join("; ")
+        : "";
+      target.textContent = details || error.message || "Failed to save.";
+    } else {
+      showToast(error.message || "Failed to save.");
+    }
+  }
 }
 
 async function deleteAdminCharacter(record) {
@@ -7456,6 +7982,32 @@ function fireSuccessConfetti() {
     fire(0.35, { decay: 0.91, scalar: 0.8, spread: 100 });
     fire(0.1, { decay: 0.92, scalar: 1.2, spread: 120, startVelocity: 25 });
     fire(0.1, { spread: 120, startVelocity: 45 });
+  });
+}
+
+// Coin-coloured burst out of the Claim button (reuses canvas-confetti from creation).
+function fireClaimConfetti(targetElement) {
+  if (typeof window.confetti !== "function" || !targetElement) return;
+
+  const rect = targetElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const viewportWidth = Math.max(window.innerWidth || 0, 1);
+  const viewportHeight = Math.max(window.innerHeight || 0, 1);
+  const origin = {
+    x: clampNumber((rect.left + rect.width / 2) / viewportWidth, 0, 1),
+    y: clampNumber((rect.top + rect.height / 2) / viewportHeight, 0, 1),
+  };
+  const defaults = {
+    disableForReducedMotion: true,
+    origin,
+    zIndex: 1000,
+    colors: ["#f79009", "#fdb022", "#fec84b", "#ffffff", "#ffe7ba"],
+  };
+
+  window.requestAnimationFrame(() => {
+    window.confetti({ ...defaults, particleCount: 60, spread: 75, startVelocity: 36, scalar: 0.9, ticks: 130 });
+    window.confetti({ ...defaults, particleCount: 25, spread: 110, startVelocity: 26, scalar: 0.7, decay: 0.92, ticks: 130 });
   });
 }
 
@@ -7641,7 +8193,7 @@ async function startCharacterCreation() {
 
   if (!hasCharacterCreationCapacity()) {
     moveTo("cabinet");
-    window.alert(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+    window.alert(`Character limit reached. Maximum is ${getMaxCharacterCapacity()}.`);
     return;
   }
 
@@ -7882,7 +8434,7 @@ function init() {
 
   createAnotherBtn.addEventListener("click", () => {
     if (!hasCharacterCreationCapacity()) {
-      showToast(`Character limit reached. Maximum is ${MAX_CHARACTERS_PER_WALLET}.`);
+      showToast(`Character limit reached. Maximum is ${getMaxCharacterCapacity()}.`);
       return;
     }
     window.location.href = new URL(CREATION_ROUTE, window.location.origin).toString();
@@ -7959,6 +8511,30 @@ function init() {
       if (upgradeButton) {
         event.preventDefault();
         openUpgradeFlow(upgradeButton.dataset.characterId, { pushRoute: true });
+        return;
+      }
+
+      const farmStartButton = event.target.closest('[data-action="farm-start"]');
+      if (farmStartButton) {
+        event.preventDefault();
+        if (farmStartButton.disabled) return;
+        void startFarmFlow(farmStartButton.dataset.characterId);
+        return;
+      }
+
+      const farmClaimButton = event.target.closest('[data-action="farm-claim"]');
+      if (farmClaimButton) {
+        event.preventDefault();
+        if (farmClaimButton.disabled) return;
+        void claimFarmFlow(farmClaimButton.dataset.characterId);
+        return;
+      }
+
+      const buySlotButton = event.target.closest('[data-action="buy-slot"]');
+      if (buySlotButton) {
+        event.preventDefault();
+        if (buySlotButton.disabled) return;
+        void buySlotFlow();
         return;
       }
 
@@ -8082,6 +8658,21 @@ function init() {
   if (adminNavWaitlist) {
     adminNavWaitlist.addEventListener("click", () => {
       switchAdminSection("waitlist");
+    });
+  }
+
+  if (adminNavEconomy) {
+    adminNavEconomy.addEventListener("click", () => {
+      switchAdminSection("economy");
+    });
+  }
+
+  if (adminEconomyPanel) {
+    adminEconomyPanel.addEventListener("click", (event) => {
+      const saveButton = event.target.closest('[data-action="save-economy"]');
+      if (!saveButton || saveButton.disabled) return;
+      event.preventDefault();
+      void saveAdminEconomy();
     });
   }
 

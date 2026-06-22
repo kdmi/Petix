@@ -4,6 +4,20 @@ const path = require("path");
 const { del, get, list, put } = require("@vercel/blob");
 const { normalizeBattleState } = require("./battle-energy");
 const { normalizeCurrency } = require("./currency");
+const { normalizeFarmState } = require("./farm");
+
+const MAX_PAID_SLOTS = 7; // 3 free + 7 paid = 10 total (feature 013)
+
+function normalizePaidSlots(value) {
+  const n = Math.floor(Number(value) || 0);
+  return Math.max(0, Math.min(MAX_PAID_SLOTS, n));
+}
+
+function normalizeCharacterRecord(record) {
+  if (!record || typeof record !== "object") return record;
+  record.farmState = normalizeFarmState(record.farmState);
+  return record;
+}
 
 const DATA_DIR =
   process.env.NODE_ENV === "production"
@@ -39,6 +53,7 @@ const EMPTY_WALLET_PROFILE = {
   notifications: [],
   battleState: normalizeBattleState(null),
   currency: { balance: 0, totalEarned: 0 },
+  paidSlots: 0,
 };
 
 let writeQueue = Promise.resolve();
@@ -72,13 +87,14 @@ function cloneWalletProfile(profile) {
   return {
     draft: cloneRecord(profile?.draft || null),
     characters: Array.isArray(profile?.characters)
-      ? profile.characters.map((record) => cloneRecord(record))
+      ? profile.characters.map((record) => normalizeCharacterRecord(cloneRecord(record)))
       : [],
     notifications: Array.isArray(profile?.notifications)
       ? profile.notifications.map((record) => cloneRecord(record))
       : [],
     battleState: normalizeBattleState(profile?.battleState),
     currency: normalizeCurrency(profile?.currency),
+    paidSlots: normalizePaidSlots(profile?.paidSlots),
   };
 }
 
@@ -103,16 +119,18 @@ function normalizeWalletProfile(rawValue) {
       notifications: [],
       battleState: normalizeBattleState(null),
       currency: { balance: 0, totalEarned: 0 },
+      paidSlots: 0,
     };
   }
 
   if (rawValue.status === "completed") {
     return {
       draft: null,
-      characters: [cloneRecord(rawValue)],
+      characters: [normalizeCharacterRecord(cloneRecord(rawValue))],
       notifications: [],
       battleState: normalizeBattleState(null),
       currency: { balance: 0, totalEarned: 0 },
+      paidSlots: 0,
     };
   }
 

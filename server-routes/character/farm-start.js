@@ -1,0 +1,73 @@
+const {
+  getSessionFromRequest,
+  handleCors,
+  json,
+  parseJsonBody,
+} = require("../../api/_lib/auth");
+const { serializeCharacterRecord } = require("../../api/_lib/character");
+const { getEconomyConfig } = require("../../api/_lib/economy-config");
+const { startFarm } = require("../../api/_lib/farm");
+const { updateWalletProfile } = require("../../api/_lib/store");
+
+function fail(status, message, code) {
+  const error = new Error(message);
+  error.httpStatus = status;
+  if (code) error.httpCode = code;
+  return error;
+}
+
+module.exports = async (req, res) => {
+  if (handleCors(req, res)) return;
+  if (req.method !== "POST") {
+    json(res, 405, { error: "Method not allowed." });
+    return;
+  }
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    json(res, 401, { error: "Unauthorized." });
+    return;
+  }
+
+  try {
+    const body = await parseJsonBody(req);
+    const petId = String(body.petId || "").trim();
+    if (!petId) {
+      json(res, 400, { error: "petId is required." });
+      return;
+    }
+
+    const cfg = await getEconomyConfig();
+    const now = Date.now();
+
+    const profile = await updateWalletProfile(session.wallet, (current) => {
+      const character = (current.characters || []).find((record) => record.id === petId);
+      if (!character) throw fail(404, "Character not found.");
+      if (character.status !== "completed") throw fail(400, "Only completed pets can farm.");
+      try {
+        character.farmState = startFarm(character, now);
+      } catch (error) {
+        if (error.code === "ALREADY_FARMING") {
+          throw fail(409, "Character is already farming.", "ALREADY_FARMING");
+        }
+        throw error;
+      }
+      return current;
+    });
+
+    const character = (profile.characters || []).find((record) => record.id === petId);
+    const view = serializeCharacterRecord(character, { economyConfig: cfg, now });
+    json(res, 200, {
+      petId,
+      farmState: view.farmState,
+      ratePerHour: view.farmRatePerHour,
+      capHours: cfg.FARM_CAP_HOURS,
+      character: view,
+    });
+  } catch (error) {
+    if (error.httpStatus) {
+      json(res, error.httpStatus, { error: error.message, code: error.httpCode });
+      return;
+    }
+    json(res, 400, { error: error.message || "Bad request." });
+  }
+};
