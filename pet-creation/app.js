@@ -8261,6 +8261,20 @@ function ecoNumberRow(label, key, value) {
     </label>`;
 }
 
+// Выпадающий список для целочисленных переключателей (нельзя оставить пустым → не «теряется» при сохранении).
+function ecoSelectRow(label, key, value, options) {
+  const current = String(value);
+  const opts = options
+    .map((o) => `<option value="${o.value}" ${String(o.value) === current ? "selected" : ""}>${escapeHtml(o.label)}</option>`)
+    .join("");
+  return `
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#1a1a2e;">
+      ${escapeHtml(label)}
+      <select data-eco-key="${key}"
+        style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;background:#fff;">${opts}</select>
+    </label>`;
+}
+
 function renderAdminEconomy() {
   if (!adminEconomyPanel) return;
 
@@ -8332,7 +8346,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
-          ${ecoNumberRow("Withdraw public (1=all users, 0=admin-only)", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED)}
+          ${ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }])}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
