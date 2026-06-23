@@ -1715,6 +1715,381 @@ body.share-modal-open {
   overflow: hidden;
 }
 
+/* === Withdraw modal === */
+body.withdraw-modal-open {
+  overflow: hidden;
+}
+
+@keyframes withdraw-pop {
+  0% {
+    transform: scale(0.95) translateY(6px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes withdraw-badge {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes withdraw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.withdraw-overlay {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.6);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 95;
+}
+
+.withdraw-modal {
+  animation: withdraw-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 32px 64px -16px rgba(16, 24, 40, 0.45);
+  color: #101828;
+  padding: 24px;
+  position: relative;
+  width: min(380px, calc(100vw - 32px));
+}
+
+.withdraw-header {
+  align-items: center;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  position: relative;
+}
+
+.withdraw-title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.withdraw-close {
+  align-items: center;
+  background: #eaecf0;
+  border: none;
+  border-radius: 99px;
+  cursor: pointer;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transition: background 0.15s;
+  width: 32px;
+}
+
+.withdraw-close:hover {
+  background: #dfe3ea;
+}
+
+.withdraw-balance {
+  align-items: center;
+  display: flex;
+  height: 80px;
+  justify-content: center;
+  margin-top: 24px;
+  overflow: hidden;
+}
+
+.withdraw-balance-value {
+  color: #101828;
+  font-family: "Fraunces", serif;
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  line-height: 80px;
+}
+
+.withdraw-input {
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px #d0d5dd;
+  display: flex;
+  gap: 8px;
+  height: 48px;
+  margin-top: 24px;
+  padding: 0 14px;
+}
+
+.withdraw-input-field {
+  background: transparent;
+  border: none;
+  color: #101828;
+  flex: 1;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 24px;
+  min-width: 0;
+  outline: none;
+  padding: 0;
+}
+
+.withdraw-input-symbol {
+  color: #98a2b3;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.withdraw-slider-block {
+  margin-top: 22px;
+}
+
+.withdraw-slider-labels {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.withdraw-slider-labels span {
+  color: #344054;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.withdraw-max {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.withdraw-max:hover {
+  color: #101828;
+}
+
+.withdraw-slider {
+  cursor: pointer;
+  height: 20px;
+  outline: none;
+  position: relative;
+  touch-action: none;
+  width: 100%;
+}
+
+.withdraw-slider-track {
+  background: #d0d5dd;
+  border-radius: 2px;
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 9px;
+}
+
+.withdraw-slider-fill {
+  background: #101828;
+  border-radius: 2px;
+  height: 2px;
+  left: 0;
+  position: absolute;
+  top: 9px;
+  width: 0;
+}
+
+.withdraw-slider-dots {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 7px;
+}
+
+.withdraw-slider-dots span {
+  background: #101828;
+  border-radius: 50%;
+  height: 6px;
+  width: 6px;
+}
+
+.withdraw-slider-handle {
+  background: #101828;
+  border-radius: 50%;
+  cursor: grab;
+  height: 20px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  transition: transform 0.08s;
+  width: 20px;
+}
+
+.withdraw-slider-handle:hover {
+  transform: translateX(-50%) scale(1.12);
+}
+
+.withdraw-slider:active .withdraw-slider-handle {
+  cursor: grabbing;
+  transform: translateX(-50%) scale(1.12);
+}
+
+.withdraw-submit {
+  background: #101828;
+  border: none;
+  border-radius: 99px;
+  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.18);
+  color: #fff;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  height: 48px;
+  line-height: 24px;
+  margin-top: 24px;
+  transition: background 0.15s, opacity 0.15s;
+  width: 100%;
+}
+
+.withdraw-submit:hover {
+  background: #1d2939;
+}
+
+.withdraw-view[data-view="success"] .withdraw-submit {
+  margin-top: 28px;
+}
+
+.withdraw-fee {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.withdraw-fee span {
+  color: #344054;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.withdraw-error {
+  color: #d92d20;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.withdraw-solscan {
+  color: #475467;
+  display: block;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.withdraw-solscan:hover {
+  color: #101828;
+  text-decoration: underline;
+}
+
+.withdraw-success {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 8px 8px;
+  text-align: center;
+}
+
+.withdraw-success-badge {
+  align-items: center;
+  animation: withdraw-badge 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: #101828;
+  border-radius: 50%;
+  display: flex;
+  height: 80px;
+  justify-content: center;
+  width: 80px;
+}
+
+.withdraw-success-badge path {
+  animation: withdraw-check 0.5s 0.18s ease forwards;
+  stroke-dasharray: 44;
+  stroke-dashoffset: 44;
+}
+
+.withdraw-success-title {
+  color: #101828;
+  font-family: "Fraunces", serif;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  margin-top: 22px;
+}
+
+.withdraw-success-sub {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  margin-top: 14px;
+}
+
+.withdraw-success-amount {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+  margin-top: 2px;
+}
+
+/* Admin-only clickable Points balance (Withdraw entry point) */
+.dashboard-points.is-withdrawable {
+  border-radius: 99px;
+  cursor: pointer;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  transition: background 0.15s;
+}
+
+.dashboard-points.is-withdrawable:hover {
+  background: rgba(16, 24, 40, 0.06);
+}
+
+.dashboard-points.is-withdrawable:focus-visible {
+  background: rgba(16, 24, 40, 0.06);
+  outline: 2px solid #101828;
+  outline-offset: 2px;
+}
+
 .share-modal-overlay {
   align-items: center;
   background: rgba(0, 0, 0, 0.7);
