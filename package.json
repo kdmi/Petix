@@ -15,5 +15,10 @@
   },
   "devDependencies": {
     "vercel": "^50.25.2"
+  },
+  "overrides": {
+    "rpc-websockets": {
+      "uuid": "^9.0.1"
+    }
   }
 }
