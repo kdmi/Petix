@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const {
   getSessionFromRequest,
   handleCors,
+  isAdminWallet,
   json,
   parseJsonBody,
 } = require("../../api/_lib/auth");
@@ -34,11 +35,13 @@ module.exports = async (req, res) => {
 
   try {
     const cfg = await getEconomyConfig();
-    if (!cfg.WITHDRAW_ENABLED) {
-      throw fail(403, "Withdrawals are currently disabled.", "WITHDRAW_DISABLED");
-    }
     if (!withdraw.isConfigured()) {
       throw fail(503, "Withdrawals are not configured on the server.", "WITHDRAW_NOT_CONFIGURED");
+    }
+    // WITHDRAW_ENABLED=0 → только админ (защита и от прямых вызовов API в обход UI); =1 → все.
+    const publicOpen = Boolean(cfg.WITHDRAW_ENABLED);
+    if (!publicOpen && !isAdminWallet(session.wallet)) {
+      throw fail(403, "Withdrawals are in admin-only mode right now.", "WITHDRAW_ADMIN_ONLY");
     }
 
     const body = await parseJsonBody(req);
