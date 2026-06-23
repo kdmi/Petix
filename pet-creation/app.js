@@ -1561,68 +1561,6 @@ function withdrawTokenSymbol() {
   return withdrawState.tokenSymbol || WITHDRAW_TOKEN_SYMBOL;
 }
 
-// Ленивая загрузка @solana/web3.js (IIFE-бандл, global `solanaWeb3`) — только при первом
-// открытии вывода, чтобы не раздувать страницы для всех пользователей.
-let solanaWeb3LoadPromise = null;
-function ensureSolanaWeb3Loaded() {
-  if (window.solanaWeb3) return Promise.resolve(window.solanaWeb3);
-  if (solanaWeb3LoadPromise) return solanaWeb3LoadPromise;
-  solanaWeb3LoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/@solana/web3.js@1/lib/index.iife.min.js";
-    script.async = true;
-    script.onload = () =>
-      window.solanaWeb3
-        ? resolve(window.solanaWeb3)
-        : reject(new Error("Failed to initialize Solana library."));
-    script.onerror = () => {
-      solanaWeb3LoadPromise = null;
-      reject(new Error("Failed to load Solana library."));
-    };
-    document.head.appendChild(script);
-  });
-  return solanaWeb3LoadPromise;
-}
-
-// Находит провайдер кошелька; предпочитает подключённый с адресом текущей сессии.
-async function resolveWithdrawProvider() {
-  let candidate = null;
-  for (const key of Object.keys(walletConfigs)) {
-    const provider = walletConfigs[key].getProvider?.();
-    if (!provider) continue;
-    const pk = provider.publicKey?.toString?.();
-    if (pk && state.walletAddress && pk === state.walletAddress) {
-      candidate = provider;
-      break;
-    }
-    if (!candidate) candidate = provider;
-  }
-  if (!candidate) {
-    throw new Error("No Solana wallet detected. Open this page in your wallet's in-app browser.");
-  }
-  if (!candidate.publicKey) {
-    try {
-      await candidate.connect();
-    } catch {
-      throw new Error("Wallet connection was rejected.");
-    }
-  }
-  const pk = candidate.publicKey?.toString?.();
-  if (state.walletAddress && pk && pk !== state.walletAddress) {
-    throw new Error("Connected wallet doesn't match your signed-in address.");
-  }
-  return candidate;
-}
-
-function mapWithdrawError(error, fallback) {
-  const message = (error && (error.message || "")) || "";
-  const code = error && (error.code ?? error.errorCode);
-  if (code === 4001 || /reject|denied|cancell?ed/i.test(message)) {
-    return new Error("Signing was canceled.");
-  }
-  return new Error(message || fallback || "Withdrawal failed.");
-}
-
 function withdrawMin() {
   return Math.max(0, Math.floor(withdrawState.min || 0));
 }
@@ -1922,7 +1860,8 @@ function showWithdrawView() {
   }
 }
 
-// Реальный вывод: prepare (списание + co-sign tx) → подпись/отправка кошельком → confirm.
+// Custodial-вывод: один запрос — сервер сам списывает Points и отправляет токены.
+// Игрок ничего не подписывает в кошельке (нет промпта/предупреждения).
 async function onWithdrawSubmit() {
   if (withdrawState.busy) return;
   if (!canWithdraw() || !withdrawState.enabled) return;
@@ -1931,46 +1870,16 @@ async function onWithdrawSubmit() {
   withdrawState.errorMessage = "";
   renderWithdrawForm();
 
-  let recordId = "";
   try {
-    const web3 = await ensureSolanaWeb3Loaded();
-    const provider = await resolveWithdrawProvider();
-
-    const prep = await apiRequest("/api/withdraw/prepare", { amount });
-    recordId = prep.recordId;
-
-    const bytes = Uint8Array.from(atob(prep.txBase64), (ch) => ch.charCodeAt(0));
-    const tx = web3.Transaction.from(bytes);
-
-    let signature = "";
-    try {
-      const result = await provider.signAndSendTransaction(tx);
-      signature = String((result && (result.signature || result)) || "");
-    } catch (signError) {
-      await apiRequest("/api/withdraw/cancel", { recordId }).catch(() => null);
-      throw mapWithdrawError(signError, "Signing was canceled.");
-    }
-    if (!signature) {
-      await apiRequest("/api/withdraw/cancel", { recordId }).catch(() => null);
-      throw new Error("Wallet did not return a transaction signature.");
-    }
-
-    try {
-      await apiRequest("/api/withdraw/confirm", { recordId, signature });
-    } catch (confirmError) {
-      // Реальный сбой tx (Points возвращены на сервере). Сетевые ошибки игнорируем —
-      // транзакция уже отправлена (сигнатура есть), токены в пути.
-      if (confirmError && confirmError.code === "TX_FAILED") {
-        throw new Error("Transaction failed on-chain. Your Points were refunded.");
-      }
-    }
-
-    // Успех: обновляем локальный баланс и показываем success.
-    withdrawState.withdrawn = prep.petixSent || amount;
-    withdrawState.lastSignature = signature;
-    withdrawState.balance = Math.max(0, withdrawState.balance - amount);
-    if (state.currency) {
-      state.currency.balance = Math.max(0, (state.currency.balance || 0) - amount);
+    const res = await apiRequest("/api/withdraw/request", { amount });
+    withdrawState.withdrawn = res.petixSent || amount;
+    withdrawState.lastSignature = res.signature || "";
+    if (typeof res.balance === "number") {
+      withdrawState.balance = res.balance;
+      if (state.currency) state.currency.balance = res.balance;
+    } else {
+      withdrawState.balance = Math.max(0, withdrawState.balance - amount);
+      if (state.currency) state.currency.balance = Math.max(0, (state.currency.balance || 0) - amount);
     }
     updateDashboardPointsUi();
     withdrawState.view = "success";

@@ -1,9 +1,9 @@
 "use strict";
 
 // On-chain выплата Points → $PETIX (013/withdraw).
-// Co-sign модель: игрок = fee payer (платит газ + аренду своего ATA), наш treasury —
-// источник токенов и со-подписант. Бэкенд лишь строит и ЧАСТИЧНО подписывает транзакцию
-// ключом treasury; финальную подпись (fee payer) ставит кошелёк игрока и сам её отправляет.
+// Custodial-модель: наш treasury = fee payer и источник токенов; бэкенд полностью подписывает
+// и САМ отправляет транзакцию. Игрок ничего не подписывает в кошельке (нет промпта/
+// предупреждения). Газ и аренду ATA получателя платим мы.
 // Программа токена (classic SPL vs Token-2022) определяется по владельцу mint-аккаунта,
 // поэтому код одинаково работает и с тест-токеном, и с боевым $PETIX.
 
@@ -100,9 +100,10 @@ async function getTreasuryTokenBalanceRaw() {
   return acc.amount; // BigInt, raw
 }
 
-// Строит co-sign транзакцию вывода `points` на кошелёк игрока. Возвращает base64 tx,
-// частично подписанную ключом treasury (остаётся подпись fee payer = игрок).
-async function buildWithdrawTransaction({ playerWallet, points }) {
+// Custodial-отправка: наш treasury = fee payer и источник токенов, полностью подписывает
+// и САМ отправляет транзакцию (игрок ничего не подписывает → нет промпта/предупреждения
+// кошелька). Газ и аренду ATA получателя платим мы. Возвращает сигнатуру после сабмита.
+async function sendWithdrawFromTreasury({ playerWallet, points }) {
   const conn = getConnection();
   const treasury = getTreasuryKeypair();
   const mint = getMintPubkey();
@@ -124,9 +125,9 @@ async function buildWithdrawTransaction({ playerWallet, points }) {
   const instructions = [];
   const playerAtaInfo = await conn.getAccountInfo(playerAta);
   if (!playerAtaInfo) {
-    // Аренду ATA платит игрок (payer = player).
+    // Аренду ATA получателя платим МЫ (payer = treasury).
     instructions.push(
-      createAssociatedTokenAccountInstruction(player, playerAta, player, mint, pid, ASSOCIATED_TOKEN_PROGRAM_ID),
+      createAssociatedTokenAccountInstruction(treasury.publicKey, playerAta, player, mint, pid, ASSOCIATED_TOKEN_PROGRAM_ID),
     );
   }
   instructions.push(
@@ -136,19 +137,18 @@ async function buildWithdrawTransaction({ playerWallet, points }) {
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
   const tx = new Transaction();
   tx.add(...instructions);
-  tx.feePayer = player; // игрок платит газ
+  tx.feePayer = treasury.publicKey; // мы платим газ
   tx.recentBlockhash = blockhash;
-  tx.partialSign(treasury); // подпись источника токенов
+  tx.sign(treasury); // полностью подписываем
 
-  const txBase64 = tx
-    .serialize({ requireAllSignatures: false, verifySignatures: false })
-    .toString("base64");
+  // skipPreflight:false → симуляция отсеет очевидные ошибки до сабмита (бросит throw).
+  const signature = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
 
   return {
-    txBase64,
+    signature,
     blockhash,
     lastValidBlockHeight,
-    createsRecipientAta: !playerAtaInfo,
+    createdRecipientAta: !playerAtaInfo,
     amountRaw: amount.toString(),
   };
 }
@@ -191,7 +191,7 @@ module.exports = {
   getTokenProgramId,
   toBaseUnits,
   getTreasuryTokenBalanceRaw,
-  buildWithdrawTransaction,
+  sendWithdrawFromTreasury,
   confirmWithdrawTransaction,
   isBlockhashExpired,
 };
