@@ -3,9 +3,7 @@ const path = require("path");
 // Вывод Points → $PETIX (013/withdraw). Диспетчер: последний сегмент пути → handler.
 const HANDLERS = {
   config: require("../../server-routes/withdraw/config"),
-  prepare: require("../../server-routes/withdraw/prepare"),
-  confirm: require("../../server-routes/withdraw/confirm"),
-  cancel: require("../../server-routes/withdraw/cancel"),
+  request: require("../../server-routes/withdraw/request"),
 };
 
 module.exports = async (req, res) => {

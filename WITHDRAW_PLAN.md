@@ -6,11 +6,13 @@
 
 ## Статус (2026-06-23)
 
-**Реализовано и проверено:** он-чейн ядро (`api/_lib/withdraw.js`, авто-детект Token-2022), эндпоинты `prepare/confirm/cancel/config`, резерв-дебет Points в профиле (`withdrawal-store.js` + `withdrawals` в `store.js`), рубильник `WITHDRAW_ENABLED` + дефолт `WITHDRAW_FEE_PCT=0` в `economy-config`, тумблер в админ-панели, фронт-поток модалки (ленивый web3.js, prepare → подпись → confirm, Solscan, ошибки). Проверено: симуляция перевода на mainnet (`err:null`), e2e эндпоинтов через curl (debit/refund), фронт до момента подписи (155/155 тестов зелёные).
+**Модель: custodial-push** (перешли с co-sign). Раньше игрок сам подписывал co-sign транзакцию (платил газ) — но Phantom показывал красное «dApp may be malicious» на подпись заранее собранной tx с нового домена `petix.fun`, что отпугивало. Решение: **сервер сам отправляет токены** (`sendWithdrawFromTreasury` — treasury = fee payer + источник, полностью подписывает и шлёт), **игрок ничего не подписывает → нет промпта/предупреждения**. Цена: газ + аренду ATA (~0.002 SOL/новый кошелёк) платим мы, поэтому **казне нужен SOL**.
 
-**Тест-токен (mainnet pump.fun):** mint `Ds4xBwpJ…pump`, Token-2022, 6 decimals, без fee/hook/freeze; раздатчик `8u7GVy…DPyv` = 10M токенов.
+**Реализовано и проверено:** ядро `api/_lib/withdraw.js` (авто-детект Token-2022/classic), единый эндпоинт `POST /api/withdraw/request` (резерв-дебет → отправка → подтверждение → возврат при сбое) + `config`; `withdrawals` в профиле (`withdrawal-store.js`/`store.js`); `WITHDRAW_ENABLED` (0=admin-only, 1=всем) + `WITHDRAW_FEE_PCT` (дефолт 0) в `economy-config`; фронт модалки — один вызов `request` без web3.js/подписи, Solscan, ошибки. **Проверено реальным custodial-выводом на mainnet** (sig подтверждён, 200 токенов ушли с казны, Points списались/возвращаются), 155/155 тестов.
 
-**Осталось:** живой тест с подписью в Phantom (нужен реальный кошелёк с SOL).
+**Тест-токен (mainnet pump.fun):** Token-2022, 6 decimals, без fee/hook/freeze. ⚠️ Первый тест-кошелёк `8u7GVy…DPyv` был **слит** (ключ скомпрометирован, не через наш код) — заменён новым `2aqaFd…7LLa`. На запуске — отдельный надёжный кошелёк, ключ только в env, схема холодный пул + горячий раздатчик.
+
+**Осталось:** закоммитить custodial-код → мёрж → прод (env уже обновлены). Опц.: баланс казны в админке; заявка в Phantom/Blowfish на снятие флага (для co-sign была критична, для custodial — нет, т.к. подписи нет).
 
 ## 1. Цель
 
