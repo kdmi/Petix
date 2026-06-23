@@ -843,6 +843,7 @@ const state = {
   selectedPowerId: "",
   isAuthenticated: false,
   isAdmin: false,
+  withdrawPublic: false, // вывод открыт всем (WITHDRAW_ENABLED=1); иначе попап только у админа
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
@@ -1650,6 +1651,9 @@ async function refreshWithdrawConfig() {
     const res = await apiRequest("/api/withdraw/config", {}, "GET");
     applyWithdrawConfig(res);
     withdrawState.configLoaded = true;
+    state.withdrawPublic = Boolean(res && res.public);
+    // Публичность могла измениться → обновить кликабельность баланса в шапке.
+    updateDashboardPointsUi();
     if (withdrawState.open && withdrawState.view === "form") {
       // Re-clamp the current amount into the (possibly new) min/max bounds.
       setWithdrawAmount(withdrawState.amount);
@@ -1980,7 +1984,7 @@ async function onWithdrawSubmit() {
 }
 
 function openWithdrawModal() {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin && !state.withdrawPublic) return;
   ensureWithdrawModal();
   hideWalletMenu();
   withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
@@ -2022,11 +2026,14 @@ function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   updateAdminAccessUi();
   updateCreatePetMenuState();
   updateDashboardPointsUi();
+  // Узнать, открыт ли вывод всем (WITHDRAW_ENABLED=1) — чтобы показать кликабельный баланс и не-админам.
+  void refreshWithdrawConfig();
 }
 
 function showWalletAuthState() {
   state.isAuthenticated = false;
   state.isAdmin = false;
+  state.withdrawPublic = false;
   state.walletAddress = "";
   resetUpgradeSession();
   clearArenaOpponentCache();
@@ -4661,8 +4668,8 @@ function updateDashboardPointsUi() {
   if (valueEl) valueEl.textContent = formatCoins(balance);
   dashboardPoints.classList.toggle("hidden", !state.isAuthenticated);
 
-  // Withdraw is admin-only for now — only admins get a clickable balance.
-  const withdrawable = state.isAuthenticated && state.isAdmin;
+  // Кликабельный баланс (вход в вывод): админу всегда, остальным — когда вывод открыт всем.
+  const withdrawable = state.isAuthenticated && (state.isAdmin || state.withdrawPublic);
   dashboardPoints.classList.toggle("is-withdrawable", withdrawable);
   if (withdrawable) {
     dashboardPoints.setAttribute("role", "button");
@@ -8416,7 +8423,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
-          ${ecoNumberRow("Withdraw enabled (1=on, 0=off)", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED)}
+          ${ecoNumberRow("Withdraw public (1=all users, 0=admin-only)", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED)}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
@@ -9213,11 +9220,12 @@ function init() {
   });
 
   if (dashboardPoints) {
+    const canOpenWithdraw = () => state.isAdmin || state.withdrawPublic;
     dashboardPoints.addEventListener("click", () => {
-      if (state.isAdmin) openWithdrawModal();
+      if (canOpenWithdraw()) openWithdrawModal();
     });
     dashboardPoints.addEventListener("keydown", (event) => {
-      if (!state.isAdmin) return;
+      if (!canOpenWithdraw()) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         openWithdrawModal();
