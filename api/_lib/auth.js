@@ -198,14 +198,21 @@ function json(res, status, body) {
 
 async function parseJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let raw = "";
+    // Собираем сырые байты и декодируем UTF-8 ОДИН раз в конце. Нельзя делать `raw += chunk`:
+    // многобайтовый символ (кириллица/эмодзи) на стыке чанков порвётся и JSON сломается.
+    const chunks = [];
+    let size = 0;
     req.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 1_000_000) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += buf.length;
+      if (size > 1_000_000) {
         reject(new Error("Request body is too large."));
+        return;
       }
+      chunks.push(buf);
     });
     req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw) {
         resolve({});
         return;
