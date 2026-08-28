@@ -7125,6 +7125,7 @@ function openBurnConfirm(characterId) {
 
 const BURN_ANIMATION_MS = 4600; // rise + fade; keep in sync with .cabinet-character.is-burning CSS
 const BURN_RISE_MS = 4000;
+const BURN_IGNITION_FRACTION = 0.18; // first ~18% of the rise: flames grow in, the front only smolders
 const BURN_COLUMNS = 12;
 const BURN_STREAM_INTERVAL_MS = 140; // school-pride-style 🔥 streams off the burn front
 const BURN_STREAM_SOURCES = 2; // emitters per tick
@@ -7192,7 +7193,8 @@ function playBurnAnimation(characterId) {
         strip,
         flame,
         flameSize,
-        delay: Math.random() * 0.12, // ignition offset, fraction of the timeline
+        delay: Math.random() * 0.12, // per-column front offset, fraction of the timeline
+        igniteDelay: Math.random() * 0.1, // when this flame starts growing in
         phase: Math.random() * Math.PI * 2,
         wobbleAmp: 0.04 + Math.random() * 0.05,
         wobbleFreq: 2 + Math.random() * 2,
@@ -7211,7 +7213,7 @@ function playBurnAnimation(characterId) {
       flame.style.animationDuration = `${(0.55 + Math.random() * 0.4).toFixed(2)}s`;
       flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
       flamesLayer.appendChild(flame);
-      return { flame, size, column: columns[columnIndex] };
+      return { flame, size, igniteDelay: Math.random() * 0.1, column: columns[columnIndex] };
     });
 
     overlay.appendChild(clip);
@@ -7220,7 +7222,12 @@ function playBurnAnimation(characterId) {
     card.classList.add("is-burning");
 
     const surfaceHeight = surface.offsetHeight || 452;
-    const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+    // Flames grow in over ~10% of the timeline, easing out.
+    const flameGrowth = (t, igniteDelay) => {
+      const g = clamp01((t - igniteDelay) / 0.1);
+      return 1 - Math.pow(1 - g, 2);
+    };
     const started = performance.now();
     const fireShape = getBurnFireShape();
     let lastStreamAt = 0;
@@ -7261,7 +7268,11 @@ function playBurnAnimation(characterId) {
     function frame(now) {
       const t = Math.min(1, (now - started) / BURN_RISE_MS);
       const raw = columns.map((col) => {
-        const local = Math.max(0, Math.min(1, (t - col.delay) / (1 - col.delay)));
+        // The front waits out the ignition phase, then accelerates (fire
+        // gathering strength): power curve instead of a flat ease-in start.
+        const start = BURN_IGNITION_FRACTION + col.delay * 0.5;
+        const local = clamp01((t - start) / (1 - start));
+        const profile = Math.pow(local, 1.35);
         // Jitter fades in/out so every column starts at 0 and ends fully burned.
         const wobble =
           col.wobbleAmp *
@@ -7269,7 +7280,9 @@ function playBurnAnimation(characterId) {
           local *
           (1 - local) *
           4;
-        return Math.max(0, Math.min(1, easeInOut(local) + wobble));
+        // Smolder: a few px of char appear under the growing flames right away.
+        const smolder = 0.012 * flameGrowth(t, col.igniteDelay) * (1 - local);
+        return clamp01(profile + wobble + smolder);
       });
       columns.forEach((col, i) => {
         // Blend with neighbours so the front reads as one ragged wave, not a picket fence.
@@ -7277,16 +7290,25 @@ function playBurnAnimation(characterId) {
         const next = raw[i + 1] != null ? raw[i + 1] : raw[i];
         const progress = (prev + 2 * raw[i] + next) / 4;
         const height = progress * surfaceHeight;
+        const effSize = col.flameSize * (0.12 + 0.88 * flameGrowth(t, col.igniteDelay));
         col.lastHeight = height;
         col.strip.style.height = `${height.toFixed(1)}px`;
         // Center the flame on the front so it straddles (and hides) the line.
-        col.flame.style.bottom = `${(height - col.flameSize * 0.55).toFixed(1)}px`;
+        col.flame.style.fontSize = `${effSize.toFixed(1)}px`;
+        col.flame.style.bottom = `${(height - effSize * 0.55).toFixed(1)}px`;
       });
       for (const edge of edgeFlames) {
-        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - edge.size * 0.55).toFixed(1)}px`;
+        const effSize = edge.size * (0.12 + 0.88 * flameGrowth(t, edge.igniteDelay));
+        edge.flame.style.fontSize = `${effSize.toFixed(1)}px`;
+        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - effSize * 0.55).toFixed(1)}px`;
       }
       if (t < 1) {
-        if (fireShape && now - lastStreamAt >= BURN_STREAM_INTERVAL_MS) {
+        // Streams join in once the fire has properly caught.
+        if (
+          fireShape &&
+          t > BURN_IGNITION_FRACTION * 0.7 &&
+          now - lastStreamAt >= BURN_STREAM_INTERVAL_MS
+        ) {
           lastStreamAt = now;
           emitFireStreams();
         }
