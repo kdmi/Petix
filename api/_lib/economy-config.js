@@ -21,6 +21,7 @@ const DEFAULTS = Object.freeze({
   BATTLE_LEVEL_K: 0.05,
   SLOT_PRICES: Object.freeze([5000, 10000, 20000, 35000, 60000, 100000, 160000]),
   MAX_CHARACTER_SLOTS: 10,
+  BURN_COST: 500, // цена сжигания персонажа (feature 014)
   MIN_WITHDRAW: 200,
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
   WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
@@ -78,6 +79,7 @@ function validateConfigPatch(patch) {
     "BATTLE_REWARD_BASE",
     "BATTLE_LEVEL_K",
     "MAX_CHARACTER_SLOTS",
+    "BURN_COST",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
     "WITHDRAW_ENABLED",

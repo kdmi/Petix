@@ -2335,19 +2335,181 @@ body.withdraw-modal-open {
 }
 
 .cabinet-success-card .success-card-title {
-  left: 16px;
-  right: 16px;
-  text-align: center;
-  transform: none;
-}
-
-.cabinet-character--upgradeable .cabinet-success-card .success-card-title {
   left: 20px;
-  right: 96px;
+  right: 52px;
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
+  transform: none;
   white-space: nowrap;
+}
+
+.cabinet-character--upgradeable .cabinet-success-card .success-card-title {
+  right: 136px;
+}
+
+/* ⋯ context menu on cabinet cards (feature 014: burn) */
+.cabinet-card-menu-btn {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  width: 32px;
+  z-index: 4;
+}
+
+.cabinet-card-menu-btn:hover,
+.cabinet-card-menu-btn:focus-visible,
+.cabinet-card-menu-btn.is-open {
+  background: rgba(16, 24, 40, 0.06);
+}
+
+.cabinet-card-menu-btn__dots {
+  align-items: center;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.cabinet-card-menu-btn__dots i {
+  background: #101828;
+  border-radius: 50%;
+  display: block;
+  height: 4px;
+  width: 4px;
+}
+
+.cabinet-card-menu {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.16);
+  min-width: 176px;
+  overflow: hidden;
+  padding: 4px;
+  position: absolute;
+  right: 10px;
+  top: 42px;
+  z-index: 5;
+}
+
+.cabinet-card-menu-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 12px;
+  justify-content: space-between;
+  line-height: 20px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.cabinet-card-menu-item--danger {
+  color: #d92d20;
+}
+
+.cabinet-card-menu-item--danger:hover,
+.cabinet-card-menu-item--danger:focus-visible {
+  background: #fef3f2;
+}
+
+.cabinet-card-menu-item__price {
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Burn confirmation modal */
+.burn-modal-backdrop {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 1200;
+}
+
+body.burn-modal-open {
+  overflow: hidden;
+}
+
+.burn-modal {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 20px 48px rgba(16, 24, 40, 0.24);
+  max-width: 360px;
+  padding: 24px;
+  width: 100%;
+}
+
+.burn-modal__title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.burn-modal__text {
+  color: #475467;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0 0 20px;
+}
+
+.burn-modal__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.burn-modal__btn {
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  flex: 1;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  padding: 12px 16px;
+}
+
+.burn-modal__btn--cancel {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.burn-modal__btn--confirm {
+  background: #d92d20;
+  color: #fff;
+}
+
+.burn-modal__btn--confirm:hover:not(:disabled),
+.burn-modal__btn--confirm:focus-visible {
+  background: #b42318;
+}
+
+.burn-modal__btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .cabinet-success-card .success-card-power {
@@ -2378,7 +2540,7 @@ body.withdraw-modal-open {
   min-width: 0;
   padding: 4px 0;
   position: absolute;
-  right: 16px;
+  right: 48px;
   top: 10px;
   z-index: 2;
 }

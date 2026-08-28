@@ -915,6 +915,8 @@ const state = {
   paidSlots: 0,
   maxCharacters: MAX_CHARACTERS_PER_WALLET,
   nextSlotPrice: null,
+  burnCost: null,
+  openCardMenuId: "",
   farmActionCharacterId: "",
   recentClaims: {},
 };
@@ -2317,6 +2319,9 @@ function syncStateWithPayload(payload = {}) {
   if ("nextSlotPrice" in payload) {
     state.nextSlotPrice =
       typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
+  }
+  if (typeof payload.burnCost === "number") {
+    state.burnCost = Math.max(0, Math.floor(payload.burnCost));
   }
 
   let isStaleProfilePayload = false;
@@ -6806,10 +6811,46 @@ function renderCabinet() {
         `;
       }).join("");
 
+      const isMenuOpen = String(state.openCardMenuId) === String(record.id);
+      const cardMenuMarkup =
+        record.status === "completed"
+          ? `
+            <button
+              class="cabinet-card-menu-btn${isMenuOpen ? " is-open" : ""}"
+              type="button"
+              data-action="card-menu"
+              data-character-id="${record.id}"
+              aria-haspopup="menu"
+              aria-expanded="${isMenuOpen ? "true" : "false"}"
+              aria-label="Pet options for ${escapeHtml(getRecordDisplayName(record))}"
+            >
+              <span class="cabinet-card-menu-btn__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            ${
+              isMenuOpen
+                ? `
+            <div class="cabinet-card-menu" role="menu">
+              <button
+                class="cabinet-card-menu-item cabinet-card-menu-item--danger"
+                type="button"
+                role="menuitem"
+                data-action="burn"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">Burn</span>
+                <span class="cabinet-card-menu-item__price">${formatPoints(getBurnCost())} Points</span>
+              </button>
+            </div>
+            `
+                : ""
+            }
+          `
+          : "";
       return `
         <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
+            ${cardMenuMarkup}
             ${
               isUpgradeable
                 ? `
@@ -7006,6 +7047,115 @@ async function buySlotFlow() {
     renderCabinet();
     updateDashboardPointsUi();
   }
+}
+
+// === Burn a character (feature 014): card ⋯-menu → confirm dialog → POST /api/character/burn ===
+
+const DEFAULT_BURN_COST = 500; // fallback until /api/character/me delivers the runtime value
+
+function getBurnCost() {
+  return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
+}
+
+function closeCabinetCardMenu() {
+  if (!state.openCardMenuId) return;
+  state.openCardMenuId = "";
+  if (isCabinetScreenActive()) renderCabinet();
+}
+
+function toggleCabinetCardMenu(characterId) {
+  state.openCardMenuId =
+    String(state.openCardMenuId) === String(characterId) ? "" : String(characterId);
+  renderCabinet();
+}
+
+let burnRequestInFlight = false;
+
+function closeBurnConfirm() {
+  const modal = document.getElementById("burnConfirmBackdrop");
+  if (modal) modal.remove();
+  document.body.classList.remove("burn-modal-open");
+}
+
+function openBurnConfirm(characterId) {
+  const record = state.characters.find(
+    (item) => String(item.id) === String(characterId)
+  );
+  if (!record) return;
+  closeBurnConfirm();
+
+  const backdrop = document.createElement("div");
+  backdrop.id = "burnConfirmBackdrop";
+  backdrop.className = "burn-modal-backdrop";
+  backdrop.innerHTML = `
+    <section class="burn-modal" role="dialog" aria-modal="true" aria-labelledby="burnModalTitle">
+      <h2 class="burn-modal__title" id="burnModalTitle">Burn ${escapeHtml(getRecordDisplayName(record))}?</h2>
+      <p class="burn-modal__text">
+        This will permanently destroy the pet and cost
+        <strong>${formatPoints(getBurnCost())} Points</strong>. The slot stays yours.
+        This cannot be undone.
+      </p>
+      <div class="burn-modal__actions">
+        <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-burn-cancel>Cancel</button>
+        <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-burn-confirm>Burn</button>
+      </div>
+    </section>
+  `;
+
+  backdrop.addEventListener("click", (event) => {
+    if (event.target === backdrop || event.target.closest("[data-burn-cancel]")) {
+      if (!burnRequestInFlight) closeBurnConfirm();
+      return;
+    }
+    const confirmBtn = event.target.closest("[data-burn-confirm]");
+    if (confirmBtn && !burnRequestInFlight) {
+      void performBurn(record.id, confirmBtn);
+    }
+  });
+
+  document.body.appendChild(backdrop);
+  document.body.classList.add("burn-modal-open");
+  const cancelBtn = backdrop.querySelector("[data-burn-cancel]");
+  if (cancelBtn) cancelBtn.focus();
+}
+
+async function performBurn(characterId, confirmBtn) {
+  burnRequestInFlight = true;
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Burning...";
+  try {
+    const result = await apiRequest("/api/character/burn", { petId: characterId });
+    // Authoritative response — do NOT re-read /api/character/me right away
+    // (blob CDN can serve a stale profile and resurrect the burned pet).
+    state.characters = state.characters.filter(
+      (record) => String(record.id) !== String(characterId)
+    );
+    if (result && typeof result.balance === "number") {
+      state.currency = { ...state.currency, balance: result.balance };
+      state.pendingCurrency = null;
+    }
+    if (result && typeof result.maxCharacters === "number") {
+      state.maxCharacters = Math.max(1, Math.floor(result.maxCharacters));
+    }
+    if (result && typeof result.paidSlots === "number") {
+      state.paidSlots = Math.max(0, Math.floor(result.paidSlots));
+    }
+    closeBurnConfirm();
+    state.openCardMenuId = "";
+    if (isCabinetScreenActive()) renderCabinet();
+    updateDashboardPointsUi();
+    showToast(`Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
+  } catch (error) {
+    closeBurnConfirm();
+    showToast(error.message || "Couldn't burn the pet.");
+  } finally {
+    burnRequestInFlight = false;
+  }
+}
+
+function burnFlow(characterId) {
+  closeCabinetCardMenu();
+  openBurnConfirm(characterId);
 }
 
 const FARM_TICK_SVG =
@@ -8344,6 +8494,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Rarity × Legendary", "rarity:Legendary", rarity.Legendary)}
           ${ecoNumberRow("Battle reward base", "BATTLE_REWARD_BASE", cfg.BATTLE_REWARD_BASE)}
           ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
+          ${ecoNumberRow("Burn cost", "BURN_COST", cfg.BURN_COST)}
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
           ${ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }])}
@@ -8390,7 +8541,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -9066,6 +9217,21 @@ function init() {
 
   if (cabinetCard) {
     cabinetCard.addEventListener("click", (event) => {
+      const cardMenuButton = event.target.closest('[data-action="card-menu"]');
+      if (cardMenuButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleCabinetCardMenu(cardMenuButton.dataset.characterId);
+        return;
+      }
+
+      const burnButton = event.target.closest('[data-action="burn"]');
+      if (burnButton) {
+        event.preventDefault();
+        burnFlow(burnButton.dataset.characterId);
+        return;
+      }
+
       const upgradeButton = event.target.closest('[data-action="open-upgrade"]');
       if (upgradeButton) {
         event.preventDefault();
@@ -9103,6 +9269,20 @@ function init() {
       startFightFlow(fightButton.dataset.characterId);
     });
   }
+
+  document.addEventListener("click", (event) => {
+    if (!state.openCardMenuId) return;
+    if (event.target.closest(".cabinet-card-menu") || event.target.closest('[data-action="card-menu"]')) {
+      return;
+    }
+    closeCabinetCardMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (state.openCardMenuId) closeCabinetCardMenu();
+    if (!burnRequestInFlight) closeBurnConfirm();
+  });
 
   window.addEventListener("popstate", () => {
     if (!state.isAuthenticated || getPageMode() !== "dashboard") {

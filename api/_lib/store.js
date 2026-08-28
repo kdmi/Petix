@@ -738,6 +738,7 @@ module.exports = {
   clearWalletProfileCache,
   createImageStore,
   deleteCharacterById,
+  deleteStoredImage,
   findCharacterRecordById,
   getWalletProfile,
   isBlobImageStoreEnabled,
