@@ -7199,6 +7199,21 @@ function playBurnAnimation(characterId) {
       });
     }
 
+    // Extra flames pinned to the card's left/right borders (half overhanging)
+    // so the card edge at the burn front is hidden too.
+    const edgeFlames = [0, columns.length - 1].map((columnIndex, side) => {
+      const size = 48 + Math.round(Math.random() * 22);
+      const flame = document.createElement("span");
+      flame.className = "cabinet-burn-flame";
+      flame.textContent = "🔥";
+      flame.style.left = side === 0 ? "0%" : "100%";
+      flame.style.fontSize = `${size}px`;
+      flame.style.animationDuration = `${(0.26 + Math.random() * 0.3).toFixed(2)}s`;
+      flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
+      flamesLayer.appendChild(flame);
+      return { flame, size, column: columns[columnIndex] };
+    });
+
     overlay.appendChild(clip);
     overlay.appendChild(flamesLayer);
     surface.appendChild(overlay);
@@ -7262,10 +7277,14 @@ function playBurnAnimation(characterId) {
         const next = raw[i + 1] != null ? raw[i + 1] : raw[i];
         const progress = (prev + 2 * raw[i] + next) / 4;
         const height = progress * surfaceHeight;
+        col.lastHeight = height;
         col.strip.style.height = `${height.toFixed(1)}px`;
         // Center the flame on the front so it straddles (and hides) the line.
         col.flame.style.bottom = `${(height - col.flameSize * 0.55).toFixed(1)}px`;
       });
+      for (const edge of edgeFlames) {
+        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - edge.size * 0.55).toFixed(1)}px`;
+      }
       if (t < 1) {
         if (fireShape && now - lastStreamAt >= BURN_STREAM_INTERVAL_MS) {
           lastStreamAt = now;
