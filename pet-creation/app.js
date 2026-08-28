@@ -7176,11 +7176,14 @@ function playBurnAnimation(characterId) {
       strip.style.width = `${(columnWidth + 1.2).toFixed(2)}%`;
       clip.appendChild(strip);
 
+      // Big overlapping flames (~2-3 column widths each) so the burn line
+      // itself is never visible — the front hides behind a wall of fire.
+      const flameSize = 44 + Math.round(Math.random() * 26);
       const flame = document.createElement("span");
       flame.className = "cabinet-burn-flame";
       flame.textContent = "🔥";
       flame.style.left = `${(i * columnWidth + columnWidth * (0.2 + Math.random() * 0.6)).toFixed(1)}%`;
-      flame.style.fontSize = `${14 + Math.round(Math.random() * 12)}px`;
+      flame.style.fontSize = `${flameSize}px`;
       flame.style.animationDuration = `${(0.26 + Math.random() * 0.3).toFixed(2)}s`;
       flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
       flamesLayer.appendChild(flame);
@@ -7188,6 +7191,7 @@ function playBurnAnimation(characterId) {
       columns.push({
         strip,
         flame,
+        flameSize,
         delay: Math.random() * 0.12, // ignition offset, fraction of the timeline
         phase: Math.random() * Math.PI * 2,
         wobbleAmp: 0.04 + Math.random() * 0.05,
@@ -7259,7 +7263,8 @@ function playBurnAnimation(characterId) {
         const progress = (prev + 2 * raw[i] + next) / 4;
         const height = progress * surfaceHeight;
         col.strip.style.height = `${height.toFixed(1)}px`;
-        col.flame.style.bottom = `${(height - 9).toFixed(1)}px`;
+        // Center the flame on the front so it straddles (and hides) the line.
+        col.flame.style.bottom = `${(height - col.flameSize * 0.55).toFixed(1)}px`;
       });
       if (t < 1) {
         if (fireShape && now - lastStreamAt >= BURN_STREAM_INTERVAL_MS) {
