@@ -6842,7 +6842,7 @@ function renderCabinet() {
                 data-character-id="${record.id}"
               >
                 <span class="cabinet-card-menu-item__label">
-                  <img src="/assets/dashboard/burn-fire.svg" alt="" width="16" height="16" />
+                  <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
                   Burn
                 </span>
                 <span class="cabinet-card-menu-item__price">

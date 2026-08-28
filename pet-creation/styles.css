@@ -2424,6 +2424,7 @@ body.withdraw-modal-open {
 .cabinet-card-menu-item__label {
   align-items: center;
   display: inline-flex;
+  font-size: 14px;
   gap: 8px;
 }
 
@@ -2439,9 +2440,9 @@ body.withdraw-modal-open {
 
 .cabinet-card-menu-item__price {
   align-items: center;
-  color: #98a2b3;
+  color: #101828;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   gap: 4px;
 }
