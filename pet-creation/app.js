@@ -7126,7 +7126,22 @@ function openBurnConfirm(characterId) {
 const BURN_ANIMATION_MS = 2100;
 const BURN_RISE_MS = 1600;
 const BURN_COLUMNS = 12;
-const BURN_SPARK_CHANCE = 0.05; // per frame
+const BURN_STREAM_INTERVAL_MS = 85; // school-pride-style 🔥 streams off the burn front
+const BURN_STREAM_SOURCES = 2; // emitters per tick
+
+let burnFireShape = null; // cached canvas-confetti emoji shape
+function getBurnFireShape() {
+  if (burnFireShape) return burnFireShape;
+  if (
+    typeof window.confetti !== "function" ||
+    typeof window.confetti.shapeFromText !== "function"
+  ) {
+    // Not cached: the CDN script may simply not have loaded yet.
+    return null;
+  }
+  burnFireShape = window.confetti.shapeFromText({ text: "🔥", scalar: 4 });
+  return burnFireShape;
+}
 
 // Char the card bottom→top with a ragged, fire-like front: the card is split
 // into columns that each burn upward at their own jittery pace, a 🔥 rides the
@@ -7188,16 +7203,40 @@ function playBurnAnimation(characterId) {
     const surfaceHeight = surface.offsetHeight || 452;
     const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
     const started = performance.now();
+    const fireShape = getBurnFireShape();
+    let lastStreamAt = 0;
 
-    function spawnSpark(leftPct, bottomPx) {
-      const spark = document.createElement("span");
-      spark.className = "cabinet-burn-spark";
-      spark.textContent = "🔥";
-      spark.style.left = `${leftPct.toFixed(1)}%`;
-      spark.style.bottom = `${bottomPx.toFixed(1)}px`;
-      spark.style.fontSize = `${8 + Math.round(Math.random() * 6)}px`;
-      spark.addEventListener("animationend", () => spark.remove());
-      flamesLayer.appendChild(spark);
+    // School-pride-style continuous streams: pick random spots on the burn
+    // front and shoot 🔥 particles upward from the boundary line.
+    function emitFireStreams() {
+      const rect = surface.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const viewportWidth = Math.max(window.innerWidth || 0, 1);
+      const viewportHeight = Math.max(window.innerHeight || 0, 1);
+      for (let k = 0; k < BURN_STREAM_SOURCES; k += 1) {
+        const index = Math.floor(Math.random() * columns.length);
+        const frontHeight = parseFloat(columns[index].strip.style.height) || 0;
+        const x = rect.left + ((index + 0.5) / BURN_COLUMNS) * rect.width;
+        const y = rect.bottom - frontHeight;
+        window.confetti({
+          particleCount: 2,
+          angle: 90 + (Math.random() * 24 - 12),
+          spread: 42,
+          startVelocity: 16 + Math.random() * 14,
+          gravity: 0.5,
+          decay: 0.93,
+          drift: Math.random() * 0.6 - 0.3,
+          ticks: 70,
+          scalar: 1.6 + Math.random() * 1.2,
+          shapes: [fireShape],
+          origin: {
+            x: clampNumber(x / viewportWidth, 0, 1),
+            y: clampNumber(y / viewportHeight, 0, 1),
+          },
+          disableForReducedMotion: true,
+          zIndex: 1100,
+        });
+      }
     }
 
     function frame(now) {
@@ -7223,9 +7262,9 @@ function playBurnAnimation(characterId) {
         col.flame.style.bottom = `${(height - 9).toFixed(1)}px`;
       });
       if (t < 1) {
-        if (Math.random() < BURN_SPARK_CHANCE) {
-          const col = columns[Math.floor(Math.random() * columns.length)];
-          spawnSpark(parseFloat(col.flame.style.left), parseFloat(col.flame.style.bottom) + 6);
+        if (fireShape && now - lastStreamAt >= BURN_STREAM_INTERVAL_MS) {
+          lastStreamAt = now;
+          emitFireStreams();
         }
         requestAnimationFrame(frame);
       } else {

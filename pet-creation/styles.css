@@ -2509,25 +2509,6 @@ body.withdraw-modal-open {
   opacity: 0;
 }
 
-.cabinet-burn-spark {
-  animation: cabinet-burn-spark 0.7s ease-out forwards;
-  filter: drop-shadow(0 0 4px rgba(255, 140, 20, 0.7));
-  line-height: 1;
-  position: absolute;
-  transform: translateX(-50%);
-}
-
-@keyframes cabinet-burn-spark {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-34px) scale(0.4);
-  }
-}
-
 @keyframes cabinet-burn-flicker {
   from {
     transform: translateX(-50%) translateY(2px) scale(0.82) rotate(-7deg);
