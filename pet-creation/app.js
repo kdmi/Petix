@@ -7137,7 +7137,7 @@ const BURN_FX = {
   FLAME_MIN: 44, // smallest base flame, px
   FLAME_RANGE: 60, // random extra base flame size, px
   GROW_START: 0.3, // size envelope right after ignition (× base)
-  GROW_PEAK: 1.9, // size envelope at the peak, just before burnout (× base)
+  GROW_PEAK: 1.7, // size envelope at the peak, just before burnout (× base)
   BURNOUT_START: 1, // fraction of the rise where flames start dying down (1 = never)
   FLICKER_S: 0.65, // base flame flicker period, seconds
   STREAM_INTERVAL_MS: 80, // school-pride 🔥 stream cadence
