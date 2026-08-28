@@ -7228,6 +7228,18 @@ function playBurnAnimation(characterId) {
       const g = clamp01((t - igniteDelay) / 0.1);
       return 1 - Math.pow(1 - g, 2);
     };
+    // Size envelope over the whole burn: ignite small → keep growing all the
+    // way (peak ~1.25× near the end) → shrink to embers as everything is ash.
+    const BURNOUT_START = 0.85;
+    const flameEnvelope = (t, igniteDelay) => {
+      const ignite = flameGrowth(t, igniteDelay);
+      const grow = 0.5 + 0.75 * (Math.min(t, BURNOUT_START) / BURNOUT_START);
+      const burnout =
+        t <= BURNOUT_START
+          ? 1
+          : Math.max(0.1, 1 - 0.9 * Math.pow((t - BURNOUT_START) / (1 - BURNOUT_START), 1.5));
+      return Math.max(0.08, ignite * grow * burnout);
+    };
     const started = performance.now();
     const fireShape = getBurnFireShape();
     let lastStreamAt = 0;
@@ -7290,7 +7302,7 @@ function playBurnAnimation(characterId) {
         const next = raw[i + 1] != null ? raw[i + 1] : raw[i];
         const progress = (prev + 2 * raw[i] + next) / 4;
         const height = progress * surfaceHeight;
-        const effSize = col.flameSize * (0.12 + 0.88 * flameGrowth(t, col.igniteDelay));
+        const effSize = col.flameSize * flameEnvelope(t, col.igniteDelay);
         col.lastHeight = height;
         col.strip.style.height = `${height.toFixed(1)}px`;
         // Center the flame on the front so it straddles (and hides) the line.
@@ -7298,7 +7310,7 @@ function playBurnAnimation(characterId) {
         col.flame.style.bottom = `${(height - effSize * 0.55).toFixed(1)}px`;
       });
       for (const edge of edgeFlames) {
-        const effSize = edge.size * (0.12 + 0.88 * flameGrowth(t, edge.igniteDelay));
+        const effSize = edge.size * flameEnvelope(t, edge.igniteDelay);
         edge.flame.style.fontSize = `${effSize.toFixed(1)}px`;
         edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - effSize * 0.55).toFixed(1)}px`;
       }
