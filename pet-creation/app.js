@@ -7123,10 +7123,10 @@ function openBurnConfirm(characterId) {
   if (cancelBtn) cancelBtn.focus();
 }
 
-const BURN_ANIMATION_MS = 2100;
-const BURN_RISE_MS = 1600;
+const BURN_ANIMATION_MS = 10600; // rise + fade; keep in sync with .cabinet-character.is-burning CSS
+const BURN_RISE_MS = 10000;
 const BURN_COLUMNS = 12;
-const BURN_STREAM_INTERVAL_MS = 85; // school-pride-style 🔥 streams off the burn front
+const BURN_STREAM_INTERVAL_MS = 140; // school-pride-style 🔥 streams off the burn front
 const BURN_STREAM_SOURCES = 2; // emitters per tick
 
 let burnFireShape = null; // cached canvas-confetti emoji shape
@@ -7184,7 +7184,7 @@ function playBurnAnimation(characterId) {
       flame.textContent = "🔥";
       flame.style.left = `${(i * columnWidth + columnWidth * (0.2 + Math.random() * 0.6)).toFixed(1)}%`;
       flame.style.fontSize = `${flameSize}px`;
-      flame.style.animationDuration = `${(0.26 + Math.random() * 0.3).toFixed(2)}s`;
+      flame.style.animationDuration = `${(0.55 + Math.random() * 0.4).toFixed(2)}s`;
       flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
       flamesLayer.appendChild(flame);
 
@@ -7208,7 +7208,7 @@ function playBurnAnimation(characterId) {
       flame.textContent = "🔥";
       flame.style.left = side === 0 ? "0%" : "100%";
       flame.style.fontSize = `${size}px`;
-      flame.style.animationDuration = `${(0.26 + Math.random() * 0.3).toFixed(2)}s`;
+      flame.style.animationDuration = `${(0.55 + Math.random() * 0.4).toFixed(2)}s`;
       flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
       flamesLayer.appendChild(flame);
       return { flame, size, column: columns[columnIndex] };
@@ -7344,6 +7344,9 @@ async function performBurn(characterId, confirmBtn) {
 }
 
 function burnFlow(characterId) {
+  // One pyre at a time: a second burn while one is animating would clobber
+  // the render suppression (state.burningCharacterId).
+  if (burnRequestInFlight || state.burningCharacterId) return;
   closeCabinetCardMenu();
   openBurnConfirm(characterId);
 }

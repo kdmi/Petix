@@ -2434,7 +2434,7 @@ body.withdraw-modal-open {
 
 /* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */
 .cabinet-character.is-burning {
-  animation: cabinet-burn-fade 0.35s ease-in 1.6s forwards;
+  animation: cabinet-burn-fade 0.5s ease-in 10s forwards;
   pointer-events: none;
 }
 
@@ -2496,7 +2496,7 @@ body.withdraw-modal-open {
 }
 
 .cabinet-burn-flame {
-  animation: cabinet-burn-flicker 0.4s ease-in-out infinite alternate;
+  animation: cabinet-burn-flicker 0.7s ease-in-out infinite alternate;
   bottom: -9px;
   filter: drop-shadow(0 0 6px rgba(255, 120, 20, 0.8));
   line-height: 1;
@@ -2511,10 +2511,10 @@ body.withdraw-modal-open {
 
 @keyframes cabinet-burn-flicker {
   from {
-    transform: translateX(-50%) translateY(2px) scale(0.82) rotate(-7deg);
+    transform: translateX(-50%) translateY(1px) scale(0.92) rotate(-4deg);
   }
   to {
-    transform: translateX(-50%) translateY(-5px) scale(1.18) rotate(7deg);
+    transform: translateX(-50%) translateY(-3px) scale(1.08) rotate(4deg);
   }
 }
 
