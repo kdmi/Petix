@@ -7123,10 +7123,15 @@ function openBurnConfirm(characterId) {
   if (cancelBtn) cancelBtn.focus();
 }
 
-const BURN_ANIMATION_MS = 2000;
-const BURN_FLAME_COUNT = 7;
+const BURN_ANIMATION_MS = 2100;
+const BURN_RISE_MS = 1600;
+const BURN_COLUMNS = 12;
+const BURN_SPARK_CHANCE = 0.05; // per frame
 
-// Char the card bottom→top with 🔥 riding the burn line, resolve when it's ash.
+// Char the card bottom→top with a ragged, fire-like front: the card is split
+// into columns that each burn upward at their own jittery pace, a 🔥 rides the
+// top of every column (covering the burned/unburned boundary), sparks pop off
+// the front. Resolves when the card has burned out.
 function playBurnAnimation(characterId) {
   return new Promise((resolve) => {
     const card = cabinetCard
@@ -7140,23 +7145,94 @@ function playBurnAnimation(characterId) {
       return;
     }
 
-    const flames = Array.from({ length: BURN_FLAME_COUNT }, (_, index) => {
-      const left = (index + 0.5) * (100 / BURN_FLAME_COUNT) + (Math.random() * 8 - 4);
-      const size = 14 + Math.round(Math.random() * 10);
-      const duration = 0.3 + Math.random() * 0.25;
-      const delay = Math.random() * 0.3;
-      return `<span style="left:${left.toFixed(1)}%;font-size:${size}px;animation-duration:${duration.toFixed(2)}s;animation-delay:${delay.toFixed(2)}s;">🔥</span>`;
-    }).join("");
-
     const overlay = document.createElement("div");
     overlay.className = "cabinet-burn-overlay";
-    overlay.innerHTML = `
-      <div class="cabinet-burn-overlay__char">
-        <div class="cabinet-burn-overlay__flames">${flames}</div>
-      </div>
-    `;
+    const clip = document.createElement("div");
+    clip.className = "cabinet-burn-overlay__clip";
+    const flamesLayer = document.createElement("div");
+    flamesLayer.className = "cabinet-burn-overlay__flames";
+
+    const columnWidth = 100 / BURN_COLUMNS;
+    const columns = [];
+    for (let i = 0; i < BURN_COLUMNS; i += 1) {
+      const strip = document.createElement("div");
+      strip.className = "cabinet-burn-strip";
+      strip.style.left = `${(i * columnWidth - 0.6).toFixed(2)}%`;
+      strip.style.width = `${(columnWidth + 1.2).toFixed(2)}%`;
+      clip.appendChild(strip);
+
+      const flame = document.createElement("span");
+      flame.className = "cabinet-burn-flame";
+      flame.textContent = "🔥";
+      flame.style.left = `${(i * columnWidth + columnWidth * (0.2 + Math.random() * 0.6)).toFixed(1)}%`;
+      flame.style.fontSize = `${14 + Math.round(Math.random() * 12)}px`;
+      flame.style.animationDuration = `${(0.26 + Math.random() * 0.3).toFixed(2)}s`;
+      flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
+      flamesLayer.appendChild(flame);
+
+      columns.push({
+        strip,
+        flame,
+        delay: Math.random() * 0.12, // ignition offset, fraction of the timeline
+        phase: Math.random() * Math.PI * 2,
+        wobbleAmp: 0.04 + Math.random() * 0.05,
+        wobbleFreq: 4 + Math.random() * 5,
+      });
+    }
+
+    overlay.appendChild(clip);
+    overlay.appendChild(flamesLayer);
     surface.appendChild(overlay);
     card.classList.add("is-burning");
+
+    const surfaceHeight = surface.offsetHeight || 452;
+    const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+    const started = performance.now();
+
+    function spawnSpark(leftPct, bottomPx) {
+      const spark = document.createElement("span");
+      spark.className = "cabinet-burn-spark";
+      spark.textContent = "🔥";
+      spark.style.left = `${leftPct.toFixed(1)}%`;
+      spark.style.bottom = `${bottomPx.toFixed(1)}px`;
+      spark.style.fontSize = `${8 + Math.round(Math.random() * 6)}px`;
+      spark.addEventListener("animationend", () => spark.remove());
+      flamesLayer.appendChild(spark);
+    }
+
+    function frame(now) {
+      const t = Math.min(1, (now - started) / BURN_RISE_MS);
+      const raw = columns.map((col) => {
+        const local = Math.max(0, Math.min(1, (t - col.delay) / (1 - col.delay)));
+        // Jitter fades in/out so every column starts at 0 and ends fully burned.
+        const wobble =
+          col.wobbleAmp *
+          Math.sin(col.wobbleFreq * t * Math.PI * 2 + col.phase) *
+          local *
+          (1 - local) *
+          4;
+        return Math.max(0, Math.min(1, easeInOut(local) + wobble));
+      });
+      columns.forEach((col, i) => {
+        // Blend with neighbours so the front reads as one ragged wave, not a picket fence.
+        const prev = raw[i - 1] != null ? raw[i - 1] : raw[i];
+        const next = raw[i + 1] != null ? raw[i + 1] : raw[i];
+        const progress = (prev + 2 * raw[i] + next) / 4;
+        const height = progress * surfaceHeight;
+        col.strip.style.height = `${height.toFixed(1)}px`;
+        col.flame.style.bottom = `${(height - 9).toFixed(1)}px`;
+      });
+      if (t < 1) {
+        if (Math.random() < BURN_SPARK_CHANCE) {
+          const col = columns[Math.floor(Math.random() * columns.length)];
+          spawnSpark(parseFloat(col.flame.style.left), parseFloat(col.flame.style.bottom) + 6);
+        }
+        requestAnimationFrame(frame);
+      } else {
+        overlay.classList.add("is-burned-out");
+      }
+    }
+    requestAnimationFrame(frame);
 
     window.setTimeout(resolve, BURN_ANIMATION_MS);
   });
