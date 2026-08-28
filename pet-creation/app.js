@@ -918,6 +918,7 @@ const state = {
   burnCost: null,
   openCardMenuId: "",
   burningCharacterId: "",
+  profileUpdatedAt: null,
   farmActionCharacterId: "",
   recentClaims: {},
 };
@@ -2292,6 +2293,17 @@ function syncTypeSelectionWithRecord(record) {
 }
 
 function syncStateWithPayload(payload = {}) {
+  // Monotonic snapshot guard: a /me payload can arrive late (in-flight poll,
+  // focus refresh) or be served stale — never apply a snapshot that is not
+  // strictly newer than what we already have, or a burned pet "resurrects"
+  // and a claimed farm rolls back in the UI without any page refresh.
+  if (payload?.profileUpdatedAt) {
+    if (state.profileUpdatedAt && payload.profileUpdatedAt <= state.profileUpdatedAt) {
+      return;
+    }
+    state.profileUpdatedAt = String(payload.profileUpdatedAt);
+  }
+
   if (payload?.battleState) {
     applyBattleStatePayload(payload.battleState);
     updateEnergyUi();
@@ -7411,6 +7423,15 @@ async function performBurn(characterId, confirmBtn) {
     showToast(`Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
   } catch (error) {
     closeBurnConfirm();
+    if (error && error.code === "NOT_FOUND") {
+      // The server is the source of truth: the pet is already gone (e.g. a
+      // stale snapshot resurrected it in the UI) — drop the card locally.
+      state.characters = state.characters.filter(
+        (record) => String(record.id) !== String(characterId)
+      );
+      state.openCardMenuId = "";
+      if (isCabinetScreenActive()) renderCabinet();
+    }
     showToast(error.message || "Couldn't burn the pet.");
   } finally {
     burnRequestInFlight = false;

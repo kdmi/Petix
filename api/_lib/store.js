@@ -56,6 +56,7 @@ const EMPTY_WALLET_PROFILE = {
   currency: { balance: 0, totalEarned: 0 },
   paidSlots: 0,
   withdrawals: [],
+  profileUpdatedAt: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -101,7 +102,15 @@ function cloneWalletProfile(profile) {
     withdrawals: Array.isArray(profile?.withdrawals)
       ? profile.withdrawals.map((record) => cloneRecord(record))
       : [],
+    profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };
+}
+
+// Monotonic write stamp: lets readers (and the client) detect and discard a
+// stale profile snapshot that arrives after a newer write.
+function stampProfileUpdatedAt(profile) {
+  profile.profileUpdatedAt = new Date().toISOString();
+  return profile;
 }
 
 function normalizeWalletProfile(rawValue) {
@@ -515,7 +524,7 @@ async function listAllCharacters() {
 
 async function saveWalletProfile(wallet, profile) {
   if (isBlobDbEnabled()) {
-    const normalized = normalizeWalletProfile(profile);
+    const normalized = stampProfileUpdatedAt(normalizeWalletProfile(profile));
     const key = String(wallet || "").trim();
     const previous = walletWriteQueues.get(key) || Promise.resolve();
     const next = previous.catch(() => null).then(async () => {
@@ -536,7 +545,7 @@ async function saveWalletProfile(wallet, profile) {
   }
 
   return withDbMutation(async (db) => {
-    db.records[wallet] = normalizeWalletProfile(profile);
+    db.records[wallet] = stampProfileUpdatedAt(normalizeWalletProfile(profile));
     return cloneWalletProfile(db.records[wallet]);
   });
 }
@@ -549,8 +558,8 @@ async function updateWalletProfile(wallet, updater) {
       const current = await getWalletProfile(wallet);
       const updated = await updater(cloneWalletProfile(current));
       const normalized = updated
-        ? normalizeWalletProfile(updated)
-        : cloneWalletProfile(EMPTY_WALLET_PROFILE);
+        ? stampProfileUpdatedAt(normalizeWalletProfile(updated))
+        : stampProfileUpdatedAt(cloneWalletProfile(EMPTY_WALLET_PROFILE));
 
       await writeWalletProfileBlob(wallet, normalized);
       walletProfileReadCache.delete(wallet);
@@ -577,7 +586,7 @@ async function updateWalletProfile(wallet, updater) {
       return cloneWalletProfile(EMPTY_WALLET_PROFILE);
     }
 
-    db.records[wallet] = normalizeWalletProfile(next);
+    db.records[wallet] = stampProfileUpdatedAt(normalizeWalletProfile(next));
     return cloneWalletProfile(db.records[wallet]);
   });
 }
