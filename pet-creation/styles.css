@@ -2434,7 +2434,7 @@ body.withdraw-modal-open {
 
 /* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */
 .cabinet-character.is-burning {
-  animation: cabinet-burn-fade 0.5s ease-in 10s forwards;
+  animation: cabinet-burn-fade 0.5s ease-in 4s forwards;
   pointer-events: none;
 }
 

@@ -7123,8 +7123,8 @@ function openBurnConfirm(characterId) {
   if (cancelBtn) cancelBtn.focus();
 }
 
-const BURN_ANIMATION_MS = 10600; // rise + fade; keep in sync with .cabinet-character.is-burning CSS
-const BURN_RISE_MS = 10000;
+const BURN_ANIMATION_MS = 4600; // rise + fade; keep in sync with .cabinet-character.is-burning CSS
+const BURN_RISE_MS = 4000;
 const BURN_COLUMNS = 12;
 const BURN_STREAM_INTERVAL_MS = 140; // school-pride-style 🔥 streams off the burn front
 const BURN_STREAM_SOURCES = 2; // emitters per tick
@@ -7195,7 +7195,7 @@ function playBurnAnimation(characterId) {
         delay: Math.random() * 0.12, // ignition offset, fraction of the timeline
         phase: Math.random() * Math.PI * 2,
         wobbleAmp: 0.04 + Math.random() * 0.05,
-        wobbleFreq: 4 + Math.random() * 5,
+        wobbleFreq: 2 + Math.random() * 2,
       });
     }
 
