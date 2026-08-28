@@ -9,7 +9,7 @@ const {
   withIsolatedBattleHistoryEnv,
 } = require("./helpers/battle-history-test-utils");
 
-const BURN_COST = 500; // default from api/_lib/economy-config.js
+const BURN_COST = 1000; // default from api/_lib/economy-config.js
 
 function burnRequest(auth, wallet, petId) {
   return {

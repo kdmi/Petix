@@ -2421,15 +2421,34 @@ body.withdraw-modal-open {
   color: #d92d20;
 }
 
+.cabinet-card-menu-item__label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.cabinet-card-menu-item__label img {
+  display: block;
+  flex-shrink: 0;
+}
+
 .cabinet-card-menu-item--danger:hover,
 .cabinet-card-menu-item--danger:focus-visible {
   background: #fef3f2;
 }
 
 .cabinet-card-menu-item__price {
+  align-items: center;
   color: #98a2b3;
+  display: inline-flex;
   font-size: 12px;
   font-weight: 600;
+  gap: 4px;
+}
+
+.cabinet-card-menu-item__price img {
+  display: block;
+  flex-shrink: 0;
 }
 
 /* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */

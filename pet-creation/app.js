@@ -6841,8 +6841,14 @@ function renderCabinet() {
                 data-action="burn"
                 data-character-id="${record.id}"
               >
-                <span class="cabinet-card-menu-item__label">Burn</span>
-                <span class="cabinet-card-menu-item__price">${formatPoints(getBurnCost())} Points</span>
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/dashboard/burn-fire.svg" alt="" width="16" height="16" />
+                  Burn
+                </span>
+                <span class="cabinet-card-menu-item__price">
+                  ${formatPoints(getBurnCost())}
+                  <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
+                </span>
               </button>
             </div>
             `
@@ -7055,7 +7061,7 @@ async function buySlotFlow() {
 
 // === Burn a character (feature 014): card ⋯-menu → confirm dialog → POST /api/character/burn ===
 
-const DEFAULT_BURN_COST = 500; // fallback until /api/character/me delivers the runtime value
+const DEFAULT_BURN_COST = 1000; // fallback until /api/character/me delivers the runtime value
 
 function getBurnCost() {
   return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
