@@ -1,7 +1,8 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
-const { del, get, list, put } = require("@vercel/blob");
+const { del, list, put } = require("@vercel/blob");
+const { getFreshBlob } = require("./blob-read");
 const { normalizeBattleState } = require("./battle-energy");
 const { normalizeCurrency } = require("./currency");
 const { normalizeFarmState } = require("./farm");
@@ -173,7 +174,7 @@ async function readBlobText(stream) {
 }
 
 async function loadLegacyBlobDbSnapshot() {
-  const blobResult = await get(DB_BLOB_PATH, {
+  const blobResult = await getFreshBlob(DB_BLOB_PATH, {
     access: "public",
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {
@@ -279,7 +280,7 @@ async function listBlobPathnames(prefix) {
 async function loadWalletProfileFromBlobPath(pathname) {
   if (!pathname) return null;
 
-  const blobResult = await get(pathname, {
+  const blobResult = await getFreshBlob(pathname, {
     access: "public",
   }).catch((error) => {
     if (error?.name === "BlobNotFoundError") {

@@ -15,6 +15,7 @@ const path = require("path");
 //   });
 
 const BLOB_MODULE_ID = require.resolve("@vercel/blob");
+const BLOB_READ_PATH = path.resolve(__dirname, "../../../api/_lib/blob-read.js");
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
 const BATTLE_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/battle-store.js");
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
@@ -62,7 +63,9 @@ function createFakeBlob({ initialState = {} } = {}) {
   const fake = {
     async get(pathname) {
       counts.get += 1;
-      const entry = state.get(pathname);
+      // Real blob storage ignores the query string (cache-busting `?fresh=`
+      // from api/_lib/blob-read.js) — the fake must too.
+      const entry = state.get(String(pathname).split("?")[0]);
       if (!entry) {
         throw blobNotFound();
       }
@@ -169,6 +172,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
       paths: [],
     };
 
+    clearModule(BLOB_READ_PATH);
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
 
@@ -185,6 +189,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
       tempDir,
     });
   } finally {
+    clearModule(BLOB_READ_PATH);
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
 
@@ -218,6 +223,7 @@ async function withFakeBlobIntegrationEnv(run, { initialState = {} } = {}) {
   const handle = createFakeBlob({ initialState });
 
   const modulePaths = [
+    BLOB_READ_PATH,
     STORE_PATH,
     BATTLE_STORE_PATH,
     AUTH_PATH,

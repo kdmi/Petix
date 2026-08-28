@@ -1,7 +1,8 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
-const { get, put } = require("@vercel/blob");
+const { put } = require("@vercel/blob");
+const { getFreshBlob } = require("./blob-read");
 
 // Singleton store for runtime-tunable economy overrides (Farm-экономика, feature 013).
 // Dual backend mirroring battle-store: dev → local JSON, prod → @vercel/blob.
@@ -42,7 +43,7 @@ async function readBlobText(stream) {
 }
 
 async function readJsonBlob(pathname, fallback) {
-  const result = await get(pathname, { access: "public" }).catch((error) => {
+  const result = await getFreshBlob(pathname, { access: "public" }).catch((error) => {
     if (error?.name === "BlobNotFoundError") return null;
     throw error;
   });
