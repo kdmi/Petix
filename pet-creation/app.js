@@ -7129,19 +7129,19 @@ const BURN_FADE_MS = 600; // fade-out tail after the rise (0.5s CSS animation + 
 // Tunable burn-FX parameters. These defaults are the shipped look; the
 // Burn FX Lab (open the dashboard with ?burnlab=1) adjusts them live.
 const BURN_FX = {
-  RISE_MS: 4000, // full bottom→top burn duration
-  IGNITION: 0.18, // fraction of the rise spent igniting (flames grow, front smolders)
+  RISE_MS: 2400, // full bottom→top burn duration
+  IGNITION: 0.23, // per-column lag between a flame igniting and its front moving
   CURVE_EXP: 1.35, // front profile local^exp — higher = slower start, harder acceleration
-  WOBBLE_AMP: 0.065, // ragged-front jitter amplitude (fraction of card height)
-  WOBBLE_FREQ: 3, // jitter waves per rise
+  WOBBLE_AMP: 0.1, // ragged-front jitter amplitude (fraction of card height)
+  WOBBLE_FREQ: 1, // jitter waves per rise
   FLAME_MIN: 44, // smallest base flame, px
-  FLAME_RANGE: 26, // random extra base flame size, px
-  GROW_START: 0.5, // size envelope right after ignition (× base)
-  GROW_PEAK: 1.25, // size envelope at the peak, just before burnout (× base)
-  BURNOUT_START: 0.85, // fraction of the rise where flames start dying down
-  FLICKER_S: 0.7, // base flame flicker period, seconds
-  STREAM_INTERVAL_MS: 140, // school-pride 🔥 stream cadence
-  STREAM_SOURCES: 2, // emitters per stream tick
+  FLAME_RANGE: 60, // random extra base flame size, px
+  GROW_START: 0.3, // size envelope right after ignition (× base)
+  GROW_PEAK: 1.9, // size envelope at the peak, just before burnout (× base)
+  BURNOUT_START: 1, // fraction of the rise where flames start dying down (1 = never)
+  FLICKER_S: 0.65, // base flame flicker period, seconds
+  STREAM_INTERVAL_MS: 80, // school-pride 🔥 stream cadence
+  STREAM_SOURCES: 3, // emitters per stream tick
 };
 
 let burnFireShape = null; // cached canvas-confetti emoji shape
@@ -7209,7 +7209,6 @@ function playBurnAnimation(characterId, { preview = false } = {}) {
         strip,
         flame,
         flameSize,
-        delay: Math.random() * 0.12, // per-column front offset, fraction of the timeline
         igniteDelay: Math.random() * 0.1, // when this flame starts growing in
         phase: Math.random() * Math.PI * 2,
         wobbleAmp: BURN_FX.WOBBLE_AMP * (0.75 + Math.random() * 0.5),
@@ -7299,11 +7298,16 @@ function playBurnAnimation(characterId, { preview = false } = {}) {
     }
 
     function frame(now) {
-      const t = Math.min(1, (now - started) / BURN_FX.RISE_MS);
+      const elapsed = now - started;
+      const t = Math.min(1, elapsed / BURN_FX.RISE_MS);
+      // Fade tail: after the rise the flames keep drifting up past the card
+      // edge while everything fades out.
+      const tail = clamp01((elapsed - BURN_FX.RISE_MS) / BURN_FADE_MS);
+      const lift = 70 * (1 - Math.pow(1 - tail, 2));
       const raw = columns.map((col) => {
-        // The front waits out the ignition phase, then accelerates (fire
-        // gathering strength): power curve instead of a flat ease-in start.
-        const start = BURN_FX.IGNITION + col.delay * 0.5;
+        // Each column starts charring shortly after ITS OWN flame has grown
+        // in — ignition and movement overlap instead of a global wait.
+        const start = col.igniteDelay + BURN_FX.IGNITION * 0.5;
         const local = clamp01((t - start) / (1 - start));
         const profile = Math.pow(local, BURN_FX.CURVE_EXP);
         // Jitter fades in/out so every column starts at 0 and ends fully burned.
@@ -7326,28 +7330,29 @@ function playBurnAnimation(characterId, { preview = false } = {}) {
         const effSize = col.flameSize * flameEnvelope(t, col.igniteDelay);
         col.lastHeight = height;
         col.strip.style.height = `${height.toFixed(1)}px`;
-        // Center the flame on the front so it straddles (and hides) the line.
+        // Center the flame on the front so it straddles (and hides) the line;
+        // in the fade tail it keeps drifting up past the card edge.
         col.flame.style.fontSize = `${effSize.toFixed(1)}px`;
-        col.flame.style.bottom = `${(height - effSize * 0.55).toFixed(1)}px`;
+        col.flame.style.bottom = `${(height - effSize * 0.55 + lift).toFixed(1)}px`;
       });
       for (const edge of edgeFlames) {
         const effSize = edge.size * flameEnvelope(t, edge.igniteDelay);
         edge.flame.style.fontSize = `${effSize.toFixed(1)}px`;
-        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - effSize * 0.55).toFixed(1)}px`;
+        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - effSize * 0.55 + lift).toFixed(1)}px`;
       }
-      if (t < 1) {
-        // Streams join in once the fire has properly caught.
-        if (
-          fireShape &&
-          t > BURN_FX.IGNITION * 0.7 &&
-          now - lastStreamAt >= BURN_FX.STREAM_INTERVAL_MS
-        ) {
-          lastStreamAt = now;
-          emitFireStreams();
-        }
-        requestAnimationFrame(frame);
-      } else {
+      if (t >= 1) {
         overlay.classList.add("is-burned-out");
+      } else if (
+        // Streams join in once the fire has properly caught.
+        fireShape &&
+        t > BURN_FX.IGNITION * 0.7 &&
+        now - lastStreamAt >= BURN_FX.STREAM_INTERVAL_MS
+      ) {
+        lastStreamAt = now;
+        emitFireStreams();
+      }
+      if (tail < 1) {
+        requestAnimationFrame(frame);
       }
     }
     requestAnimationFrame(frame);

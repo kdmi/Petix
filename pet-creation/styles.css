@@ -2434,7 +2434,7 @@ body.withdraw-modal-open {
 
 /* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */
 .cabinet-character.is-burning {
-  animation: cabinet-burn-fade 0.5s ease-in 4s forwards;
+  animation: cabinet-burn-fade 0.5s ease-in 2.4s forwards; /* delay is overridden inline from BURN_FX.RISE_MS */
   pointer-events: none;
 }
 
@@ -2502,7 +2502,7 @@ body.withdraw-modal-open {
   line-height: 1;
   position: absolute;
   transform: translateX(-50%);
-  transition: opacity 0.35s ease;
+  transition: opacity 0.55s ease;
 }
 
 .cabinet-burn-overlay.is-burned-out .cabinet-burn-flame {
