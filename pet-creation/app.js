@@ -917,6 +917,7 @@ const state = {
   nextSlotPrice: null,
   burnCost: null,
   openCardMenuId: "",
+  burningCharacterId: "",
   farmActionCharacterId: "",
   recentClaims: {},
 };
@@ -6731,6 +6732,9 @@ async function startFightFlow(characterId) {
 }
 
 function renderCabinet() {
+  // A burn animation is playing on a live card — re-rendering would wipe it.
+  // performBurn re-renders once the animation finishes.
+  if (state.burningCharacterId) return;
   if (dashboardTopbar) {
     dashboardTopbar.classList.remove("is-battle-header");
   }
@@ -7119,6 +7123,45 @@ function openBurnConfirm(characterId) {
   if (cancelBtn) cancelBtn.focus();
 }
 
+const BURN_ANIMATION_MS = 2000;
+const BURN_FLAME_COUNT = 7;
+
+// Char the card bottom→top with 🔥 riding the burn line, resolve when it's ash.
+function playBurnAnimation(characterId) {
+  return new Promise((resolve) => {
+    const card = cabinetCard
+      ? cabinetCard.querySelector(`.cabinet-character[data-character-id="${characterId}"]`)
+      : null;
+    const surface = card ? card.querySelector(".success-card") : null;
+    const reducedMotion =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!card || !surface || reducedMotion) {
+      resolve();
+      return;
+    }
+
+    const flames = Array.from({ length: BURN_FLAME_COUNT }, (_, index) => {
+      const left = (index + 0.5) * (100 / BURN_FLAME_COUNT) + (Math.random() * 8 - 4);
+      const size = 14 + Math.round(Math.random() * 10);
+      const duration = 0.3 + Math.random() * 0.25;
+      const delay = Math.random() * 0.3;
+      return `<span style="left:${left.toFixed(1)}%;font-size:${size}px;animation-duration:${duration.toFixed(2)}s;animation-delay:${delay.toFixed(2)}s;">🔥</span>`;
+    }).join("");
+
+    const overlay = document.createElement("div");
+    overlay.className = "cabinet-burn-overlay";
+    overlay.innerHTML = `
+      <div class="cabinet-burn-overlay__char">
+        <div class="cabinet-burn-overlay__flames">${flames}</div>
+      </div>
+    `;
+    surface.appendChild(overlay);
+    card.classList.add("is-burning");
+
+    window.setTimeout(resolve, BURN_ANIMATION_MS);
+  });
+}
+
 async function performBurn(characterId, confirmBtn) {
   burnRequestInFlight = true;
   confirmBtn.disabled = true;
@@ -7127,9 +7170,6 @@ async function performBurn(characterId, confirmBtn) {
     const result = await apiRequest("/api/character/burn", { petId: characterId });
     // Authoritative response — do NOT re-read /api/character/me right away
     // (blob CDN can serve a stale profile and resurrect the burned pet).
-    state.characters = state.characters.filter(
-      (record) => String(record.id) !== String(characterId)
-    );
     if (result && typeof result.balance === "number") {
       state.currency = { ...state.currency, balance: result.balance };
       state.pendingCurrency = null;
@@ -7142,8 +7182,19 @@ async function performBurn(characterId, confirmBtn) {
     }
     closeBurnConfirm();
     state.openCardMenuId = "";
-    if (isCabinetScreenActive()) renderCabinet();
     updateDashboardPointsUi();
+
+    state.burningCharacterId = String(characterId);
+    try {
+      await playBurnAnimation(characterId);
+    } finally {
+      state.burningCharacterId = "";
+    }
+
+    state.characters = state.characters.filter(
+      (record) => String(record.id) !== String(characterId)
+    );
+    if (isCabinetScreenActive()) renderCabinet();
     showToast(`Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
   } catch (error) {
     closeBurnConfirm();

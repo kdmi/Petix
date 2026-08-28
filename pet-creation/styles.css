@@ -2432,6 +2432,97 @@ body.withdraw-modal-open {
   font-weight: 600;
 }
 
+/* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */
+.cabinet-character.is-burning {
+  animation: cabinet-burn-fade 0.35s ease-in 1.6s forwards;
+  pointer-events: none;
+}
+
+.cabinet-burn-overlay {
+  border-radius: inherit;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 6;
+}
+
+.cabinet-burn-overlay__char {
+  animation: cabinet-burn-rise 1.55s cubic-bezier(0.3, 0, 0.7, 1) forwards;
+  background: linear-gradient(
+    to top,
+    #0a0a0c 0%,
+    #141417 70%,
+    #1f1c1a 92%,
+    rgba(43, 30, 20, 0.9) 100%
+  );
+  bottom: 0;
+  box-shadow: 0 -8px 22px rgba(255, 122, 26, 0.55);
+  height: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.cabinet-burn-overlay__char::before {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 138, 20, 0.95),
+    rgba(255, 72, 0, 0.75),
+    rgba(255, 186, 51, 0.95),
+    rgba(255, 96, 8, 0.8)
+  );
+  content: "";
+  filter: blur(2px);
+  height: 7px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: -3px;
+}
+
+.cabinet-burn-overlay__flames {
+  height: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.cabinet-burn-overlay__flames span {
+  animation: cabinet-burn-flicker 0.4s ease-in-out infinite alternate;
+  bottom: -6px;
+  filter: drop-shadow(0 0 6px rgba(255, 120, 20, 0.8));
+  line-height: 1;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+@keyframes cabinet-burn-rise {
+  from {
+    height: 0;
+  }
+  to {
+    height: 103%;
+  }
+}
+
+@keyframes cabinet-burn-flicker {
+  from {
+    transform: translateX(-50%) translateY(2px) scale(0.82) rotate(-7deg);
+  }
+  to {
+    transform: translateX(-50%) translateY(-5px) scale(1.18) rotate(7deg);
+  }
+}
+
+@keyframes cabinet-burn-fade {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 /* Burn confirmation modal */
 .burn-modal-backdrop {
   align-items: center;
