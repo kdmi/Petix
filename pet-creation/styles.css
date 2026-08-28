@@ -2335,19 +2335,386 @@ body.withdraw-modal-open {
 }
 
 .cabinet-success-card .success-card-title {
-  left: 16px;
-  right: 16px;
-  text-align: center;
-  transform: none;
-}
-
-.cabinet-character--upgradeable .cabinet-success-card .success-card-title {
   left: 20px;
-  right: 96px;
+  right: 52px;
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
+  transform: none;
   white-space: nowrap;
+}
+
+.cabinet-character--upgradeable .cabinet-success-card .success-card-title {
+  right: 136px;
+}
+
+/* ⋯ context menu on cabinet cards (feature 014: burn) */
+.cabinet-card-menu-btn {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  width: 32px;
+  z-index: 4;
+}
+
+.cabinet-card-menu-btn:hover,
+.cabinet-card-menu-btn:focus-visible,
+.cabinet-card-menu-btn.is-open {
+  background: rgba(16, 24, 40, 0.06);
+}
+
+.cabinet-card-menu-btn__dots {
+  align-items: center;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.cabinet-card-menu-btn__dots i {
+  background: #101828;
+  border-radius: 50%;
+  display: block;
+  height: 4px;
+  width: 4px;
+}
+
+.cabinet-card-menu {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.16);
+  min-width: 176px;
+  overflow: hidden;
+  padding: 4px;
+  position: absolute;
+  right: 10px;
+  top: 42px;
+  z-index: 5;
+}
+
+.cabinet-card-menu-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 12px;
+  justify-content: space-between;
+  line-height: 20px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.cabinet-card-menu-item--danger {
+  color: #d92d20;
+}
+
+.cabinet-card-menu-item__label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.cabinet-card-menu-item__label img {
+  display: block;
+  flex-shrink: 0;
+}
+
+.cabinet-card-menu-item--danger:hover,
+.cabinet-card-menu-item--danger:focus-visible {
+  background: #fef3f2;
+}
+
+.cabinet-card-menu-item__price {
+  align-items: center;
+  color: #101828;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 4px;
+}
+
+.cabinet-card-menu-item__price img {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Burn animation: the card chars bottom→top, 🔥 ride the burn line, then it fades */
+.cabinet-character.is-burning {
+  animation: cabinet-burn-fade 0.5s ease-in 2.4s forwards; /* delay is overridden inline from BURN_FX.RISE_MS */
+  pointer-events: none;
+}
+
+.cabinet-burn-overlay {
+  border-radius: inherit;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 6;
+}
+
+/* Clips the char columns to the card shape; flames live outside the clip so
+   they can lick over the card edges. */
+.cabinet-burn-overlay__clip {
+  border-radius: inherit;
+  inset: 0;
+  overflow: hidden;
+  position: absolute;
+}
+
+.cabinet-burn-strip {
+  background: #0f0f12; /* solid: adjacent strips must merge into one char mass */
+  bottom: 0;
+  height: 0;
+  position: absolute;
+}
+
+.cabinet-burn-strip::before {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 138, 20, 0.95),
+    rgba(255, 72, 0, 0.75),
+    rgba(255, 186, 51, 0.95)
+  );
+  content: "";
+  filter: blur(2px);
+  height: 6px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: -3px;
+}
+
+/* Warm charred tint just under the burn front */
+.cabinet-burn-strip::after {
+  background: linear-gradient(to bottom, rgba(64, 40, 22, 0.85), rgba(15, 15, 18, 0));
+  content: "";
+  height: 42px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.cabinet-burn-overlay__flames {
+  inset: 0;
+  overflow: visible;
+  position: absolute;
+}
+
+.cabinet-burn-flame {
+  animation: cabinet-burn-flicker 0.7s ease-in-out infinite alternate;
+  bottom: -9px;
+  filter: drop-shadow(0 0 6px rgba(255, 120, 20, 0.8));
+  line-height: 1;
+  position: absolute;
+  transform: translateX(-50%);
+  transition: opacity 0.55s ease;
+}
+
+.cabinet-burn-overlay.is-burned-out .cabinet-burn-flame {
+  opacity: 0;
+}
+
+@keyframes cabinet-burn-flicker {
+  from {
+    transform: translateX(-50%) translateY(1px) scale(0.92) rotate(-4deg);
+  }
+  to {
+    transform: translateX(-50%) translateY(-3px) scale(1.08) rotate(4deg);
+  }
+}
+
+@keyframes cabinet-burn-fade {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* Burn FX Lab — dev tuning panel (?burnlab=1) */
+.burnfx-lab {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+  display: flex;
+  flex-direction: column;
+  font-family: "Figtree", Arial, sans-serif;
+  gap: 8px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 14px;
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  width: 264px;
+  z-index: 900;
+}
+
+.burnfx-lab__title {
+  color: #101828;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.burnfx-lab__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.burnfx-lab__row input[type="range"] {
+  width: 100%;
+}
+
+.burnfx-lab__head {
+  color: #475467;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  line-height: 16px;
+}
+
+.burnfx-lab__value {
+  color: #101828;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.burnfx-lab__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.burnfx-lab__btn {
+  background: #f2f4f7;
+  border: 0;
+  border-radius: 10px;
+  color: #344054;
+  cursor: pointer;
+  flex: 1;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 10px;
+}
+
+.burnfx-lab__btn--primary {
+  background: #d92d20;
+  color: #fff;
+}
+
+.burnfx-lab__btn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.burnfx-lab__dump {
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  color: #475467;
+  font-size: 10px;
+  line-height: 14px;
+  margin: 0;
+  padding: 8px;
+  user-select: all;
+  white-space: pre-wrap;
+}
+
+/* Burn confirmation modal */
+.burn-modal-backdrop {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 1200;
+}
+
+body.burn-modal-open {
+  overflow: hidden;
+}
+
+.burn-modal {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 20px 48px rgba(16, 24, 40, 0.24);
+  max-width: 360px;
+  padding: 24px;
+  width: 100%;
+}
+
+.burn-modal__title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.burn-modal__text {
+  color: #475467;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0 0 20px;
+}
+
+.burn-modal__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.burn-modal__btn {
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  flex: 1;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  padding: 12px 16px;
+}
+
+.burn-modal__btn--cancel {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.burn-modal__btn--confirm {
+  background: #d92d20;
+  color: #fff;
+}
+
+.burn-modal__btn--confirm:hover:not(:disabled),
+.burn-modal__btn--confirm:focus-visible {
+  background: #b42318;
+}
+
+.burn-modal__btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .cabinet-success-card .success-card-power {
@@ -2378,7 +2745,7 @@ body.withdraw-modal-open {
   min-width: 0;
   padding: 4px 0;
   position: absolute;
-  right: 16px;
+  right: 48px;
   top: 10px;
   z-index: 2;
 }

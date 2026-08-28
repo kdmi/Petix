@@ -44,5 +44,6 @@ module.exports = async (req, res) => {
     paidSlots: profile.paidSlots || 0,
     maxCharacters: getMaxCharacters(profile, cfg),
     nextSlotPrice: getNextSlotPrice(profile, cfg),
+    burnCost: cfg.BURN_COST,
   });
 };

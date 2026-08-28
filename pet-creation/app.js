@@ -915,6 +915,9 @@ const state = {
   paidSlots: 0,
   maxCharacters: MAX_CHARACTERS_PER_WALLET,
   nextSlotPrice: null,
+  burnCost: null,
+  openCardMenuId: "",
+  burningCharacterId: "",
   farmActionCharacterId: "",
   recentClaims: {},
 };
@@ -2317,6 +2320,9 @@ function syncStateWithPayload(payload = {}) {
   if ("nextSlotPrice" in payload) {
     state.nextSlotPrice =
       typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
+  }
+  if (typeof payload.burnCost === "number") {
+    state.burnCost = Math.max(0, Math.floor(payload.burnCost));
   }
 
   let isStaleProfilePayload = false;
@@ -6726,6 +6732,9 @@ async function startFightFlow(characterId) {
 }
 
 function renderCabinet() {
+  // A burn animation is playing on a live card — re-rendering would wipe it.
+  // performBurn re-renders once the animation finishes.
+  if (state.burningCharacterId) return;
   if (dashboardTopbar) {
     dashboardTopbar.classList.remove("is-battle-header");
   }
@@ -6806,10 +6815,52 @@ function renderCabinet() {
         `;
       }).join("");
 
+      const isMenuOpen = String(state.openCardMenuId) === String(record.id);
+      const cardMenuMarkup =
+        record.status === "completed"
+          ? `
+            <button
+              class="cabinet-card-menu-btn${isMenuOpen ? " is-open" : ""}"
+              type="button"
+              data-action="card-menu"
+              data-character-id="${record.id}"
+              aria-haspopup="menu"
+              aria-expanded="${isMenuOpen ? "true" : "false"}"
+              aria-label="Pet options for ${escapeHtml(getRecordDisplayName(record))}"
+            >
+              <span class="cabinet-card-menu-btn__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            ${
+              isMenuOpen
+                ? `
+            <div class="cabinet-card-menu" role="menu">
+              <button
+                class="cabinet-card-menu-item cabinet-card-menu-item--danger"
+                type="button"
+                role="menuitem"
+                data-action="burn"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
+                  Burn
+                </span>
+                <span class="cabinet-card-menu-item__price">
+                  ${formatPoints(getBurnCost())}
+                  <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
+                </span>
+              </button>
+            </div>
+            `
+                : ""
+            }
+          `
+          : "";
       return `
         <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
+            ${cardMenuMarkup}
             ${
               isUpgradeable
                 ? `
@@ -7007,6 +7058,496 @@ async function buySlotFlow() {
     updateDashboardPointsUi();
   }
 }
+
+// === Burn a character (feature 014): card ⋯-menu → confirm dialog → POST /api/character/burn ===
+
+const DEFAULT_BURN_COST = 1000; // fallback until /api/character/me delivers the runtime value
+
+function getBurnCost() {
+  return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
+}
+
+function closeCabinetCardMenu() {
+  if (!state.openCardMenuId) return;
+  state.openCardMenuId = "";
+  if (isCabinetScreenActive()) renderCabinet();
+}
+
+function toggleCabinetCardMenu(characterId) {
+  state.openCardMenuId =
+    String(state.openCardMenuId) === String(characterId) ? "" : String(characterId);
+  renderCabinet();
+}
+
+let burnRequestInFlight = false;
+
+function closeBurnConfirm() {
+  const modal = document.getElementById("burnConfirmBackdrop");
+  if (modal) modal.remove();
+  document.body.classList.remove("burn-modal-open");
+}
+
+function openBurnConfirm(characterId) {
+  const record = state.characters.find(
+    (item) => String(item.id) === String(characterId)
+  );
+  if (!record) return;
+  closeBurnConfirm();
+
+  const backdrop = document.createElement("div");
+  backdrop.id = "burnConfirmBackdrop";
+  backdrop.className = "burn-modal-backdrop";
+  backdrop.innerHTML = `
+    <section class="burn-modal" role="dialog" aria-modal="true" aria-labelledby="burnModalTitle">
+      <h2 class="burn-modal__title" id="burnModalTitle">Burn ${escapeHtml(getRecordDisplayName(record))}?</h2>
+      <p class="burn-modal__text">
+        This will permanently destroy the pet and cost
+        <strong>${formatPoints(getBurnCost())} Points</strong>. The slot stays yours.
+        This cannot be undone.
+      </p>
+      <div class="burn-modal__actions">
+        <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-burn-cancel>Cancel</button>
+        <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-burn-confirm>Burn</button>
+      </div>
+    </section>
+  `;
+
+  backdrop.addEventListener("click", (event) => {
+    if (event.target === backdrop || event.target.closest("[data-burn-cancel]")) {
+      if (!burnRequestInFlight) closeBurnConfirm();
+      return;
+    }
+    const confirmBtn = event.target.closest("[data-burn-confirm]");
+    if (confirmBtn && !burnRequestInFlight) {
+      void performBurn(record.id, confirmBtn);
+    }
+  });
+
+  document.body.appendChild(backdrop);
+  document.body.classList.add("burn-modal-open");
+  const cancelBtn = backdrop.querySelector("[data-burn-cancel]");
+  if (cancelBtn) cancelBtn.focus();
+}
+
+const BURN_COLUMNS = 12;
+const BURN_FADE_MS = 600; // fade-out tail after the rise (0.5s CSS animation + margin)
+
+// Tunable burn-FX parameters. These defaults are the shipped look; the
+// Burn FX Lab (open the dashboard with ?burnlab=1) adjusts them live.
+const BURN_FX = {
+  RISE_MS: 2400, // full bottom→top burn duration
+  IGNITION: 0.23, // per-column lag between a flame igniting and its front moving
+  CURVE_EXP: 1.35, // front profile local^exp — higher = slower start, harder acceleration
+  WOBBLE_AMP: 0.1, // ragged-front jitter amplitude (fraction of card height)
+  WOBBLE_FREQ: 1, // jitter waves per rise
+  FLAME_MIN: 44, // smallest base flame, px
+  FLAME_RANGE: 60, // random extra base flame size, px
+  GROW_START: 0.3, // size envelope right after ignition (× base)
+  GROW_PEAK: 1.7, // size envelope at the peak, just before burnout (× base)
+  BURNOUT_START: 1, // fraction of the rise where flames start dying down (1 = never)
+  FLICKER_S: 0.65, // base flame flicker period, seconds
+  STREAM_INTERVAL_MS: 80, // school-pride 🔥 stream cadence
+  STREAM_SOURCES: 3, // emitters per stream tick
+};
+
+let burnFireShape = null; // cached canvas-confetti emoji shape
+function getBurnFireShape() {
+  if (burnFireShape) return burnFireShape;
+  if (
+    typeof window.confetti !== "function" ||
+    typeof window.confetti.shapeFromText !== "function"
+  ) {
+    // Not cached: the CDN script may simply not have loaded yet.
+    return null;
+  }
+  burnFireShape = window.confetti.shapeFromText({ text: "🔥", scalar: 4 });
+  return burnFireShape;
+}
+
+// Char the card bottom→top with a ragged, fire-like front: the card is split
+// into columns that each burn upward at their own jittery pace, a 🔥 rides the
+// top of every column (covering the burned/unburned boundary), sparks pop off
+// the front. Resolves when the card has burned out.
+// options.preview: play the animation only — restore the card afterwards
+// (used by the Burn FX Lab; no API call, nothing deleted).
+function playBurnAnimation(characterId, { preview = false } = {}) {
+  return new Promise((resolve) => {
+    const card = cabinetCard
+      ? cabinetCard.querySelector(`.cabinet-character[data-character-id="${characterId}"]`)
+      : null;
+    const surface = card ? card.querySelector(".success-card") : null;
+    const reducedMotion =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!card || !surface || reducedMotion) {
+      resolve();
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = "cabinet-burn-overlay";
+    const clip = document.createElement("div");
+    clip.className = "cabinet-burn-overlay__clip";
+    const flamesLayer = document.createElement("div");
+    flamesLayer.className = "cabinet-burn-overlay__flames";
+
+    const columnWidth = 100 / BURN_COLUMNS;
+    const columns = [];
+    for (let i = 0; i < BURN_COLUMNS; i += 1) {
+      const strip = document.createElement("div");
+      strip.className = "cabinet-burn-strip";
+      strip.style.left = `${(i * columnWidth - 0.6).toFixed(2)}%`;
+      strip.style.width = `${(columnWidth + 1.2).toFixed(2)}%`;
+      clip.appendChild(strip);
+
+      // Big overlapping flames (~2-3 column widths each) so the burn line
+      // itself is never visible — the front hides behind a wall of fire.
+      const flameSize = BURN_FX.FLAME_MIN + Math.round(Math.random() * BURN_FX.FLAME_RANGE);
+      const flame = document.createElement("span");
+      flame.className = "cabinet-burn-flame";
+      flame.textContent = "🔥";
+      flame.style.left = `${(i * columnWidth + columnWidth * (0.2 + Math.random() * 0.6)).toFixed(1)}%`;
+      flame.style.fontSize = `${flameSize}px`;
+      flame.style.animationDuration = `${(BURN_FX.FLICKER_S * (0.8 + Math.random() * 0.6)).toFixed(2)}s`;
+      flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
+      flamesLayer.appendChild(flame);
+
+      columns.push({
+        strip,
+        flame,
+        flameSize,
+        igniteDelay: Math.random() * 0.1, // when this flame starts growing in
+        phase: Math.random() * Math.PI * 2,
+        wobbleAmp: BURN_FX.WOBBLE_AMP * (0.75 + Math.random() * 0.5),
+        wobbleFreq: BURN_FX.WOBBLE_FREQ * (0.75 + Math.random() * 0.5),
+      });
+    }
+
+    // Extra flames pinned to the card's left/right borders (half overhanging)
+    // so the card edge at the burn front is hidden too.
+    const edgeFlames = [0, columns.length - 1].map((columnIndex, side) => {
+      const size = 48 + Math.round(Math.random() * 22);
+      const flame = document.createElement("span");
+      flame.className = "cabinet-burn-flame";
+      flame.textContent = "🔥";
+      flame.style.left = side === 0 ? "0%" : "100%";
+      flame.style.fontSize = `${size}px`;
+      flame.style.animationDuration = `${(BURN_FX.FLICKER_S * (0.8 + Math.random() * 0.6)).toFixed(2)}s`;
+      flame.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
+      flamesLayer.appendChild(flame);
+      return { flame, size, igniteDelay: Math.random() * 0.1, column: columns[columnIndex] };
+    });
+
+    overlay.appendChild(clip);
+    overlay.appendChild(flamesLayer);
+    surface.appendChild(overlay);
+    card.classList.add("is-burning");
+    // The fade-out must start exactly when the rise ends (CSS default is the
+    // shipped 4s — override for the current RISE_MS).
+    card.style.animationDelay = `${BURN_FX.RISE_MS}ms`;
+
+    const surfaceHeight = surface.offsetHeight || 452;
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+    // Flames grow in over ~10% of the timeline, easing out.
+    const flameGrowth = (t, igniteDelay) => {
+      const g = clamp01((t - igniteDelay) / 0.1);
+      return 1 - Math.pow(1 - g, 2);
+    };
+    // Size envelope over the whole burn: ignite small → keep growing all the
+    // way (peak GROW_PEAK× near the end) → shrink to embers as everything is ash.
+    const flameEnvelope = (t, igniteDelay) => {
+      const burnoutStart = BURN_FX.BURNOUT_START;
+      const ignite = flameGrowth(t, igniteDelay);
+      const grow =
+        BURN_FX.GROW_START +
+        (BURN_FX.GROW_PEAK - BURN_FX.GROW_START) * (Math.min(t, burnoutStart) / burnoutStart);
+      const burnout =
+        t <= burnoutStart
+          ? 1
+          : Math.max(0.1, 1 - 0.9 * Math.pow((t - burnoutStart) / (1 - burnoutStart), 1.5));
+      return Math.max(0.08, ignite * grow * burnout);
+    };
+    const started = performance.now();
+    const fireShape = getBurnFireShape();
+    let lastStreamAt = 0;
+
+    // School-pride-style continuous streams: pick random spots on the burn
+    // front and shoot 🔥 particles upward from the boundary line.
+    function emitFireStreams() {
+      const rect = surface.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const viewportWidth = Math.max(window.innerWidth || 0, 1);
+      const viewportHeight = Math.max(window.innerHeight || 0, 1);
+      for (let k = 0; k < BURN_FX.STREAM_SOURCES; k += 1) {
+        const index = Math.floor(Math.random() * columns.length);
+        const frontHeight = parseFloat(columns[index].strip.style.height) || 0;
+        const x = rect.left + ((index + 0.5) / BURN_COLUMNS) * rect.width;
+        const y = rect.bottom - frontHeight;
+        window.confetti({
+          particleCount: 2,
+          angle: 90 + (Math.random() * 24 - 12),
+          spread: 42,
+          startVelocity: 16 + Math.random() * 14,
+          gravity: 0.5,
+          decay: 0.93,
+          drift: Math.random() * 0.6 - 0.3,
+          ticks: 70,
+          scalar: 1.6 + Math.random() * 1.2,
+          shapes: [fireShape],
+          origin: {
+            x: clampNumber(x / viewportWidth, 0, 1),
+            y: clampNumber(y / viewportHeight, 0, 1),
+          },
+          disableForReducedMotion: true,
+          zIndex: 1100,
+        });
+      }
+    }
+
+    function frame(now) {
+      const elapsed = now - started;
+      const t = Math.min(1, elapsed / BURN_FX.RISE_MS);
+      // Fade tail: after the rise the flames keep drifting up past the card
+      // edge while everything fades out.
+      const tail = clamp01((elapsed - BURN_FX.RISE_MS) / BURN_FADE_MS);
+      const lift = 70 * (1 - Math.pow(1 - tail, 2));
+      const raw = columns.map((col) => {
+        // Each column starts charring shortly after ITS OWN flame has grown
+        // in — ignition and movement overlap instead of a global wait.
+        const start = col.igniteDelay + BURN_FX.IGNITION * 0.5;
+        const local = clamp01((t - start) / (1 - start));
+        const profile = Math.pow(local, BURN_FX.CURVE_EXP);
+        // Jitter fades in/out so every column starts at 0 and ends fully burned.
+        const wobble =
+          col.wobbleAmp *
+          Math.sin(col.wobbleFreq * t * Math.PI * 2 + col.phase) *
+          local *
+          (1 - local) *
+          4;
+        // Smolder: a few px of char appear under the growing flames right away.
+        const smolder = 0.012 * flameGrowth(t, col.igniteDelay) * (1 - local);
+        return clamp01(profile + wobble + smolder);
+      });
+      columns.forEach((col, i) => {
+        // Blend with neighbours so the front reads as one ragged wave, not a picket fence.
+        const prev = raw[i - 1] != null ? raw[i - 1] : raw[i];
+        const next = raw[i + 1] != null ? raw[i + 1] : raw[i];
+        const progress = (prev + 2 * raw[i] + next) / 4;
+        const height = progress * surfaceHeight;
+        const effSize = col.flameSize * flameEnvelope(t, col.igniteDelay);
+        col.lastHeight = height;
+        col.strip.style.height = `${height.toFixed(1)}px`;
+        // Center the flame on the front so it straddles (and hides) the line;
+        // in the fade tail it keeps drifting up past the card edge.
+        col.flame.style.fontSize = `${effSize.toFixed(1)}px`;
+        col.flame.style.bottom = `${(height - effSize * 0.55 + lift).toFixed(1)}px`;
+      });
+      for (const edge of edgeFlames) {
+        const effSize = edge.size * flameEnvelope(t, edge.igniteDelay);
+        edge.flame.style.fontSize = `${effSize.toFixed(1)}px`;
+        edge.flame.style.bottom = `${((edge.column.lastHeight || 0) - effSize * 0.55 + lift).toFixed(1)}px`;
+      }
+      if (t >= 1) {
+        overlay.classList.add("is-burned-out");
+      } else if (
+        // Streams join in once the fire has properly caught.
+        fireShape &&
+        t > BURN_FX.IGNITION * 0.7 &&
+        now - lastStreamAt >= BURN_FX.STREAM_INTERVAL_MS
+      ) {
+        lastStreamAt = now;
+        emitFireStreams();
+      }
+      if (tail < 1) {
+        requestAnimationFrame(frame);
+      }
+    }
+    requestAnimationFrame(frame);
+
+    window.setTimeout(() => {
+      if (preview) {
+        // Lab mode: nothing was actually burned — put the card back.
+        overlay.remove();
+        card.classList.remove("is-burning");
+        card.style.removeProperty("animation-delay");
+      }
+      resolve();
+    }, BURN_FX.RISE_MS + BURN_FADE_MS);
+  });
+}
+
+async function performBurn(characterId, confirmBtn) {
+  burnRequestInFlight = true;
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Burning...";
+  try {
+    const result = await apiRequest("/api/character/burn", { petId: characterId });
+    // Authoritative response — do NOT re-read /api/character/me right away
+    // (blob CDN can serve a stale profile and resurrect the burned pet).
+    if (result && typeof result.balance === "number") {
+      state.currency = { ...state.currency, balance: result.balance };
+      state.pendingCurrency = null;
+    }
+    if (result && typeof result.maxCharacters === "number") {
+      state.maxCharacters = Math.max(1, Math.floor(result.maxCharacters));
+    }
+    if (result && typeof result.paidSlots === "number") {
+      state.paidSlots = Math.max(0, Math.floor(result.paidSlots));
+    }
+    closeBurnConfirm();
+    state.openCardMenuId = "";
+    updateDashboardPointsUi();
+
+    state.burningCharacterId = String(characterId);
+    try {
+      await playBurnAnimation(characterId);
+    } finally {
+      state.burningCharacterId = "";
+    }
+
+    state.characters = state.characters.filter(
+      (record) => String(record.id) !== String(characterId)
+    );
+    if (isCabinetScreenActive()) renderCabinet();
+    showToast(`Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
+  } catch (error) {
+    closeBurnConfirm();
+    showToast(error.message || "Couldn't burn the pet.");
+  } finally {
+    burnRequestInFlight = false;
+  }
+}
+
+function burnFlow(characterId) {
+  // One pyre at a time: a second burn while one is animating would clobber
+  // the render suppression (state.burningCharacterId).
+  if (burnRequestInFlight || state.burningCharacterId) return;
+  closeCabinetCardMenu();
+  openBurnConfirm(characterId);
+}
+
+// === Burn FX Lab — dev tuning panel for the burn animation. ===
+// Open the dashboard with ?burnlab=1: sliders drive BURN_FX live, and
+// "Preview burn" replays the animation on the first card without burning
+// anything (no API call, the card is restored afterwards).
+
+const BURN_FX_LAB_FIELDS = [
+  ["RISE_MS", "Rise duration (ms)", 1000, 15000, 100],
+  ["IGNITION", "Ignition fraction", 0, 0.5, 0.01],
+  ["CURVE_EXP", "Front curve exponent", 0.8, 3, 0.05],
+  ["WOBBLE_AMP", "Wobble amplitude", 0, 0.15, 0.005],
+  ["WOBBLE_FREQ", "Wobble waves / rise", 0.5, 8, 0.25],
+  ["FLAME_MIN", "Flame base min (px)", 16, 90, 2],
+  ["FLAME_RANGE", "Flame base range (px)", 0, 60, 2],
+  ["GROW_START", "Size envelope start (×)", 0.2, 1.5, 0.05],
+  ["GROW_PEAK", "Size envelope peak (×)", 0.6, 2.5, 0.05],
+  ["BURNOUT_START", "Burnout start (0–1)", 0.5, 1, 0.01],
+  ["FLICKER_S", "Flicker period (s)", 0.2, 1.5, 0.05],
+  ["STREAM_INTERVAL_MS", "🔥 stream interval (ms)", 40, 400, 10],
+  ["STREAM_SOURCES", "🔥 stream sources", 0, 5, 1],
+];
+
+async function runBurnFxPreview(button) {
+  if (burnRequestInFlight || state.burningCharacterId) return;
+  const card = cabinetCard
+    ? cabinetCard.querySelector(".cabinet-character[data-character-id]")
+    : null;
+  if (!card) {
+    showToast("Open the Cabinet with at least one pet to preview.");
+    return;
+  }
+  const characterId = card.dataset.characterId;
+  button.disabled = true;
+  state.burningCharacterId = String(characterId);
+  try {
+    await playBurnAnimation(characterId, { preview: true });
+  } finally {
+    state.burningCharacterId = "";
+    button.disabled = false;
+    if (isCabinetScreenActive()) renderCabinet();
+  }
+}
+
+function initBurnFxLab() {
+  if (!new URLSearchParams(window.location.search).has("burnlab")) return;
+  if (document.getElementById("burnFxLab")) return;
+
+  const panel = document.createElement("aside");
+  panel.id = "burnFxLab";
+  panel.className = "burnfx-lab";
+
+  const title = document.createElement("div");
+  title.className = "burnfx-lab__title";
+  title.textContent = "🔥 Burn FX Lab";
+  panel.appendChild(title);
+
+  const dump = document.createElement("pre");
+  dump.className = "burnfx-lab__dump";
+  const renderDump = () => {
+    dump.textContent = JSON.stringify(BURN_FX, null, 2);
+  };
+
+  BURN_FX_LAB_FIELDS.forEach(([key, label, min, max, step]) => {
+    const row = document.createElement("label");
+    row.className = "burnfx-lab__row";
+    const head = document.createElement("span");
+    head.className = "burnfx-lab__head";
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    const value = document.createElement("span");
+    value.className = "burnfx-lab__value";
+    value.textContent = String(BURN_FX[key]);
+    head.appendChild(caption);
+    head.appendChild(value);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = String(BURN_FX[key]);
+    input.addEventListener("input", () => {
+      BURN_FX[key] = Number(input.value);
+      value.textContent = String(BURN_FX[key]);
+      renderDump();
+    });
+
+    row.appendChild(head);
+    row.appendChild(input);
+    panel.appendChild(row);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "burnfx-lab__actions";
+  const previewBtn = document.createElement("button");
+  previewBtn.type = "button";
+  previewBtn.className = "burnfx-lab__btn burnfx-lab__btn--primary";
+  previewBtn.textContent = "▶ Preview burn";
+  previewBtn.addEventListener("click", () => void runBurnFxPreview(previewBtn));
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "burnfx-lab__btn";
+  copyBtn.textContent = "Copy values";
+  copyBtn.addEventListener("click", () => {
+    const text = JSON.stringify(BURN_FX, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast("Burn FX values copied."),
+        () => showToast("Copy failed — grab them from the panel below.")
+      );
+    } else {
+      showToast("Clipboard unavailable — grab the values from the panel below.");
+    }
+  });
+  actions.appendChild(previewBtn);
+  actions.appendChild(copyBtn);
+  panel.appendChild(actions);
+  panel.appendChild(dump);
+  renderDump();
+
+  document.body.appendChild(panel);
+}
+
+initBurnFxLab();
 
 const FARM_TICK_SVG =
   '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true"><path d="M5 10.5l3.2 3.2L15 6.8" stroke="#039855" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -8344,6 +8885,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Rarity × Legendary", "rarity:Legendary", rarity.Legendary)}
           ${ecoNumberRow("Battle reward base", "BATTLE_REWARD_BASE", cfg.BATTLE_REWARD_BASE)}
           ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
+          ${ecoNumberRow("Burn cost", "BURN_COST", cfg.BURN_COST)}
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
           ${ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }])}
@@ -8390,7 +8932,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -9066,6 +9608,21 @@ function init() {
 
   if (cabinetCard) {
     cabinetCard.addEventListener("click", (event) => {
+      const cardMenuButton = event.target.closest('[data-action="card-menu"]');
+      if (cardMenuButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleCabinetCardMenu(cardMenuButton.dataset.characterId);
+        return;
+      }
+
+      const burnButton = event.target.closest('[data-action="burn"]');
+      if (burnButton) {
+        event.preventDefault();
+        burnFlow(burnButton.dataset.characterId);
+        return;
+      }
+
       const upgradeButton = event.target.closest('[data-action="open-upgrade"]');
       if (upgradeButton) {
         event.preventDefault();
@@ -9103,6 +9660,20 @@ function init() {
       startFightFlow(fightButton.dataset.characterId);
     });
   }
+
+  document.addEventListener("click", (event) => {
+    if (!state.openCardMenuId) return;
+    if (event.target.closest(".cabinet-card-menu") || event.target.closest('[data-action="card-menu"]')) {
+      return;
+    }
+    closeCabinetCardMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (state.openCardMenuId) closeCabinetCardMenu();
+    if (!burnRequestInFlight) closeBurnConfirm();
+  });
 
   window.addEventListener("popstate", () => {
     if (!state.isAuthenticated || getPageMode() !== "dashboard") {

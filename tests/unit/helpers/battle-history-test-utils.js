@@ -14,6 +14,7 @@ const BATTLE_BY_ID_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/[b
 const OPPONENTS_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/opponents.js");
 const CHARACTER_IMAGE_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/image.js");
 const CHARACTER_UPGRADE_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/upgrade.js");
+const CHARACTER_BURN_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/burn.js");
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
 
@@ -48,6 +49,7 @@ async function withIsolatedBattleHistoryEnv(run, options = {}) {
     freshRequire(BATTLE_MATCHMAKING_PATH);
     freshRequire(BATTLE_LIB_PATH);
     freshRequire(CHARACTER_UPGRADE_ROUTE_PATH);
+    freshRequire(CHARACTER_BURN_ROUTE_PATH);
     const characterActionRoute = freshRequire(CHARACTER_ACTION_ROUTE_PATH);
     const adminActionRoute = freshRequire(ADMIN_ACTION_ROUTE_PATH);
 
@@ -76,6 +78,7 @@ async function withIsolatedBattleHistoryEnv(run, options = {}) {
     clearModule(CHARACTER_ACTION_ROUTE_PATH);
     clearModule(ADMIN_ACTION_ROUTE_PATH);
     clearModule(CHARACTER_UPGRADE_ROUTE_PATH);
+    clearModule(CHARACTER_BURN_ROUTE_PATH);
     clearModule(BATTLE_LIB_PATH);
     clearModule(BATTLE_MATCHMAKING_PATH);
     clearModule(CHARACTER_LIB_PATH);
