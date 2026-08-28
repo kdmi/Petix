@@ -49,15 +49,34 @@ function blobNotFound() {
   return err;
 }
 
+function blobPreconditionFailed() {
+  const err = new Error("Precondition failed: ETag mismatch.");
+  err.name = "BlobPreconditionFailedError";
+  return err;
+}
+
 function createFakeBlob({ initialState = {} } = {}) {
   const state = new Map(Object.entries(initialState));
   const counts = { get: 0, put: 0, list: 0, del: 0, head: 0, copy: 0 };
+  const staleReadsByPath = new Map(); // pathname → how many next get()s serve the previous version
+  let etagCounter = 0;
 
   function setEntry(pathname, content, { uploadedAt } = {}) {
+    etagCounter += 1;
+    const previous = state.get(pathname) || null;
     state.set(pathname, {
       content: String(content),
       uploadedAt: uploadedAt || new Date().toISOString(),
+      etag: `etag-${etagCounter}`,
+      previous,
     });
+  }
+
+  // Emulate the Blob edge cache serving the pre-overwrite version: the next
+  // `count` get()s of this pathname return the previous entry (stale content
+  // AND stale etag), like a cached CDN response.
+  function primeStaleReads(pathname, count = 1) {
+    staleReadsByPath.set(pathname, count);
   }
 
   const fake = {
@@ -65,14 +84,20 @@ function createFakeBlob({ initialState = {} } = {}) {
       counts.get += 1;
       // Real blob storage ignores the query string (cache-busting `?fresh=`
       // from api/_lib/blob-read.js) — the fake must too.
-      const entry = state.get(String(pathname).split("?")[0]);
+      const cleanPath = String(pathname).split("?")[0];
+      let entry = state.get(cleanPath);
       if (!entry) {
         throw blobNotFound();
+      }
+      const staleLeft = staleReadsByPath.get(cleanPath) || 0;
+      if (staleLeft > 0 && entry.previous) {
+        staleReadsByPath.set(cleanPath, staleLeft - 1);
+        entry = entry.previous;
       }
       return {
         statusCode: 200,
         stream: makeReadableStream(entry.content),
-        blob: { etag: entry.uploadedAt },
+        blob: { etag: entry.etag || entry.uploadedAt },
       };
     },
     async put(pathname, content, opts = {}) {
@@ -83,6 +108,13 @@ function createFakeBlob({ initialState = {} } = {}) {
         throw new Error(
           `[fake blob] put() called with addRandomSuffix:true on ${pathname} — expected stable path`
         );
+      }
+      if (opts.ifMatch) {
+        const existing = state.get(pathname);
+        const currentEtag = existing ? existing.etag || existing.uploadedAt : null;
+        if (currentEtag !== opts.ifMatch) {
+          throw blobPreconditionFailed();
+        }
       }
       setEntry(pathname, content, { uploadedAt: new Date().toISOString() });
       return {
@@ -138,6 +170,7 @@ function createFakeBlob({ initialState = {} } = {}) {
     counts,
     state,
     setEntry,
+    primeStaleReads,
     resetCounts() {
       for (const key of Object.keys(counts)) counts[key] = 0;
     },
@@ -185,6 +218,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
       counts: handle.counts,
       state: handle.state,
       setEntry: handle.setEntry,
+      primeStaleReads: handle.primeStaleReads,
       resetCounts: handle.resetCounts,
       tempDir,
     });

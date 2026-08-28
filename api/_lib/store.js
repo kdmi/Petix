@@ -286,7 +286,7 @@ async function listBlobPathnames(prefix) {
   return blobs;
 }
 
-async function loadWalletProfileFromBlobPath(pathname) {
+async function loadWalletProfileBlobWithEtag(pathname) {
   if (!pathname) return null;
 
   const blobResult = await getFreshBlob(pathname, {
@@ -303,7 +303,36 @@ async function loadWalletProfileFromBlobPath(pathname) {
   }
 
   const raw = await readBlobText(blobResult.stream);
-  return normalizeWalletProfile(raw ? JSON.parse(raw) : EMPTY_WALLET_PROFILE);
+  return {
+    profile: normalizeWalletProfile(raw ? JSON.parse(raw) : EMPTY_WALLET_PROFILE),
+    etag: blobResult.blob?.etag || null,
+  };
+}
+
+async function loadWalletProfileFromBlobPath(pathname) {
+  const loaded = await loadWalletProfileBlobWithEtag(pathname);
+  return loaded ? loaded.profile : null;
+}
+
+// Read the deterministic profile blob together with its ETag for a CAS write.
+// `staleEtag` (from a failed ifMatch put) forces re-reads until the storage
+// stops serving that exact stale version.
+async function readWalletProfileForCas(wallet, { staleEtag = null } = {}) {
+  const pathname = buildWalletProfileBlobPath(wallet);
+  let last = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    last = await loadWalletProfileBlobWithEtag(pathname);
+    if (!last) {
+      return { profile: null, etag: null };
+    }
+    if (!staleEtag || !last.etag || last.etag !== staleEtag) {
+      return last;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
+  }
+
+  return last;
 }
 
 async function loadBlobWalletProfile(wallet) {
@@ -370,14 +399,22 @@ function mergeRecordMaps(...maps) {
   };
 }
 
-async function writeWalletProfileBlob(wallet, profile) {
+async function writeWalletProfileBlob(wallet, profile, { ifMatch = null } = {}) {
   await put(buildWalletProfileBlobPath(wallet), JSON.stringify(normalizeWalletProfile(profile), null, 2), {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
     cacheControlMaxAge: 0,
+    ...(ifMatch ? { ifMatch } : {}),
   });
+}
+
+function isEtagConflictError(error) {
+  return (
+    error?.constructor?.name === "BlobPreconditionFailedError" ||
+    /precondition failed/i.test(String(error?.message || ""))
+  );
 }
 
 async function withDbMutation(mutate) {
@@ -550,21 +587,51 @@ async function saveWalletProfile(wallet, profile) {
   });
 }
 
+const PROFILE_CAS_ATTEMPTS = 5;
+
 async function updateWalletProfile(wallet, updater) {
   if (isBlobDbEnabled()) {
     const key = String(wallet || "").trim();
     const previous = walletWriteQueues.get(key) || Promise.resolve();
     const next = previous.catch(() => null).then(async () => {
-      const current = await getWalletProfile(wallet);
-      const updated = await updater(cloneWalletProfile(current));
-      const normalized = updated
-        ? stampProfileUpdatedAt(normalizeWalletProfile(updated))
-        : stampProfileUpdatedAt(cloneWalletProfile(EMPTY_WALLET_PROFILE));
+      // Compare-and-swap: the in-memory queue only serializes writes within
+      // THIS lambda instance. Concurrent invocations (or a stale read) would
+      // silently clobber each other's writes, so every write carries the
+      // ETag of the profile version it was computed from; on a conflict we
+      // re-read and re-run the updater.
+      let staleEtag = null;
 
-      await writeWalletProfileBlob(wallet, normalized);
-      walletProfileReadCache.delete(wallet);
-      dbReadCache = null;
-      return cloneWalletProfile(normalized);
+      for (let attempt = 0; attempt < PROFILE_CAS_ATTEMPTS; attempt += 1) {
+        const { profile: direct, etag } = await readWalletProfileForCas(wallet, { staleEtag });
+        // No deterministic blob yet → legacy/list fallback (or a brand-new
+        // wallet); no CAS possible on the first write of the deterministic file.
+        const current = direct || (await getWalletProfile(wallet));
+
+        const updated = await updater(cloneWalletProfile(current));
+        const normalized = updated
+          ? stampProfileUpdatedAt(normalizeWalletProfile(updated))
+          : stampProfileUpdatedAt(cloneWalletProfile(EMPTY_WALLET_PROFILE));
+
+        try {
+          await writeWalletProfileBlob(wallet, normalized, { ifMatch: direct ? etag : null });
+        } catch (error) {
+          if (isEtagConflictError(error)) {
+            if (attempt < PROFILE_CAS_ATTEMPTS - 1) {
+              staleEtag = etag;
+              walletProfileReadCache.delete(wallet);
+              continue;
+            }
+            throw new Error("Profile write conflict — please retry.");
+          }
+          throw error;
+        }
+
+        walletProfileReadCache.delete(wallet);
+        dbReadCache = null;
+        return cloneWalletProfile(normalized);
+      }
+
+      throw new Error("Profile write conflict — please retry.");
     });
     walletWriteQueues.set(key, next);
 
