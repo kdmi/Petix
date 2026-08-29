@@ -41,8 +41,9 @@ test("getWalletProfile reads a legacy-only wallet via list+get fallback", async 
 
     assert.equal(profile.characters[0].id, "fresher");
     assert.equal(counts.list, 1, "exactly one list during fallback");
-    // Two gets: one missed deterministic + one for the freshest legacy file.
-    assert.ok(counts.get >= 2 && counts.get <= 3, `expected 2–3 gets in fallback, got ${counts.get}`);
+    // The deterministic miss is now detected via head() (API metadata), so
+    // only the freshest legacy file itself is fetched with get.
+    assert.ok(counts.get >= 1 && counts.get <= 3, `expected 1–3 gets in fallback, got ${counts.get}`);
   });
 });
 
