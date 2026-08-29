@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const fs = require("fs/promises");
 const os = require("os");
 const path = require("path");
@@ -67,7 +68,9 @@ function createFakeBlob({ initialState = {} } = {}) {
     state.set(pathname, {
       content: String(content),
       uploadedAt: uploadedAt || new Date().toISOString(),
-      etag: `etag-${etagCounter}`,
+      // Real Vercel Blob etags are quoted md5 hex of the content — the
+      // content-addressed version path in store.js depends on that.
+      etag: `"${crypto.createHash("md5").update(String(content)).digest("hex")}"`,
       previous,
     });
   }

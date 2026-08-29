@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
-const { del, head, list, put } = require("@vercel/blob");
+const { del, get, head, list, put } = require("@vercel/blob");
 const { getFreshBlob } = require("./blob-read");
 const { normalizeBattleState } = require("./battle-energy");
 const { normalizeCurrency } = require("./currency");
@@ -233,6 +233,19 @@ function buildWalletProfileBlobPath(wallet) {
   return `${WALLET_PROFILE_BLOB_PREFIX}/${encodeURIComponent(String(wallet || "").trim())}.json`;
 }
 
+// Content-addressed immutable copy of every profile version. Overwritten
+// blobs are served stale by the CDN/origin for tens of seconds in the
+// functions region, but a blob at a NEVER-REUSED pathname has no older
+// version to serve — and the canonical etag of the deterministic blob IS
+// the md5 of its content, which is exactly this pathname's key.
+function md5Hex(text) {
+  return crypto.createHash("md5").update(text).digest("hex");
+}
+
+function buildWalletProfileVersionPath(wallet, contentMd5) {
+  return `${WALLET_PROFILE_BLOB_PREFIX}-v/${encodeURIComponent(String(wallet || "").trim())}/${contentMd5}.json`;
+}
+
 function extractWalletFromProfileBlobPath(pathname) {
   const prefix = `${WALLET_PROFILE_BLOB_PREFIX}/`;
   if (!String(pathname || "").startsWith(prefix)) {
@@ -286,12 +299,13 @@ async function listBlobPathnames(prefix) {
   return blobs;
 }
 
-async function loadWalletProfileBlobWithEtag(pathname) {
+async function loadWalletProfileBlobWithEtag(pathname, { fresh = true } = {}) {
   if (!pathname) return null;
 
-  const blobResult = await getFreshBlob(pathname, {
-    access: "public",
-  }).catch((error) => {
+  const read = fresh
+    ? getFreshBlob(pathname, { access: "public" })
+    : get(pathname, { access: "public" });
+  const blobResult = await read.catch((error) => {
     if (error?.name === "BlobNotFoundError") {
       return null;
     }
@@ -323,52 +337,54 @@ function normalizeEtag(value) {
     .replace(/^"+|"+$/g, "");
 }
 
-// Read the deterministic profile blob together with the CANONICAL ETag (from
-// head(), which hits the API, not the CDN) for a CAS write. Re-reads while the
-// CDN content does not match the head version, or while it still serves the
-// exact version a previous ifMatch put conflicted on (`staleEtag`).
-async function readWalletProfileForCas(wallet, { staleEtag = null } = {}) {
+// Consistent profile read: head() on the deterministic blob (API — always
+// current) gives the canonical etag, which equals the md5 of the current
+// content; that md5 addresses the immutable version blob, whose content by
+// construction matches the etag. No overwrite-staleness can leak in.
+// Returns { profile, etag } or null when the deterministic blob is absent.
+async function readWalletProfileConsistent(wallet) {
   const pathname = buildWalletProfileBlobPath(wallet);
-  let last = { profile: null, etag: null };
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const meta = await head(pathname).catch((error) => {
-      if (error?.name === "BlobNotFoundError") return null;
-      throw error;
-    });
-    if (!meta) {
-      return { profile: null, etag: null };
-    }
-
-    const loaded = await loadWalletProfileBlobWithEtag(pathname);
-    if (!loaded) {
-      return { profile: null, etag: null };
-    }
-
-    const canonicalEtag = meta.etag || null;
-    last = { profile: loaded.profile, etag: canonicalEtag || loaded.etag };
-
-    const contentMatchesHead =
-      !canonicalEtag || !loaded.etag || normalizeEtag(loaded.etag) === normalizeEtag(canonicalEtag);
-    const isKnownStale =
-      staleEtag && last.etag && normalizeEtag(last.etag) === normalizeEtag(staleEtag);
-
-    if (contentMatchesHead && !isKnownStale) {
-      return last;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
+  const meta = await head(pathname).catch((error) => {
+    if (error?.name === "BlobNotFoundError") return null;
+    throw error;
+  });
+  if (!meta) {
+    return null;
   }
 
-  // Couldn't couple content and version — proceed with the canonical etag so
-  // a concurrent writer still can't be clobbered silently.
-  return last;
+  const canonicalEtag = meta.etag || null;
+  const contentMd5 = normalizeEtag(canonicalEtag);
+
+  if (/^[a-f0-9]{32}$/.test(contentMd5)) {
+    const versionPath = buildWalletProfileVersionPath(wallet, contentMd5);
+    // Immutable pathname → plain (cacheable) read is safe and preferred.
+    // Retry only when the deterministic blob was written moments ago (its
+    // version blob may not have replicated yet); a MISSING version blob on
+    // an old write just means a pre-migration profile — don't stall reads.
+    const uploadedMs = new Date(meta.uploadedAt).getTime();
+    const isRecentWrite = Number.isFinite(uploadedMs) && Date.now() - uploadedMs < 60000;
+    const attempts = isRecentWrite ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const loaded = await loadWalletProfileBlobWithEtag(versionPath, { fresh: false });
+      if (loaded) {
+        return { profile: loaded.profile, etag: canonicalEtag };
+      }
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      }
+    }
+  }
+
+  // Old profile (no version blob yet) or replication lag exhausted the
+  // retries: best-effort cache-busted read of the deterministic blob.
+  const fallback = await loadWalletProfileBlobWithEtag(pathname);
+  return fallback ? { profile: fallback.profile, etag: canonicalEtag || fallback.etag } : null;
 }
 
 async function loadBlobWalletProfile(wallet) {
-  const direct = await loadWalletProfileFromBlobPath(buildWalletProfileBlobPath(wallet));
+  const direct = await readWalletProfileConsistent(wallet);
   if (direct) {
-    return direct;
+    return direct.profile;
   }
 
   const blobs = await listBlobPathnames(buildWalletProfileBlobPrefix(wallet));
@@ -430,7 +446,22 @@ function mergeRecordMaps(...maps) {
 }
 
 async function writeWalletProfileBlob(wallet, profile, { ifMatch = null } = {}) {
-  await put(buildWalletProfileBlobPath(wallet), JSON.stringify(normalizeWalletProfile(profile), null, 2), {
+  const json = JSON.stringify(normalizeWalletProfile(profile), null, 2);
+
+  // 1. Immutable content-addressed version FIRST — readers resolve the
+  //    deterministic blob's etag (= md5 of this json) to this pathname, so
+  //    it must exist before the pointer flips. Long cache age is safe and
+  //    desirable: the content at this pathname never changes.
+  await put(buildWalletProfileVersionPath(wallet, md5Hex(json)), json, {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true, // idempotent: same md5 ⇒ same content
+    contentType: "application/json",
+    cacheControlMaxAge: 31536000,
+  });
+
+  // 2. Deterministic pointer/content blob (also the legacy read path).
+  await put(buildWalletProfileBlobPath(wallet), json, {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -629,10 +660,10 @@ async function updateWalletProfile(wallet, updater) {
       // silently clobber each other's writes, so every write carries the
       // ETag of the profile version it was computed from; on a conflict we
       // re-read and re-run the updater.
-      let staleEtag = null;
-
       for (let attempt = 0; attempt < PROFILE_CAS_ATTEMPTS; attempt += 1) {
-        const { profile: direct, etag } = await readWalletProfileForCas(wallet, { staleEtag });
+        const consistent = await readWalletProfileConsistent(wallet);
+        const direct = consistent ? consistent.profile : null;
+        const etag = consistent ? consistent.etag : null;
         // No deterministic blob yet → legacy/list fallback (or a brand-new
         // wallet); no CAS possible on the first write of the deterministic file.
         const current = direct || (await getWalletProfile(wallet));
@@ -647,7 +678,6 @@ async function updateWalletProfile(wallet, updater) {
         } catch (error) {
           if (isEtagConflictError(error)) {
             if (attempt < PROFILE_CAS_ATTEMPTS - 1) {
-              staleEtag = etag;
               walletProfileReadCache.delete(wallet);
               continue;
             }
