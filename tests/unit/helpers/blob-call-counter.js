@@ -79,6 +79,13 @@ function createFakeBlob({ initialState = {} } = {}) {
     staleReadsByPath.set(pathname, count);
   }
 
+  // Emulate concurrent writers: the next `count` put()s that carry ifMatch
+  // fail with 412 regardless of the etag (unconditional puts still succeed).
+  let conditionalPutFailures = 0;
+  function failConditionalPuts(count = 1) {
+    conditionalPutFailures = count;
+  }
+
   const fake = {
     async get(pathname) {
       counts.get += 1;
@@ -110,6 +117,10 @@ function createFakeBlob({ initialState = {} } = {}) {
         );
       }
       if (opts.ifMatch) {
+        if (conditionalPutFailures > 0) {
+          conditionalPutFailures -= 1;
+          throw blobPreconditionFailed();
+        }
         const existing = state.get(pathname);
         const currentEtag = existing ? existing.etag || existing.uploadedAt : null;
         if (currentEtag !== opts.ifMatch) {
@@ -148,12 +159,15 @@ function createFakeBlob({ initialState = {} } = {}) {
     },
     async head(pathname) {
       counts.head += 1;
-      const entry = state.get(pathname);
+      // head() goes to the API, never the CDN — it always sees the latest
+      // version even while get() is primed to serve stale reads.
+      const entry = state.get(String(pathname).split("?")[0]);
       if (!entry) throw blobNotFound();
       return {
         pathname,
         uploadedAt: entry.uploadedAt,
         size: entry.content.length,
+        etag: entry.etag || entry.uploadedAt,
       };
     },
     async copy(from, to) {
@@ -171,6 +185,7 @@ function createFakeBlob({ initialState = {} } = {}) {
     state,
     setEntry,
     primeStaleReads,
+    failConditionalPuts,
     resetCounts() {
       for (const key of Object.keys(counts)) counts[key] = 0;
     },
@@ -219,6 +234,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
       state: handle.state,
       setEntry: handle.setEntry,
       primeStaleReads: handle.primeStaleReads,
+      failConditionalPuts: handle.failConditionalPuts,
       resetCounts: handle.resetCounts,
       tempDir,
     });

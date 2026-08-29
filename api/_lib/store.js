@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
-const { del, list, put } = require("@vercel/blob");
+const { del, head, list, put } = require("@vercel/blob");
 const { getFreshBlob } = require("./blob-read");
 const { normalizeBattleState } = require("./battle-energy");
 const { normalizeCurrency } = require("./currency");
@@ -314,24 +314,54 @@ async function loadWalletProfileFromBlobPath(pathname) {
   return loaded ? loaded.profile : null;
 }
 
-// Read the deterministic profile blob together with its ETag for a CAS write.
-// `staleEtag` (from a failed ifMatch put) forces re-reads until the storage
-// stops serving that exact stale version.
+// HTTP-header etags (from the CDN GET) may be weak (`W/"..."`) or quoted,
+// while the put API compares against the canonical etag from head()/put().
+// Normalize only for COMPARISON — never pass a normalized value to ifMatch.
+function normalizeEtag(value) {
+  return String(value || "")
+    .replace(/^W\//i, "")
+    .replace(/^"+|"+$/g, "");
+}
+
+// Read the deterministic profile blob together with the CANONICAL ETag (from
+// head(), which hits the API, not the CDN) for a CAS write. Re-reads while the
+// CDN content does not match the head version, or while it still serves the
+// exact version a previous ifMatch put conflicted on (`staleEtag`).
 async function readWalletProfileForCas(wallet, { staleEtag = null } = {}) {
   const pathname = buildWalletProfileBlobPath(wallet);
-  let last = null;
+  let last = { profile: null, etag: null };
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    last = await loadWalletProfileBlobWithEtag(pathname);
-    if (!last) {
+    const meta = await head(pathname).catch((error) => {
+      if (error?.name === "BlobNotFoundError") return null;
+      throw error;
+    });
+    if (!meta) {
       return { profile: null, etag: null };
     }
-    if (!staleEtag || !last.etag || last.etag !== staleEtag) {
+
+    const loaded = await loadWalletProfileBlobWithEtag(pathname);
+    if (!loaded) {
+      return { profile: null, etag: null };
+    }
+
+    const canonicalEtag = meta.etag || null;
+    last = { profile: loaded.profile, etag: canonicalEtag || loaded.etag };
+
+    const contentMatchesHead =
+      !canonicalEtag || !loaded.etag || normalizeEtag(loaded.etag) === normalizeEtag(canonicalEtag);
+    const isKnownStale =
+      staleEtag && last.etag && normalizeEtag(last.etag) === normalizeEtag(staleEtag);
+
+    if (contentMatchesHead && !isKnownStale) {
       return last;
     }
+
     await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
   }
 
+  // Couldn't couple content and version — proceed with the canonical etag so
+  // a concurrent writer still can't be clobbered silently.
   return last;
 }
 
@@ -621,9 +651,17 @@ async function updateWalletProfile(wallet, updater) {
               walletProfileReadCache.delete(wallet);
               continue;
             }
-            throw new Error("Profile write conflict — please retry.");
+            // Fail open: availability beats strict CAS here. After several
+            // re-read+retry rounds the base is at most ~a second old, which
+            // is no worse than the pre-CAS behaviour — and a hard error
+            // would block farms/burns/battles entirely.
+            console.warn(
+              `[store] profile CAS kept conflicting for ${wallet} — falling back to unconditional write`
+            );
+            await writeWalletProfileBlob(wallet, normalized);
+          } else {
+            throw error;
           }
-          throw error;
         }
 
         walletProfileReadCache.delete(wallet);
