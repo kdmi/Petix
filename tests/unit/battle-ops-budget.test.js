@@ -111,9 +111,11 @@ async function invokeBattlesRoute(battlesRoute, { headers, body }) {
 //   - the second `updateWalletProfile(defender)` for the notification (−2 ops, US3)
 //   - the per-profile `list()` on every `getWalletProfile` (−several ops, US1)
 //
-// Realistic post-feature target: ≤ 12 Advanced ops on a fresh-wallets battle.
-// Anything higher is a regression we want surfaced loudly.
-const BATTLE_OPS_BUDGET = 12;
+// Realistic post-feature target: ≤ 14 SDK calls on a fresh-wallets battle —
+// 12 pre-CAS, plus 2 head() calls (one per profile mutation) added by the
+// compare-and-swap writes; head is a cheap "simple" op in Blob billing, not
+// an Advanced one. Anything higher is a regression we want surfaced loudly.
+const BATTLE_OPS_BUDGET = 14;
 
 test(`a single successful battle stays within Advanced-ops budget (≤ ${BATTLE_OPS_BUDGET} SDK calls)`, async () => {
   await withFakeBlobIntegrationEnv(async ({ store, battlesRoute, auth, counts, resetCounts, internalSecret }) => {
