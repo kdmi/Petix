@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 const { del, get, head, list, put } = require("@vercel/blob");
-const { getFreshBlob } = require("./blob-read");
+const { getFreshBlob, isBlobNotFoundError } = require("./blob-read");
 const { normalizeBattleState } = require("./battle-energy");
 const { normalizeCurrency } = require("./currency");
 const { normalizeFarmState } = require("./farm");
@@ -186,7 +186,7 @@ async function loadLegacyBlobDbSnapshot() {
   const blobResult = await getFreshBlob(DB_BLOB_PATH, {
     access: "public",
   }).catch((error) => {
-    if (error?.name === "BlobNotFoundError") {
+    if (isBlobNotFoundError(error)) {
       return null;
     }
     throw error;
@@ -306,7 +306,7 @@ async function loadWalletProfileBlobWithEtag(pathname, { fresh = true } = {}) {
     ? getFreshBlob(pathname, { access: "public" })
     : get(pathname, { access: "public" });
   const blobResult = await read.catch((error) => {
-    if (error?.name === "BlobNotFoundError") {
+    if (isBlobNotFoundError(error)) {
       return null;
     }
     throw error;
@@ -345,7 +345,7 @@ function normalizeEtag(value) {
 async function readWalletProfileConsistent(wallet) {
   const pathname = buildWalletProfileBlobPath(wallet);
   const meta = await head(pathname).catch((error) => {
-    if (error?.name === "BlobNotFoundError") return null;
+    if (isBlobNotFoundError(error)) return null;
     throw error;
   });
   if (!meta) {

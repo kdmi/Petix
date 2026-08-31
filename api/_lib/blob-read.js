@@ -25,7 +25,20 @@ async function getFreshBlob(pathname, options = {}) {
   return get(buildFreshPathname(pathname), { access: "public", ...options });
 }
 
+// @vercel/blob error classes do NOT set `error.name` (it stays "Error"), so a
+// `name === "BlobNotFoundError"` check never matches the real SDK — match on
+// the constructor name and the SDK's message instead.
+function isBlobNotFoundError(error) {
+  if (!error) return false;
+  return (
+    error.name === "BlobNotFoundError" ||
+    error.constructor?.name === "BlobNotFoundError" ||
+    /blob does not exist/i.test(String(error.message || ""))
+  );
+}
+
 module.exports = {
   buildFreshPathname,
   getFreshBlob,
+  isBlobNotFoundError,
 };

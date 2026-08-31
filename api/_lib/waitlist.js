@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 const { list, put } = require("@vercel/blob");
-const { getFreshBlob } = require("./blob-read");
+const { getFreshBlob, isBlobNotFoundError } = require("./blob-read");
 
 const LOCAL_DATA_DIR = path.join(process.cwd(), ".data", "local-dev");
 const LOCAL_WAITLIST_PATH = path.join(LOCAL_DATA_DIR, "waitlist.json");
@@ -84,7 +84,7 @@ async function loadWaitlistEntryFromBlob(pathname) {
   const blobResult = await getFreshBlob(pathname, {
     access: "public",
   }).catch((error) => {
-    if (error?.name === "BlobNotFoundError") {
+    if (isBlobNotFoundError(error)) {
       return null;
     }
     throw error;

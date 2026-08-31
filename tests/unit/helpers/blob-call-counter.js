@@ -44,16 +44,15 @@ function makeReadableStream(content) {
   };
 }
 
+// Mirror the REAL @vercel/blob errors: the SDK's error classes do NOT set
+// `error.name` (it stays "Error") — production code must match on the message
+// (or constructor name), and the fake must not be friendlier than the SDK.
 function blobNotFound() {
-  const err = new Error("Blob not found");
-  err.name = "BlobNotFoundError";
-  return err;
+  return new Error("Vercel Blob: The requested blob does not exist");
 }
 
 function blobPreconditionFailed() {
-  const err = new Error("Precondition failed: ETag mismatch.");
-  err.name = "BlobPreconditionFailedError";
-  return err;
+  return new Error("Vercel Blob: Precondition failed: ETag mismatch.");
 }
 
 function createFakeBlob({ initialState = {} } = {}) {
@@ -97,7 +96,8 @@ function createFakeBlob({ initialState = {} } = {}) {
       const cleanPath = String(pathname).split("?")[0];
       let entry = state.get(cleanPath);
       if (!entry) {
-        throw blobNotFound();
+        // The real get() returns null on 404 — it never throws BlobNotFoundError.
+        return null;
       }
       const staleLeft = staleReadsByPath.get(cleanPath) || 0;
       if (staleLeft > 0 && entry.previous) {

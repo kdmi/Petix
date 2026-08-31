@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 const { put } = require("@vercel/blob");
-const { getFreshBlob } = require("./blob-read");
+const { getFreshBlob, isBlobNotFoundError } = require("./blob-read");
 
 const DATA_DIR =
   process.env.NODE_ENV === "production"
@@ -316,7 +316,7 @@ async function loadBlobDbSnapshot() {
   const blobResult = await getFreshBlob(BATTLES_BLOB_PATH, {
     access: "public",
   }).catch((error) => {
-    if (error?.name === "BlobNotFoundError") {
+    if (isBlobNotFoundError(error)) {
       return null;
     }
     throw error;
