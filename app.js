@@ -128,19 +128,33 @@ async function getWalletConnectProvider() {
   return walletConnectProvider;
 }
 
-// Sign-in must never reuse the previous wallet's pairing (it silently sends
-// the request to the old wallet app instead of showing a fresh QR): drop the
-// in-memory provider AND the session persisted by the bundle, then re-init.
+// The bundle persists its session/pairing state under wc@2:* localStorage
+// keys; init() restores it and silently pushes requests to the previously
+// paired wallet. Purge BEFORE the single init() — a disconnect+re-init dance
+// races the bundle's async storage cleanup and breaks the new pairing.
+function clearWalletConnectStorage() {
+  try {
+    const keys = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith("wc@2:")) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {}
+}
+
+// Sign-in must never reuse the previous wallet's pairing: drop the in-memory
+// provider, purge persisted state, then init exactly once.
 async function getFreshWalletConnectProvider() {
-  let provider = await getWalletConnectProvider();
-  if (provider.session || provider.connected) {
-    walletConnectProvider = null;
+  const existing = walletConnectProvider;
+  walletConnectProvider = null;
+  if (existing) {
     try {
-      await provider.disconnect();
+      await existing.disconnect();
     } catch {}
-    provider = await getWalletConnectProvider();
   }
-  return provider;
+  clearWalletConnectStorage();
+  return getWalletConnectProvider();
 }
 
 function utf8ToHex(value) {
@@ -413,17 +427,29 @@ async function connectWallet(walletKey) {
     if (walletKey === "walletconnect") {
       accounts = await provider.enable();
     } else {
-      // Force the account picker: without this MetaMask silently returns the
-      // account previously connected to the site, ignoring which account is
-      // currently active in the extension.
+      // Never remember the previously connected account: revoke the site
+      // permission first, so the connect dialog opens fresh and defaults to
+      // the account currently active in the extension. (The permissions
+      // picker alone keeps the old account pre-checked — not enough.)
+      let revoked = false;
       try {
         await provider.request({
-          method: "wallet_requestPermissions",
+          method: "wallet_revokePermissions",
           params: [{ eth_accounts: {} }],
         });
-      } catch (permissionError) {
-        if (isUserRejectionError(permissionError)) throw permissionError;
-        // Method not supported (older wallets / in-app browsers) — fall through.
+        revoked = true;
+      } catch {
+        // Method not supported (older wallets / in-app browsers).
+      }
+      if (!revoked) {
+        try {
+          await provider.request({
+            method: "wallet_requestPermissions",
+            params: [{ eth_accounts: {} }],
+          });
+        } catch (permissionError) {
+          if (isUserRejectionError(permissionError)) throw permissionError;
+        }
       }
       accounts = await provider.request({ method: "eth_requestAccounts" });
     }
