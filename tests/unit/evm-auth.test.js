@@ -115,8 +115,20 @@ test("mixed-case address input maps to one lowercase identity", async () => {
   const { challenge, verify } = await signInFlow(wallet, { requestWallet: checksumAddress });
   assert.equal(verify.statusCode, 200);
   assert.equal(verify.body.wallet, checksumAddress.toLowerCase());
-  assert.ok(challenge.body.message.includes(checksumAddress.toLowerCase()));
-  assert.ok(!challenge.body.message.includes(checksumAddress.slice(2).replace(/[a-f0-9]/g, "")));
+  // Canonical SIWE: EIP-55 checksum address in the message, session identity lowercase.
+  assert.ok(challenge.body.message.includes(checksumAddress));
+});
+
+test("challenge message is canonical EIP-4361 with the requesting domain", async () => {
+  const wallet = Wallet.createRandom();
+  const challenge = await requestChallenge(wallet.address);
+  const lines = challenge.body.message.split("\n");
+  assert.equal(lines[0], "localhost:3000 wants you to sign in with your Ethereum account:");
+  assert.equal(lines[1], wallet.address);
+  assert.ok(challenge.body.message.includes("URI: http://localhost:3000"));
+  assert.ok(challenge.body.message.includes("Version: 1"));
+  assert.ok(challenge.body.message.includes("Chain ID: 1"));
+  assert.ok(/Nonce: [0-9a-f]{32}/.test(challenge.body.message));
 });
 
 test("challenge rejects base58 and malformed addresses", async () => {
@@ -160,6 +172,8 @@ test("verify rejects an expired challenge", async () => {
     nonce: "ab".repeat(16),
     iat: Date.now() - 10 * 60 * 1000,
     exp: Date.now() - 5 * 60 * 1000,
+    domain: "localhost:3000",
+    uri: "http://localhost:3000",
   };
   const challengeToken = auth.createToken(expired, -5 * 60 * 1000);
   const parsed = auth.verifyToken(challengeToken);

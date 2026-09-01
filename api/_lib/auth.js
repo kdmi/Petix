@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const bs58Package = require("bs58");
 const nacl = require("tweetnacl");
-const { verifyMessage: verifyEvmMessage } = require("ethers");
+const { verifyMessage: verifyEvmMessage, getAddress: toEvmChecksumAddress } = require("ethers");
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -244,15 +244,39 @@ function normalizeEvmAddress(value) {
   return /^0x[0-9a-f]{40}$/.test(normalized) ? normalized : null;
 }
 
+// Canonical EIP-4361 (SIWE). The first line MUST carry the real requesting
+// domain and the address MUST be EIP-55 checksummed — wallet security
+// scanners (MetaMask/Blockaid) treat a sign-in message whose domain line is
+// a brand name instead of the origin as a wallet-drainer pattern.
 function buildEvmChallengeMessage(challenge) {
   return [
-    "PETIX wants you to sign in with your Ethereum account:",
-    challenge.wallet,
+    `${challenge.domain} wants you to sign in with your Ethereum account:`,
+    toEvmChecksumAddress(challenge.wallet),
     "",
+    "Sign in to PETIX. This request will not trigger a blockchain transaction or cost any gas.",
+    "",
+    `URI: ${challenge.uri}`,
+    "Version: 1",
+    "Chain ID: 1",
     `Nonce: ${challenge.nonce}`,
     `Issued At: ${new Date(challenge.iat).toISOString()}`,
     `Expiration Time: ${new Date(challenge.exp).toISOString()}`,
   ].join("\n");
+}
+
+// domain/uri of the page that initiated the challenge, derived from request
+// headers (Vercel sets x-forwarded-host/-proto; the dev shim sets host).
+function getRequestSiweOrigin(req) {
+  const host =
+    String(req.headers["x-forwarded-host"] || req.headers.host || "")
+      .split(",")[0]
+      .trim() || "petix.fun";
+  const isLocal = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/.test(host);
+  const proto =
+    String(req.headers["x-forwarded-proto"] || "")
+      .split(",")[0]
+      .trim() || (isLocal ? "http" : "https");
+  return { domain: host, uri: `${proto}://${host}` };
 }
 
 function verifyEvmSignedMessage(wallet, message, signatureHex) {
@@ -262,7 +286,7 @@ function verifyEvmSignedMessage(wallet, message, signatureHex) {
   return recovered.toLowerCase() === expected;
 }
 
-function createChallenge(wallet) {
+function createChallenge(wallet, extra = {}) {
   const now = Date.now();
   const expiresAt = now + CHALLENGE_TTL_MS;
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -272,6 +296,7 @@ function createChallenge(wallet) {
     nonce,
     iat: now,
     exp: expiresAt,
+    ...extra,
   };
   const message = buildChallengeMessage(challenge);
 
@@ -426,6 +451,7 @@ module.exports = {
   isLikelyEvmAddress,
   normalizeEvmAddress,
   buildEvmChallengeMessage,
+  getRequestSiweOrigin,
   verifyEvmSignedMessage,
   json,
   parseCookies,

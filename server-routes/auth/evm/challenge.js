@@ -3,6 +3,7 @@ const {
   CHALLENGE_TTL_MS,
   buildEvmChallengeMessage,
   createChallenge,
+  getRequestSiweOrigin,
   handleCors,
   json,
   normalizeEvmAddress,
@@ -27,7 +28,10 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const { challenge, challengeToken, expiresAt } = createChallenge(wallet);
+    const { challenge, challengeToken, expiresAt } = createChallenge(
+      wallet,
+      getRequestSiweOrigin(req)
+    );
     const message = buildEvmChallengeMessage(challenge);
     setCookie(res, CHALLENGE_COOKIE, challengeToken, CHALLENGE_TTL_MS);
     json(res, 200, {
