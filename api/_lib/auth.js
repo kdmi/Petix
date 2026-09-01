@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const bs58Package = require("bs58");
 const nacl = require("tweetnacl");
+const { verifyMessage: verifyEvmMessage } = require("ethers");
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -231,6 +232,36 @@ function isLikelySolanaAddress(value) {
   return typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);
 }
 
+function isLikelyEvmAddress(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+}
+
+// Canonical form: lowercase 0x-address. Every ingress (challenge, verify,
+// internal headers, admin allowlist) must normalize before comparing or storing.
+function normalizeEvmAddress(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^0x[0-9a-f]{40}$/.test(normalized) ? normalized : null;
+}
+
+function buildEvmChallengeMessage(challenge) {
+  return [
+    "PETIX wants you to sign in with your Ethereum account:",
+    challenge.wallet,
+    "",
+    `Nonce: ${challenge.nonce}`,
+    `Issued At: ${new Date(challenge.iat).toISOString()}`,
+    `Expiration Time: ${new Date(challenge.exp).toISOString()}`,
+  ].join("\n");
+}
+
+function verifyEvmSignedMessage(wallet, message, signatureHex) {
+  const expected = normalizeEvmAddress(wallet);
+  if (!expected) return false;
+  const recovered = verifyEvmMessage(message, String(signatureHex));
+  return recovered.toLowerCase() === expected;
+}
+
 function createChallenge(wallet) {
   const now = Date.now();
   const expiresAt = now + CHALLENGE_TTL_MS;
@@ -276,6 +307,8 @@ function walletTypeToName(walletType) {
     phantom: "Phantom",
     solflare: "Solflare",
     trust: "Trust Wallet",
+    metamask: "MetaMask",
+    walletconnect: "WalletConnect",
   };
   return map[walletType] || "Wallet";
 }
@@ -288,13 +321,19 @@ function getAdminWallets() {
   ]
     .flatMap((value) => String(value || "").split(","))
     .map((value) => value.trim())
+    // EVM addresses are case-insensitive — compare in canonical lowercase.
+    // base58 entries stay as-is (case-significant, needed for legacy sessions).
+    .map((value) => (value.toLowerCase().startsWith("0x") ? value.toLowerCase() : value))
     .filter(Boolean);
 
   return Array.from(new Set(configured));
 }
 
 function isAdminWallet(wallet) {
-  const normalizedWallet = String(wallet || "").trim();
+  let normalizedWallet = String(wallet || "").trim();
+  if (normalizedWallet.toLowerCase().startsWith("0x")) {
+    normalizedWallet = normalizedWallet.toLowerCase();
+  }
   return Boolean(normalizedWallet) && getAdminWallets().includes(normalizedWallet);
 }
 
@@ -329,11 +368,16 @@ function createToken(payload, ttlMs) {
 
 function getSessionFromRequest(req) {
   const internalSecret = getInternalApiSecret();
-  const internalWallet = String(req.headers[INTERNAL_WALLET_HEADER] || "").trim();
+  const rawInternalWallet = String(req.headers[INTERNAL_WALLET_HEADER] || "").trim();
+  // Internal calls may carry a legacy base58 wallet or an EVM 0x-address
+  // (normalized to lowercase so mixed case never leaks past the auth layer).
+  const internalWallet = isLikelyEvmAddress(rawInternalWallet)
+    ? normalizeEvmAddress(rawInternalWallet)
+    : rawInternalWallet;
   if (
     internalSecret &&
     String(req.headers[INTERNAL_AUTH_HEADER] || "") === internalSecret &&
-    isLikelySolanaAddress(internalWallet)
+    (isLikelySolanaAddress(internalWallet) || isLikelyEvmAddress(internalWallet))
   ) {
     return {
       type: "internal-session",
@@ -379,6 +423,10 @@ module.exports = {
   isAdminSession,
   isAdminWallet,
   isLikelySolanaAddress,
+  isLikelyEvmAddress,
+  normalizeEvmAddress,
+  buildEvmChallengeMessage,
+  verifyEvmSignedMessage,
   json,
   parseCookies,
   parseJsonBody,

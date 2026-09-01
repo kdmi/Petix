@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Summary
 
-Petix is a browser-based pet battler with Solana wallet identity. Players connect a wallet, generate AI-assisted pets, fight other players' pets, earn XP, level up, and replay past battles. The repo contains the player experience, battle backend, progression system, replayable arena history, and an admin panel — all in one codebase.
+Petix is a browser-based pet battler with EVM wallet identity (MetaMask + WalletConnect; Solana login is retired but its data is preserved). Players connect a wallet, generate AI-assisted pets, fight other players' pets, earn XP, level up, and replay past battles. The repo contains the player experience, battle backend, progression system, replayable arena history, and an admin panel — all in one codebase.
 
 ## Commands
 
@@ -39,11 +39,12 @@ There is no lint script configured in `package.json` despite `AGENTS.md` mention
 
 Create `.env.local` at the repo root. See `README.md` for the full variable table. Key points:
 
-- `SOLANA_AUTH_SECRET` (required, ≥32 chars) — HMAC secret for session/challenge/character cookies in `api/_lib/auth.js`.
+- `SOLANA_AUTH_SECRET` (required, ≥32 chars) — HMAC secret for session/challenge/character cookies in `api/_lib/auth.js`. The legacy name is kept on purpose (it also seeds the blob storage path); auth itself is EVM now.
 - `INTERNAL_API_SECRET` (≥24 chars) — enables internal route auth and produces stable hashed blob paths for storage.
 - `GEMINI_API_KEY` / `GOOGLE_AI_API_KEY` — optional; when absent, battle narration falls back to deterministic template copy.
 - `BLOB_READ_WRITE_TOKEN` + `NODE_ENV=production` — switches storage from local JSON to `@vercel/blob`.
-- `ADMIN_WALLETS` / `ADMIN_WALLET` — extra admin wallets on top of the hard-coded default in `api/_lib/auth.js` (`AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9`).
+- `ADMIN_WALLETS` / `ADMIN_WALLET` — admin wallets on top of the hard-coded legacy default in `api/_lib/auth.js` (`AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9`). EVM `0x…` entries are matched case-insensitively (canonical form is lowercase); current admin: `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`.
+- WalletConnect project id is NOT an env var — it is a public constant in `assets/petix-config.js` (`window.PETIX_WALLETCONNECT_PROJECT_ID`); empty id degrades the WalletConnect button gracefully while MetaMask keeps working.
 
 The dev server loads `.env.local` then `.env` manually (no dotenv dep) — only keys not already in `process.env` are set.
 
@@ -65,7 +66,7 @@ Battle endpoints (`api/battles/*`) are the exception — they live directly unde
 
 All persistence, auth, and game logic lives here and is imported by both the `api/` wrappers and the `server-routes/` handlers. Most important modules:
 
-- `auth.js` — Solana signature verification (tweetnacl + bs58), HMAC-signed cookies for challenge/session/character, CORS helper, internal-secret header auth, and the admin-wallet allowlist.
+- `auth.js` — EVM signature verification (`ethers.verifyMessage`, SIWE-style challenge messages, lowercase address normalization via `normalizeEvmAddress`) plus the retired Solana verifier (tweetnacl + bs58, still used by live legacy sessions), HMAC-signed cookies for challenge/session/character, CORS helper, internal-secret header auth (accepts base58 or 0x wallets), and the admin-wallet allowlist (case-insensitive for 0x entries). Auth routes: `/api/auth/evm/*` (challenge/verify/me/logout); `/api/auth/solana/challenge|verify` return `410 SOLANA_AUTH_DISABLED` (kept for reversibility), while `solana/me|logout` still serve legacy sessions.
 - `store.js` — wallet profile storage. One profile per wallet holds `draft`, `characters`, `notifications`, and `battleState`. Writes are serialized per wallet via a `walletWriteQueues` map. In dev it reads/writes `.data/local-dev/`; in production it reads/writes `@vercel/blob` under a hashed path derived from `INTERNAL_API_SECRET`.
 - `battle-store.js` — battle record storage with the same dev/prod dual backend. Records have lifecycle states (`generating` → `ready`/`failed`) and support paginated history queries per wallet.
 - `battle.js` — battle simulation (deterministic given a seed), reveal bundle construction, and progression application to character records.

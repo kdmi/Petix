@@ -12,49 +12,134 @@ const RARITY_META = {
   common: { label: "Common", color: "#667085", points: 10 },
 };
 
+// Public WalletConnect project id (dashboard.reown.com). Safe to keep in static JS.
+const WALLETCONNECT_PROJECT_ID = window.PETIX_WALLETCONNECT_PROJECT_ID || "";
+const WALLETCONNECT_BUNDLE_URL = "/assets/vendor/wc-ethereum-provider.min.js";
+
+// EIP-6963: collect announced providers so MetaMask is picked correctly even
+// when several wallet extensions fight over window.ethereum.
+const eip6963Providers = [];
+window.addEventListener("eip6963:announceProvider", (event) => {
+  if (event?.detail?.provider) eip6963Providers.push(event.detail);
+});
+try {
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+} catch {}
+
+function getMetaMaskProvider() {
+  const announced = eip6963Providers.find((entry) => entry.info?.rdns === "io.metamask");
+  if (announced) return announced.provider;
+  const candidates = Array.isArray(window.ethereum?.providers) ? window.ethereum.providers : [];
+  const nested = candidates.find((provider) => provider?.isMetaMask);
+  if (nested) return nested;
+  if (window.ethereum?.isMetaMask) return window.ethereum;
+  return null;
+}
+
 const walletConfigs = {
-  phantom: {
-    label: "Phantom",
-    installUrl: "https://phantom.app/",
-    mobileBrowseUrl: (targetUrl) => {
-      const encodedTarget = encodeURIComponent(targetUrl);
-      const encodedRef = encodeURIComponent(window.location.origin);
-      return `https://phantom.app/ul/browse/${encodedTarget}?ref=${encodedRef}`;
-    },
-    getProvider: () => {
-      if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
-      if (window.solana?.isPhantom) return window.solana;
-      return null;
-    },
-  },
-  solflare: {
-    label: "Solflare",
-    installUrl: "https://solflare.com/",
-    mobileBrowseUrl: (targetUrl) => {
-      const encodedTarget = encodeURIComponent(targetUrl);
-      const encodedRef = encodeURIComponent(window.location.origin);
-      return `https://solflare.com/ul/v1/browse/${encodedTarget}?ref=${encodedRef}`;
-    },
-    getProvider: () => {
-      if (window.solflare?.isSolflare) return window.solflare;
-      if (window.SolflareApp) return window.SolflareApp;
-      return null;
-    },
-  },
-  trust: {
-    label: "Trust Wallet",
-    installUrl: "https://trustwallet.com/browser-extension",
+  metamask: {
+    label: "MetaMask",
+    installUrl: "https://metamask.io/download/",
     mobileBrowseUrl: (targetUrl) =>
-      `https://link.trustwallet.com/open_url?coin_id=501&url=${encodeURIComponent(targetUrl)}`,
-    getProvider: () => {
-      if (window.trustwallet?.solana) return window.trustwallet.solana;
-      if (window.trustWallet?.solana) return window.trustWallet.solana;
-      if (window.solana?.isTrust) return window.solana;
-      return null;
-    },
+      `https://metamask.app.link/dapp/${targetUrl.replace(/^https?:\/\//, "")}`,
+    getProvider: () => getMetaMaskProvider(),
+  },
+  walletconnect: {
+    label: "WalletConnect",
+    installUrl: "https://walletguide.walletconnect.network/",
+    // Provider is created lazily (QR modal / deep link live inside the bundle).
+    getProvider: () => null,
   },
 };
-const ADMIN_WALLETS = ["AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9"];
+
+let walletConnectBundlePromise = null;
+function loadWalletConnectBundle() {
+  if (window.WalletConnectEthereumProvider || window.EthereumProvider) return Promise.resolve();
+  if (!walletConnectBundlePromise) {
+    walletConnectBundlePromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = WALLETCONNECT_BUNDLE_URL;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        walletConnectBundlePromise = null;
+        reject(new Error("WalletConnect failed to load. Check your connection and try again."));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return walletConnectBundlePromise;
+}
+
+function resolveWalletConnectFactory() {
+  const candidates = [
+    window.WalletConnectEthereumProvider,
+    window.EthereumProvider,
+    window["@walletconnect/ethereum-provider"],
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (typeof candidate.init === "function") return candidate;
+    if (candidate.EthereumProvider && typeof candidate.EthereumProvider.init === "function") {
+      return candidate.EthereumProvider;
+    }
+  }
+  return null;
+}
+
+let walletConnectProvider = null;
+async function getWalletConnectProvider() {
+  if (!WALLETCONNECT_PROJECT_ID) {
+    throw new Error("WalletConnect is not configured yet. Please use MetaMask.");
+  }
+  if (walletConnectProvider) return walletConnectProvider;
+  await loadWalletConnectBundle();
+  const factory = resolveWalletConnectFactory();
+  if (!factory) throw new Error("WalletConnect failed to initialize.");
+  walletConnectProvider = await factory.init({
+    projectId: WALLETCONNECT_PROJECT_ID,
+    showQrModal: true,
+    optionalChains: [1],
+    metadata: {
+      name: "PETIX",
+      description: "Petix pet battler",
+      url: window.location.origin,
+      icons: [`${window.location.origin}/assets/character/current-pet.jpg`],
+    },
+  });
+  walletConnectProvider.on?.("disconnect", () => {
+    walletConnectProvider = null;
+  });
+  return walletConnectProvider;
+}
+
+function utf8ToHex(value) {
+  const bytes = new TextEncoder().encode(value);
+  let hex = "0x";
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
+  return hex;
+}
+
+function isUserRejectionError(error) {
+  const code = error?.code;
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("user denied") ||
+    message.includes("rejected by user") ||
+    message.includes("user cancelled") ||
+    message.includes("user canceled") ||
+    message.includes("modal closed") ||
+    message.includes("connection request reset") ||
+    message.includes("proposal expired")
+  );
+}
+
+const ADMIN_WALLETS = [
+  "AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9",
+  "0x0e8caf9eca5e45df0e6f50f58a5bf664db1740c1",
+];
 const MAX_CHARACTERS_PER_WALLET = 3;
 const CUSTOM_CREATURE_TYPE_MAX_LENGTH = 24;
 const ADMIN_PAGE_SIZE = 20;
@@ -975,11 +1060,17 @@ function shuffleArray(items = []) {
 
 function shortenAddress(address) {
   if (!address || address.length < 12) return address || "";
+  // 0x-addresses keep the hex prefix readable: 0x0e8c...40c1
+  if (address.toLowerCase().startsWith("0x")) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
 function isAdminWalletAddress(address) {
-  const normalized = String(address || "").trim();
+  let normalized = String(address || "").trim();
+  // EVM addresses are case-insensitive; base58 stays case-significant.
+  if (normalized.toLowerCase().startsWith("0x")) normalized = normalized.toLowerCase();
   return Boolean(normalized) && ADMIN_WALLETS.includes(normalized);
 }
 
@@ -1173,10 +1264,6 @@ function showToast(message) {
 
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent || "");
-}
-
-function canUseWalletBrowseDeeplink() {
-  return isMobileDevice() && window.location.protocol === "https:";
 }
 
 function showCreatureTypeLimitToast() {
@@ -2003,19 +2090,6 @@ function showWalletAuthState() {
   updateCreatePetMenuState();
 }
 
-function extractSignatureBytes(signatureResult) {
-  if (signatureResult instanceof Uint8Array) return signatureResult;
-  if (signatureResult?.signature instanceof Uint8Array) return signatureResult.signature;
-  throw new Error("Wallet signature format is not supported.");
-}
-
-function bytesToBase64(bytes) {
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return window.btoa(binary);
-}
 
 function getActiveRecord() {
   return state.draft || state.character;
@@ -2652,43 +2726,51 @@ async function connectWallet(walletKey) {
   const wallet = walletConfigs[walletKey];
   if (!wallet) return;
 
-  const provider = wallet.getProvider();
-  if (!provider) {
-    if (canUseWalletBrowseDeeplink() && typeof wallet.mobileBrowseUrl === "function") {
-      setWalletStatus(`Opening ${wallet.label} app...`);
-      window.location.href = wallet.mobileBrowseUrl(window.location.href);
-      return;
+  try {
+    let provider = null;
+    if (walletKey === "walletconnect") {
+      setWalletStatus("Opening WalletConnect...");
+      provider = await getWalletConnectProvider();
+    } else {
+      provider = wallet.getProvider();
+      if (!provider) {
+        if (isMobileDevice() && typeof wallet.mobileBrowseUrl === "function") {
+          setWalletStatus(`Opening ${wallet.label} app...`);
+          window.location.href = wallet.mobileBrowseUrl(window.location.href);
+          return;
+        }
+
+        setWalletStatus(`${wallet.label} is not detected. Opening install page...`);
+        window.open(wallet.installUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
     }
 
-    setWalletStatus(`${wallet.label} is not detected. Opening install page...`);
-    window.open(wallet.installUrl, "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  try {
     setWalletStatus(`Connecting ${wallet.label}...`);
-    const connectResult = await provider.connect();
-    const address =
-      connectResult?.publicKey?.toString?.() ||
-      provider.publicKey?.toString?.() ||
-      "";
-    if (!address) throw new Error("Wallet address was not returned.");
+    let accounts;
+    if (walletKey === "walletconnect") {
+      accounts = await provider.enable();
+    } else {
+      accounts = await provider.request({ method: "eth_requestAccounts" });
+    }
+    const address = String(accounts?.[0] || "").toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(address)) throw new Error("Wallet address was not returned.");
 
     setWalletStatus("Creating sign-in challenge...");
-    const challenge = await apiRequest("/api/auth/solana/challenge", { wallet: address });
-    const encodedMessage = new TextEncoder().encode(challenge.message);
-    if (!provider.signMessage) throw new Error("Wallet does not support message signing.");
+    const challenge = await apiRequest("/api/auth/evm/challenge", { wallet: address });
 
     setWalletStatus("Please confirm signature in your wallet...");
-    const signatureResult = await provider.signMessage(encodedMessage, "utf8");
-    const signatureBase64 = bytesToBase64(extractSignatureBytes(signatureResult));
+    const signature = await provider.request({
+      method: "personal_sign",
+      params: [utf8ToHex(challenge.message), address],
+    });
 
     setWalletStatus("Verifying signature...");
-    const verified = await apiRequest("/api/auth/solana/verify", {
+    const verified = await apiRequest("/api/auth/evm/verify", {
       wallet: address,
       walletType: walletKey,
       message: challenge.message,
-      signature: signatureBase64,
+      signature,
       challengeToken: challenge.challengeToken,
     });
 
@@ -2699,6 +2781,10 @@ async function connectWallet(walletKey) {
       state.pendingStartAfterAuth = false;
     }
   } catch (error) {
+    if (isUserRejectionError(error)) {
+      setWalletStatus("Sign-in cancelled.");
+      return;
+    }
     const message = typeof error?.message === "string" ? error.message : "Connection failed.";
     setWalletStatus(message, "error");
   }
@@ -2722,7 +2808,7 @@ function refreshDetectedBadges() {
 
 async function restoreWalletSession() {
   try {
-    const response = await fetch(toApiUrl("/api/auth/solana/me"), {
+    const response = await fetch(toApiUrl("/api/auth/evm/me"), {
       method: "GET",
       credentials: "include",
     });
@@ -2739,7 +2825,7 @@ async function restoreWalletSession() {
 }
 
 async function logoutWallet() {
-  await apiRequest("/api/auth/solana/logout", {});
+  await apiRequest("/api/auth/evm/logout", {});
   resetCharacterState();
   showWalletAuthState();
   window.location.href = new URL("/", window.location.origin).toString();

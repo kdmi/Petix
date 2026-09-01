@@ -1,6 +1,6 @@
 # Petix
 
-Petix is a browser-based pet battler built around Solana wallet identity. Players connect a wallet, generate unique pets with AI-assisted traits and art, fight other players' pets, earn XP, level up, spend upgrade points, and revisit past battles through replay links.
+Petix is a browser-based pet battler built around EVM wallet identity (MetaMask / WalletConnect). Players connect a wallet, generate unique pets with AI-assisted traits and art, fight other players' pets, earn XP, level up, spend upgrade points, and revisit past battles through replay links.
 
 The project includes the public player experience, the battle backend, progression systems, replayable arena history, and an admin panel for character and battle oversight.
 
@@ -8,7 +8,7 @@ The project includes the public player experience, the battle backend, progressi
 
 ### Player Experience
 
-- Solana wallet authentication with signed sessions
+- EVM wallet authentication (MetaMask + WalletConnect, SIWE-style signed sessions); legacy Solana profiles are preserved read-only
 - Pet creation flow with rarity, attribute allocation, and power selection
 - AI-assisted pet names, powers, images, and battle narration with safe fallbacks
 - Wallet-based pet collection in `My Pets`
@@ -39,7 +39,7 @@ The project includes the public player experience, the battle backend, progressi
 
 ## Core Product Flow
 
-1. Connect a Solana wallet.
+1. Connect an EVM wallet (MetaMask or any WalletConnect-compatible wallet).
 2. Create a pet and finalize its attributes and power.
 3. Open `My Pets` and send a pet into battle.
 4. Review results in live battle UI or later from `Arena` history.
@@ -70,11 +70,11 @@ Minimum recommended variables:
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `SOLANA_AUTH_SECRET` | Yes | Signs auth/session tokens |
+| `SOLANA_AUTH_SECRET` | Yes | Signs auth/session tokens (legacy name kept on purpose: it also seeds the blob storage path — renaming it orphans production data) |
 | `INTERNAL_API_SECRET` | Recommended | Internal route auth and stable storage paths |
 | `GEMINI_API_KEY` or `GOOGLE_AI_API_KEY` | Optional | Enables live AI generation and battle narration |
 | `BLOB_READ_WRITE_TOKEN` | Production only | Enables Vercel Blob persistence |
-| `ADMIN_WALLETS` or `ADMIN_WALLET` | Optional | Extra admin wallets beyond the built-in default |
+| `ADMIN_WALLETS` or `ADMIN_WALLET` | Optional | Admin wallets, comma-separated. EVM `0x…` addresses are matched case-insensitively (e.g. `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`); legacy base58 entries still match exactly |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated allowed origins |
 | `BATTLE_NARRATION_BUDGET_MS` | Optional | Timeout budget for battle narration |
 
