@@ -113,6 +113,53 @@ async function getWalletConnectProvider() {
   return walletConnectProvider;
 }
 
+function withWalletTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
+// A restored pairing can be dead on the wallet side (user disconnected the
+// app in the wallet): requests then go nowhere and the UI hangs forever.
+// Probe the session before trusting it; a dead one is dropped and re-paired.
+async function isWalletConnectSessionAlive(provider) {
+  const topic = provider?.session?.topic;
+  if (!topic) return false;
+  const client = provider?.signer?.client;
+  if (!client || typeof client.ping !== 'function') return true;
+  try {
+    await withWalletTimeout(client.ping({ topic }), 4000, 'WalletConnect session ping timed out.');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getUsableWalletConnectProvider() {
+  const provider = await getWalletConnectProvider();
+  const hasLiveSession =
+    Boolean(provider.session) && (await isWalletConnectSessionAlive(provider));
+  if (!hasLiveSession) {
+    // Wipe any half-dead local state before pairing: a restored session can
+    // die mid-flight (wallet-side delete arrives over the relay) leaving
+    // cached accounts behind, and enable() would then return them with no
+    // session — the sign request goes nowhere. disconnect() on a provider
+    // without a live peer only cleans up locally.
+    await dropWalletConnectSession(provider);
+    // the disconnect event nulls the cache — keep reusing this (clean) instance
+    walletConnectProvider = provider;
+  }
+  return provider;
+}
+
+async function dropWalletConnectSession(provider = walletConnectProvider) {
+  if (!provider) return;
+  try {
+    await withWalletTimeout(provider.disconnect(), 3000, 'disconnect timeout');
+  } catch {}
+}
+
 
 function utf8ToHex(value) {
   const bytes = new TextEncoder().encode(value);
@@ -2723,7 +2770,7 @@ async function restoreCharacterState() {
   }
 }
 
-async function connectWallet(walletKey) {
+async function connectWallet(walletKey, retryAttempt = 0) {
   const wallet = walletConfigs[walletKey];
   if (!wallet) return;
 
@@ -2731,7 +2778,7 @@ async function connectWallet(walletKey) {
     let provider = null;
     if (walletKey === "walletconnect") {
       setWalletStatus("Opening WalletConnect...");
-      provider = await getWalletConnectProvider();
+      provider = await getUsableWalletConnectProvider();
     } else {
       provider = wallet.getProvider();
       if (!provider) {
@@ -2751,6 +2798,12 @@ async function connectWallet(walletKey) {
     let accounts;
     if (walletKey === "walletconnect") {
       accounts = await provider.enable();
+      // enable() can return cached accounts while the session was just
+      // deleted wallet-side — a sign request would then go nowhere.
+      if (!provider.session) {
+        await dropWalletConnectSession(provider);
+        throw new Error("WC_SESSION_DIED");
+      }
     } else {
       // Never remember the previously connected account: revoke the site
       // permission first, so the connect dialog opens fresh and defaults to
@@ -2785,10 +2838,34 @@ async function connectWallet(walletKey) {
     const challenge = await apiRequest("/api/auth/evm/challenge", { wallet: address });
 
     setWalletStatus("Please confirm signature in your wallet...");
-    const signature = await provider.request({
+    const signRequest = provider.request({
       method: "personal_sign",
       params: [utf8ToHex(challenge.message), address],
     });
+    // WC transport can silently lose the request (dead pairing): never hang
+    // forever, fail fast when the session dies mid-flight, and drop the
+    // session so the retry re-pairs fresh.
+    let signature;
+    if (walletKey === "walletconnect") {
+      const sessionDied = new Promise((_, reject) => {
+        const fail = () => reject(new Error("WC_SESSION_DIED"));
+        provider.once?.("disconnect", fail);
+        provider.once?.("session_delete", fail);
+      });
+      signature = await Promise.race([
+        withWalletTimeout(
+          signRequest,
+          90000,
+          "Wallet did not respond. Please try connecting again."
+        ),
+        sessionDied,
+      ]).catch(async (error) => {
+        if (!isUserRejectionError(error)) await dropWalletConnectSession(provider);
+        throw error;
+      });
+    } else {
+      signature = await signRequest;
+    }
 
     setWalletStatus("Verifying signature...");
     const verified = await apiRequest("/api/auth/evm/verify", {
@@ -2806,6 +2883,9 @@ async function connectWallet(walletKey) {
       state.pendingStartAfterAuth = false;
     }
   } catch (error) {
+    if (error?.message === "WC_SESSION_DIED" && retryAttempt === 0) {
+      return connectWallet(walletKey, 1);
+    }
     if (isUserRejectionError(error)) {
       setWalletStatus("Sign-in cancelled.");
       return;
