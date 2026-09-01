@@ -398,6 +398,18 @@ async function connectWallet(walletKey) {
     if (walletKey === "walletconnect") {
       accounts = await provider.enable();
     } else {
+      // Force the account picker: without this MetaMask silently returns the
+      // account previously connected to the site, ignoring which account is
+      // currently active in the extension.
+      try {
+        await provider.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (permissionError) {
+        if (isUserRejectionError(permissionError)) throw permissionError;
+        // Method not supported (older wallets / in-app browsers) — fall through.
+      }
       accounts = await provider.request({ method: "eth_requestAccounts" });
     }
     const address = String(accounts?.[0] || "").toLowerCase();
