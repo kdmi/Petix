@@ -9601,11 +9601,9 @@ function init() {
   }
 
   document.getElementById("openCabinetBtn").addEventListener("click", () => {
-    const dashboardUrl = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
-    if (window.history && typeof window.history.pushState === "function") {
-      window.history.pushState({}, "", dashboardUrl);
-    }
-    moveTo("cabinet");
+    // Real navigation, not pushState: the cabinet rendered inside the
+    // pet-creation shell has the wrong header (no energy counter, no tabs).
+    window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
   });
 
   if (shareSuccessBtn) {

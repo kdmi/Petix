@@ -115,7 +115,12 @@ async function invokeBattlesRoute(battlesRoute, { headers, body }) {
 // 12 pre-CAS, plus per-mutation head() reads and the content-addressed
 // version puts (2 mutations ⇒ +2 put, +3 head); head+get are cheap "simple"
 // ops in Blob billing. Anything higher is a regression we want surfaced loudly.
-const BATTLE_OPS_BUDGET = 17;
+//
+// +2 (⇒ 19): the battles db got the same content-addressed versioning + CAS
+// as wallet profiles (a stale read-modify-write was erasing freshly saved
+// battle records in production) — each battles-db write now also puts an
+// immutable version blob, and each read starts with a head() on the pointer.
+const BATTLE_OPS_BUDGET = 19;
 
 test(`a single successful battle stays within Advanced-ops budget (≤ ${BATTLE_OPS_BUDGET} SDK calls)`, async () => {
   await withFakeBlobIntegrationEnv(async ({ store, battlesRoute, auth, counts, resetCounts, internalSecret }) => {
