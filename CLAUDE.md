@@ -120,14 +120,16 @@ The root `app.js`, `index.html`, `styles.css`, and `prod-root-styles.css` at the
 - Economy coefficients (farm rate, battle reward, slot prices, withdrawal params) live in the runtime-tunable `economy-config.js` (defaults ⊕ overrides via `economy-config-store.js`), not hard-coded — read with `getEconomyConfig()`, change via admin `economy-config`. Farm accrual is lazy from timestamps (`farm.js`), no cron. Phase 2 (Points→$PETIX withdrawal, on-ramp, balance reset) is **designed but not built** — see [specs/013-farm-economy/](specs/013-farm-economy/).
 
 <!-- SPECKIT START -->
-Current plan: [specs/014-character-burn/plan.md](specs/014-character-burn/plan.md)
+Current plan: [specs/015-metamask-auth/plan.md](specs/015-metamask-auth/plan.md)
 
 See also:
-- [specs/014-character-burn/spec.md](specs/014-character-burn/spec.md) — feature spec: burn a character for Points via card context menu
-- [specs/014-character-burn/research.md](specs/014-character-burn/research.md) — Phase 0 decisions (slot model, farm gate, atomicity, UI)
-- [specs/014-character-burn/data-model.md](specs/014-character-burn/data-model.md) — invariants + BURN_COST config key
-- [specs/014-character-burn/contracts/character-burn.md](specs/014-character-burn/contracts/character-burn.md) — POST /api/character/burn contract
-- [specs/014-character-burn/quickstart.md](specs/014-character-burn/quickstart.md) — dev loop + verification
+- [specs/015-metamask-auth/spec.md](specs/015-metamask-auth/spec.md) — feature spec: EVM sign-in via MetaMask + WalletConnect, Solana login disabled (data preserved)
+- [specs/015-metamask-auth/research.md](specs/015-metamask-auth/research.md) — Phase 0 decisions (ethers v6, SIWE-like message, vendored WC UMD, lowercase normalization, 410 on solana endpoints)
+- [specs/015-metamask-auth/data-model.md](specs/015-metamask-auth/data-model.md) — entities + invariants (one address = one profile, base58/0x key spaces disjoint)
+- [specs/015-metamask-auth/contracts/auth-evm.md](specs/015-metamask-auth/contracts/auth-evm.md) — POST /api/auth/evm/* contract + auth.js internal API changes
+- [specs/015-metamask-auth/quickstart.md](specs/015-metamask-auth/quickstart.md) — env setup + manual verification per user story
+- [specs/014-character-burn/spec.md](specs/014-character-burn/spec.md) — preceding feature: burn a character for Points via card context menu
+- [specs/014-character-burn/plan.md](specs/014-character-burn/plan.md) — burn implementation plan (handler, BURN_COST, card menu UI)
 - [specs/013-farm-economy/](specs/013-farm-economy/) — preceding feature: farm economy, slots, economy-config
 - [specs/013-farm-economy/spec.md](specs/013-farm-economy/spec.md) — business-level feature spec (token earn/spend mechanics)
 - [specs/013-farm-economy/research.md](specs/013-farm-economy/research.md) — Phase 0 decisions + economic model + alternatives
