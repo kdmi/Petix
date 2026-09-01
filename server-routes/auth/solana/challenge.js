@@ -1,14 +1,9 @@
-const {
-  CHALLENGE_COOKIE,
-  CHALLENGE_TTL_MS,
-  createChallenge,
-  handleCors,
-  isLikelySolanaAddress,
-  json,
-  parseJsonBody,
-  setCookie,
-} = require("../../../api/_lib/auth");
+const { handleCors, json } = require("../../../api/_lib/auth");
 
+// Solana sign-in is retired in favour of EVM auth (/api/auth/evm/*).
+// The route intentionally stays (410, not deleted) so a rollback to Solana
+// is a plain git revert; stored base58 profiles are untouched.
+// See specs/015-metamask-auth/.
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
 
@@ -17,23 +12,5 @@ module.exports = async (req, res) => {
     return;
   }
 
-  try {
-    const body = await parseJsonBody(req);
-    const wallet = String(body.wallet || "").trim();
-
-    if (!isLikelySolanaAddress(wallet)) {
-      json(res, 400, { error: "Invalid Solana wallet address." });
-      return;
-    }
-
-    const { challengeToken, message, expiresAt } = createChallenge(wallet);
-    setCookie(res, CHALLENGE_COOKIE, challengeToken, CHALLENGE_TTL_MS);
-    json(res, 200, {
-      message,
-      challengeToken,
-      expiresAt,
-    });
-  } catch (error) {
-    json(res, 400, { error: error.message || "Bad request." });
-  }
+  json(res, 410, { error: "Solana sign-in is disabled.", code: "SOLANA_AUTH_DISABLED" });
 };

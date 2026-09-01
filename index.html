@@ -1096,39 +1096,27 @@
 	    <div class="wallet-panel" id="walletAuthPanel">
 	      <h2 class="wallet-title" id="walletModalTitle">Connect wallet to Sign In</h2>
 	      <div class="wallet-list">
-	        <button class="wallet-item" data-wallet="phantom" type="button">
+	        <button class="wallet-item" data-wallet="metamask" type="button">
 	          <span class="wallet-icon">
-	            <img class="wallet-icon-image" src="/assets/wallets/phantom.svg" alt="Phantom logo" width="24" height="24">
+	            <img class="wallet-icon-image" src="/assets/wallets/metamask.svg" alt="MetaMask logo" width="24" height="24">
 	          </span>
-	          <span class="wallet-name">Phantom</span>
-	          <span class="wallet-detected hidden" data-detected-for="phantom">Detected</span>
+	          <span class="wallet-name">MetaMask</span>
+	          <span class="wallet-detected hidden" data-detected-for="metamask">Detected</span>
 	          <span class="wallet-arrow">
 	            <img src="/assets/wallets/chevron-right.svg" alt="" width="20" height="20">
 	          </span>
 	        </button>
-	        <button class="wallet-item" data-wallet="solflare" type="button">
+	        <button class="wallet-item" data-wallet="walletconnect" type="button">
 	          <span class="wallet-icon">
-	            <img class="wallet-icon-image" src="/assets/wallets/solflare.svg" alt="Solflare logo" width="24" height="24">
+	            <img class="wallet-icon-image" src="/assets/wallets/walletconnect.svg" alt="WalletConnect logo" width="24" height="24">
 	          </span>
-	          <span class="wallet-name">Solflare</span>
-	          <span class="wallet-detected hidden" data-detected-for="solflare">Detected</span>
-	          <span class="wallet-arrow">
-	            <img src="/assets/wallets/chevron-right.svg" alt="" width="20" height="20">
-	          </span>
-	        </button>
-	        <button class="wallet-item" data-wallet="trust" type="button">
-	          <span class="wallet-icon">
-	            <img class="wallet-icon-image" src="/assets/wallets/trust-wallet.svg" alt="Trust Wallet logo" width="24" height="24">
-	          </span>
-	          <span class="wallet-name">Trust Wallet</span>
-	          <span class="wallet-detected hidden" data-detected-for="trust">Detected</span>
+	          <span class="wallet-name">WalletConnect</span>
 	          <span class="wallet-arrow">
 	            <img src="/assets/wallets/chevron-right.svg" alt="" width="20" height="20">
 	          </span>
 	        </button>
 	      </div>
 	      <p class="wallet-status" id="walletStatus" aria-live="polite"></p>
-	      <button class="logout-btn hidden" id="walletActionBtn" type="button"></button>
 	      <footer class="wallet-footer">
 	        By connecting your wallet, you agree to our
 	        <a href="#" aria-label="Terms of Use">Terms of Use</a>
@@ -1366,7 +1354,7 @@
 	    }
 	  })();
 	</script>
-	<script src="/assets/vendor/tweetnacl-fast.min.js"></script>
+	<script src="/assets/petix-config.js"></script>
 	<script src="/app.js?v=20260319a"></script>
 	<script>
 	  (() => {

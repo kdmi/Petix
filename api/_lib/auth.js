@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const bs58Package = require("bs58");
 const nacl = require("tweetnacl");
+const { verifyMessage: verifyEvmMessage, getAddress: toEvmChecksumAddress } = require("ethers");
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -231,7 +232,61 @@ function isLikelySolanaAddress(value) {
   return typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);
 }
 
-function createChallenge(wallet) {
+function isLikelyEvmAddress(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+}
+
+// Canonical form: lowercase 0x-address. Every ingress (challenge, verify,
+// internal headers, admin allowlist) must normalize before comparing or storing.
+function normalizeEvmAddress(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^0x[0-9a-f]{40}$/.test(normalized) ? normalized : null;
+}
+
+// Canonical EIP-4361 (SIWE). The first line MUST carry the real requesting
+// domain and the address MUST be EIP-55 checksummed — wallet security
+// scanners (MetaMask/Blockaid) treat a sign-in message whose domain line is
+// a brand name instead of the origin as a wallet-drainer pattern.
+function buildEvmChallengeMessage(challenge) {
+  return [
+    `${challenge.domain} wants you to sign in with your Ethereum account:`,
+    toEvmChecksumAddress(challenge.wallet),
+    "",
+    "Sign in to PETIX. This request will not trigger a blockchain transaction or cost any gas.",
+    "",
+    `URI: ${challenge.uri}`,
+    "Version: 1",
+    "Chain ID: 1",
+    `Nonce: ${challenge.nonce}`,
+    `Issued At: ${new Date(challenge.iat).toISOString()}`,
+    `Expiration Time: ${new Date(challenge.exp).toISOString()}`,
+  ].join("\n");
+}
+
+// domain/uri of the page that initiated the challenge, derived from request
+// headers (Vercel sets x-forwarded-host/-proto; the dev shim sets host).
+function getRequestSiweOrigin(req) {
+  const host =
+    String(req.headers["x-forwarded-host"] || req.headers.host || "")
+      .split(",")[0]
+      .trim() || "petix.fun";
+  const isLocal = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/.test(host);
+  const proto =
+    String(req.headers["x-forwarded-proto"] || "")
+      .split(",")[0]
+      .trim() || (isLocal ? "http" : "https");
+  return { domain: host, uri: `${proto}://${host}` };
+}
+
+function verifyEvmSignedMessage(wallet, message, signatureHex) {
+  const expected = normalizeEvmAddress(wallet);
+  if (!expected) return false;
+  const recovered = verifyEvmMessage(message, String(signatureHex));
+  return recovered.toLowerCase() === expected;
+}
+
+function createChallenge(wallet, extra = {}) {
   const now = Date.now();
   const expiresAt = now + CHALLENGE_TTL_MS;
   const nonce = crypto.randomBytes(16).toString("hex");
@@ -241,6 +296,7 @@ function createChallenge(wallet) {
     nonce,
     iat: now,
     exp: expiresAt,
+    ...extra,
   };
   const message = buildChallengeMessage(challenge);
 
@@ -276,6 +332,8 @@ function walletTypeToName(walletType) {
     phantom: "Phantom",
     solflare: "Solflare",
     trust: "Trust Wallet",
+    metamask: "MetaMask",
+    walletconnect: "WalletConnect",
   };
   return map[walletType] || "Wallet";
 }
@@ -288,13 +346,19 @@ function getAdminWallets() {
   ]
     .flatMap((value) => String(value || "").split(","))
     .map((value) => value.trim())
+    // EVM addresses are case-insensitive — compare in canonical lowercase.
+    // base58 entries stay as-is (case-significant, needed for legacy sessions).
+    .map((value) => (value.toLowerCase().startsWith("0x") ? value.toLowerCase() : value))
     .filter(Boolean);
 
   return Array.from(new Set(configured));
 }
 
 function isAdminWallet(wallet) {
-  const normalizedWallet = String(wallet || "").trim();
+  let normalizedWallet = String(wallet || "").trim();
+  if (normalizedWallet.toLowerCase().startsWith("0x")) {
+    normalizedWallet = normalizedWallet.toLowerCase();
+  }
   return Boolean(normalizedWallet) && getAdminWallets().includes(normalizedWallet);
 }
 
@@ -329,11 +393,16 @@ function createToken(payload, ttlMs) {
 
 function getSessionFromRequest(req) {
   const internalSecret = getInternalApiSecret();
-  const internalWallet = String(req.headers[INTERNAL_WALLET_HEADER] || "").trim();
+  const rawInternalWallet = String(req.headers[INTERNAL_WALLET_HEADER] || "").trim();
+  // Internal calls may carry a legacy base58 wallet or an EVM 0x-address
+  // (normalized to lowercase so mixed case never leaks past the auth layer).
+  const internalWallet = isLikelyEvmAddress(rawInternalWallet)
+    ? normalizeEvmAddress(rawInternalWallet)
+    : rawInternalWallet;
   if (
     internalSecret &&
     String(req.headers[INTERNAL_AUTH_HEADER] || "") === internalSecret &&
-    isLikelySolanaAddress(internalWallet)
+    (isLikelySolanaAddress(internalWallet) || isLikelyEvmAddress(internalWallet))
   ) {
     return {
       type: "internal-session",
@@ -379,6 +448,11 @@ module.exports = {
   isAdminSession,
   isAdminWallet,
   isLikelySolanaAddress,
+  isLikelyEvmAddress,
+  normalizeEvmAddress,
+  buildEvmChallengeMessage,
+  getRequestSiweOrigin,
+  verifyEvmSignedMessage,
   json,
   parseCookies,
   parseJsonBody,
