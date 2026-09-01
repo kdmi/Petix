@@ -113,6 +113,21 @@ async function getWalletConnectProvider() {
   return walletConnectProvider;
 }
 
+// Sign-in must never reuse the previous wallet's pairing (it silently sends
+// the request to the old wallet app instead of showing a fresh QR): drop the
+// in-memory provider AND the session persisted by the bundle, then re-init.
+async function getFreshWalletConnectProvider() {
+  let provider = await getWalletConnectProvider();
+  if (provider.session || provider.connected) {
+    walletConnectProvider = null;
+    try {
+      await provider.disconnect();
+    } catch {}
+    provider = await getWalletConnectProvider();
+  }
+  return provider;
+}
+
 function utf8ToHex(value) {
   const bytes = new TextEncoder().encode(value);
   let hex = "0x";
@@ -2730,7 +2745,7 @@ async function connectWallet(walletKey) {
     let provider = null;
     if (walletKey === "walletconnect") {
       setWalletStatus("Opening WalletConnect...");
-      provider = await getWalletConnectProvider();
+      provider = await getFreshWalletConnectProvider();
     } else {
       provider = wallet.getProvider();
       if (!provider) {
