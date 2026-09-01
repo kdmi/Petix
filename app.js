@@ -128,34 +128,6 @@ async function getWalletConnectProvider() {
   return walletConnectProvider;
 }
 
-// The bundle persists its session/pairing state under wc@2:* localStorage
-// keys; init() restores it and silently pushes requests to the previously
-// paired wallet. Purge BEFORE the single init() — a disconnect+re-init dance
-// races the bundle's async storage cleanup and breaks the new pairing.
-function clearWalletConnectStorage() {
-  try {
-    const keys = [];
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith("wc@2:")) keys.push(key);
-    }
-    keys.forEach((key) => window.localStorage.removeItem(key));
-  } catch {}
-}
-
-// Sign-in must never reuse the previous wallet's pairing: drop the in-memory
-// provider, purge persisted state, then init exactly once.
-async function getFreshWalletConnectProvider() {
-  const existing = walletConnectProvider;
-  walletConnectProvider = null;
-  if (existing) {
-    try {
-      await existing.disconnect();
-    } catch {}
-  }
-  clearWalletConnectStorage();
-  return getWalletConnectProvider();
-}
 
 function utf8ToHex(value) {
   const bytes = new TextEncoder().encode(value);
@@ -406,7 +378,7 @@ async function connectWallet(walletKey) {
     let provider = null;
     if (walletKey === "walletconnect") {
       setStatus("Opening WalletConnect...");
-      provider = await getFreshWalletConnectProvider();
+      provider = await getWalletConnectProvider();
     } else {
       provider = wallet.getProvider();
       if (!provider) {
