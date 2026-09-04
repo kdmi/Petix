@@ -99,7 +99,8 @@ async function getWalletConnectProvider() {
   walletConnectProvider = await factory.init({
     projectId: WALLETCONNECT_PROJECT_ID,
     showQrModal: true,
-    optionalChains: [1],
+    // 4663/46630 — Robinhood Chain mainnet/testnet (NFT slots demo, feature 016)
+    optionalChains: [1, 4663, 46630],
     metadata: {
       name: "PETIX",
       description: "Petix pet battler",
@@ -1054,6 +1055,14 @@ const state = {
   profileUpdatedAt: null,
   farmActionCharacterId: "",
   recentClaims: {},
+  // NFT slots demo (feature 016): config=null → выключено/не загружено
+  nftDemo: {
+    config: null,
+    slots: [],
+    slotsError: "",
+    hydrated: false,
+    busy: "",
+  },
 };
 
 function createEmptyAttrs() {
@@ -1286,7 +1295,7 @@ function setWalletStatus(message, type = "neutral") {
   walletStatus.classList.toggle("error", type === "error");
 }
 
-function showToast(message) {
+function showToast(message, { durationMs = 3200 } = {}) {
   if (!message) return;
 
   let toast = document.getElementById("appToast");
@@ -1307,7 +1316,7 @@ function showToast(message) {
   toastTimeoutId = window.setTimeout(() => {
     toast.classList.remove("visible");
     toastTimeoutId = 0;
-  }, 3200);
+  }, durationMs);
 }
 
 function isMobileDevice() {
@@ -2685,6 +2694,10 @@ function handleFlowError(error, fallbackMessage) {
 
 async function restoreCharacterState() {
   if (!state.isAuthenticated) return false;
+
+  // Kick the NFT demo config off in parallel with the profile fetch so the
+  // card menu is complete on first paint instead of gaining an item later.
+  ensureNftDemoLoaded();
 
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
@@ -6934,10 +6947,460 @@ async function startFightFlow(characterId) {
   }
 }
 
+// === NFT slots demo (feature 016) ===================================
+// A neutral on-chain collection of "slots": mint from the wallet (gas only),
+// bind a pet into a slot, transfer the token to hand the pet over, clear the
+// slot to burn the pet. Everything hides unless /api/nft-demo/config says
+// enabled.
+
+let nftDemoLoadPromise = null;
+const NFT_DEMO_CONFIG_CACHE_KEY = "petix_nft_demo_config";
+
+function isNftDemoEnabled() {
+  return Boolean(state.nftDemo.config?.enabled);
+}
+
+// The config decides whether the card menu shows "Turn into NFT". Fetching it
+// over the network would make that item pop in a moment after the menu opens,
+// so the last known config is cached and applied on the very first paint.
+function readCachedNftDemoConfig() {
+  try {
+    const raw = window.localStorage.getItem(NFT_DEMO_CONFIG_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed?.enabled ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedNftDemoConfig(config) {
+  try {
+    if (config?.enabled) {
+      window.localStorage.setItem(NFT_DEMO_CONFIG_CACHE_KEY, JSON.stringify(config));
+    } else {
+      window.localStorage.removeItem(NFT_DEMO_CONFIG_CACHE_KEY);
+    }
+  } catch {}
+}
+
+function ensureNftDemoLoaded() {
+  if (!state.isAuthenticated || state.nftDemo.hydrated || nftDemoLoadPromise) return;
+
+  if (!state.nftDemo.config) {
+    state.nftDemo.config = readCachedNftDemoConfig();
+  }
+
+  nftDemoLoadPromise = (async () => {
+    try {
+      // Only the config on boot: slot ownership is re-checked on demand, so a
+      // slot bought seconds ago is picked up without waiting for a page reload.
+      const config = await apiRequest("/api/nft-demo/config", {}, "GET");
+      const changed = JSON.stringify(config) !== JSON.stringify(state.nftDemo.config);
+      state.nftDemo.config = config;
+      writeCachedNftDemoConfig(config);
+      if (changed && isCabinetScreenActive()) renderCabinet();
+    } catch {
+      state.nftDemo.config = null; // disabled (404) or unavailable — hide the entry
+      writeCachedNftDemoConfig(null);
+      if (isCabinetScreenActive()) renderCabinet();
+    } finally {
+      state.nftDemo.hydrated = true;
+      nftDemoLoadPromise = null;
+    }
+  })();
+}
+
+async function refreshNftDemoSlots({ silent = false } = {}) {
+  if (!isNftDemoEnabled()) return;
+  state.nftDemo.slotsError = "";
+  try {
+    const data = await apiRequest("/api/nft-demo/slots", {}, "GET");
+    state.nftDemo.slots = Array.isArray(data.slots) ? data.slots : [];
+    if (Array.isArray(data.synced) && data.synced.length) {
+      // Companions arrived with transferred tokens — refresh the roster.
+      await refreshNftDemoCharacters();
+      showToast(
+        data.synced.length === 1
+          ? "A companion arrived with a transferred slot."
+          : `${data.synced.length} companions arrived with transferred slots.`
+      );
+    }
+  } catch (error) {
+    state.nftDemo.slotsError =
+      error.code === "RPC_UNAVAILABLE"
+        ? "Chain RPC is unavailable — try again."
+        : error.message || "Failed to load slots.";
+    if (!silent) showToast(state.nftDemo.slotsError);
+  }
+}
+
+async function refreshNftDemoCharacters() {
+  try {
+    const data = await apiRequest("/api/character/me", {}, "GET");
+    syncStateWithPayload(data);
+  } catch {}
+}
+
+// Ownership watcher. A sold pet leaves this account the moment the token moves
+// on-chain, but nothing on THIS page would notice: the buyer's login triggers
+// the move, the seller just keeps looking at a pet they no longer own. Poll
+// while the roster is on screen so it disappears on its own.
+const NFT_DEMO_WATCH_INTERVAL_MS = 45000;
+let nftDemoWatchTimer = 0;
+let nftDemoWatchInFlight = false;
+
+function syncNftDemoWatcher() {
+  const shouldWatch =
+    isNftDemoEnabled() && isCabinetScreenActive() && document.visibilityState === "visible";
+
+  if (shouldWatch && !nftDemoWatchTimer) {
+    nftDemoWatchTimer = window.setInterval(runNftDemoWatchTick, NFT_DEMO_WATCH_INTERVAL_MS);
+  } else if (!shouldWatch && nftDemoWatchTimer) {
+    window.clearInterval(nftDemoWatchTimer);
+    nftDemoWatchTimer = 0;
+  }
+}
+
+async function runNftDemoWatchTick() {
+  if (nftDemoWatchInFlight || state.nftDemo.busy) return;
+  if (!isCabinetScreenActive() || document.visibilityState !== "visible") {
+    syncNftDemoWatcher();
+    return;
+  }
+  // Nothing to lose track of unless a pet of ours is bound to a slot.
+  if (!state.characters.some((record) => record?.nftDemo?.tokenId)) return;
+
+  nftDemoWatchInFlight = true;
+  try {
+    const before = state.characters.map((record) => record.id).join(",");
+    await refreshNftDemoCharacters();
+    const after = state.characters.map((record) => record.id).join(",");
+    if (before !== after) {
+      showToast("A pet left with its NFT slot.");
+      renderCabinet();
+    }
+  } finally {
+    nftDemoWatchInFlight = false;
+  }
+}
+
+document.addEventListener("visibilitychange", syncNftDemoWatcher);
+
+// Выбор капсулы под питомца. Оформлен теми же классами, что и модалка
+// сжигания (.burn-modal*) — чтобы не заводить второй визуальный язык.
+function pickNftSlot(emptySlots, petName, marketplaceUrl) {
+  return new Promise((resolve) => {
+    closeBurnConfirm();
+    // Пустой список — не ошибка, а обычный сценарий: игрок ещё не купил капсулу.
+    const hasSlots = emptySlots.length > 0;
+    const backdrop = document.createElement("div");
+    backdrop.id = "burnConfirmBackdrop";
+    backdrop.className = "burn-modal-backdrop";
+    backdrop.innerHTML = `
+      <section class="burn-modal nft-picker" role="dialog" aria-modal="true" aria-labelledby="nftPickerTitle">
+        <h2 class="burn-modal__title" id="nftPickerTitle">${
+          hasSlots ? `Mint ${escapeHtml(petName)} as NFT` : "You need a capsule first"
+        }</h2>
+        <p class="burn-modal__text">${
+          hasSlots
+            ? "Choose which capsule to use. The pet travels with the token from now on — selling it hands the pet over, and the regular burn gets locked."
+            : "Capsules are NFTs from our collection. Get one, and you'll be able to seal a pet inside it — then the pet can be traded with all its progress."
+        }</p>
+        ${
+          hasSlots
+            ? `<div class="nft-picker__grid">
+                ${emptySlots
+                  .map(
+                    (slot) => `
+                  <button class="nft-picker__slot" type="button" data-pick="${slot.tokenId}">
+                    <img src="/assets/nft-demo/placeholder.png" alt="" width="64" height="64" />
+                    <span>Capsule #${slot.tokenId}</span>
+                  </button>
+                `
+                  )
+                  .join("")}
+              </div>`
+            : `<div class="nft-picker__empty">
+                <img src="/assets/nft-demo/placeholder.png" alt="" width="96" height="96" />
+              </div>`
+        }
+        <div class="burn-modal__actions">
+          <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-pick="">Cancel</button>
+          ${
+            marketplaceUrl
+              ? `<a class="burn-modal__btn burn-modal__btn--buy" href="${marketplaceUrl}" target="_blank" rel="noopener noreferrer">Get capsules ↗</a>`
+              : ""
+          }
+        </div>
+      </section>
+    `;
+
+    const close = (value) => {
+      backdrop.remove();
+      document.body.classList.remove("burn-modal-open");
+      document.removeEventListener("keydown", onKey);
+      resolve(value);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") close(null);
+    };
+
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) return close(null);
+      if (event.target.closest(".burn-modal__btn--buy")) return; // ссылка открывается сама
+      const button = event.target.closest("[data-pick]");
+      if (!button) return;
+      close(button.dataset.pick ? Number(button.dataset.pick) : null);
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    document.body.classList.add("burn-modal-open");
+  });
+}
+
+async function bindNftSlotFlow(characterId) {
+  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  const record = state.characters.find((item) => String(item.id) === String(characterId));
+  if (!record) return;
+
+  const bindLevel = Math.max(1, Math.floor(Number(state.nftDemo.config.bindLevel) || 1));
+  if ((Number(record.level) || 1) < bindLevel) {
+    showToast(`Binding unlocks at level ${bindLevel}.`);
+    return;
+  }
+
+  // Всегда перепроверяем владение по клику: капсулу могли купить минуту назад,
+  // и устаревшее состояние сказало бы «капсул нет».
+  closeCabinetCardMenu();
+  state.nftDemo.busy = `check:${characterId}`;
+  renderCabinet();
+  await refreshNftDemoSlots({ silent: true });
+  state.nftDemo.busy = "";
+  renderCabinet();
+
+  if (state.nftDemo.slotsError) {
+    showToast(state.nftDemo.slotsError);
+    return;
+  }
+
+  const emptySlots = state.nftDemo.slots.filter((slot) => slot.state === "empty");
+  const tokenId = await pickNftSlot(
+    emptySlots,
+    getRecordDisplayName(record),
+    state.nftDemo.config.marketplaceUrl
+  );
+  if (!tokenId) return;
+
+  state.nftDemo.busy = `bind:${characterId}`;
+  renderCabinet();
+  try {
+    await apiRequest("/api/nft-demo/bind", { tokenId, characterId });
+    // Метаданные на маркетплейсе — это их кэш: у нас данные уже новые, а там
+    // появятся через несколько минут. Без этой оговорки выглядит как поломка.
+    showToast(
+      `Sealed into capsule #${tokenId}. It may take a few minutes for the marketplace to show the pet.`,
+      { durationMs: 6000 }
+    );
+    await refreshNftDemoCharacters();
+    await refreshNftDemoSlots({ silent: true });
+  } catch (error) {
+    showToast(error.message || "Bind failed.");
+  } finally {
+    state.nftDemo.busy = "";
+    renderCabinet();
+  }
+}
+
+/** Срок сжигания привязанного питомца или null, если заявки нет / уже прошла. */
+function getBurnDeadline(record) {
+  const raw = record?.nftDemo?.pendingUnbindAt;
+  if (!raw) return null;
+  const at = Date.parse(raw);
+  return Number.isFinite(at) && at > Date.now() ? raw : null;
+}
+
+/** Обратный отсчёт до сжигания: 1:23:45 / 12:07 / 0:09. */
+function formatBurnCountdown(deadlineIso) {
+  const left = Math.max(0, Date.parse(deadlineIso) - Date.now());
+  const total = Math.ceil(left / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = (value) => String(value).padStart(2, "0");
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
+}
+
+// Тиканье отсчёта. Отдельный таймер, а не общий с фармом: он живёт, пока на
+// экране есть хотя бы одна капсула на очистке, и сам гаснет после сжигания.
+let nftBurnTimerInterval = 0;
+
+function syncNftBurnTicker() {
+  const anyBurning = state.characters.some((record) => getBurnDeadline(record));
+  if (anyBurning && isCabinetScreenActive()) {
+    if (!nftBurnTimerInterval) {
+      nftBurnTimerInterval = window.setInterval(tickNftBurnTimers, 1000);
+    }
+  } else if (nftBurnTimerInterval) {
+    window.clearInterval(nftBurnTimerInterval);
+    nftBurnTimerInterval = 0;
+  }
+}
+
+function tickNftBurnTimers() {
+  if (!isCabinetScreenActive() || !cabinetCard) {
+    syncNftBurnTicker();
+    return;
+  }
+  let expired = false;
+  cabinetCard.querySelectorAll("[data-nft-burn-at]").forEach((badge) => {
+    const deadline = badge.getAttribute("data-nft-burn-at");
+    const left = Date.parse(deadline) - Date.now();
+    const label = badge.querySelector("[data-nft-burn-left]");
+    if (left <= 0) {
+      expired = true;
+      if (label) label.textContent = "0:00";
+      return;
+    }
+    if (label) label.textContent = formatBurnCountdown(deadline);
+  });
+
+  // Срок вышел — сжигание исполняет крон, ждём и подтягиваем правду с сервера.
+  if (expired) {
+    window.clearInterval(nftBurnTimerInterval);
+    nftBurnTimerInterval = 0;
+    window.setTimeout(() => {
+      void refreshNftDemoCharacters().then(() => {
+        if (isCabinetScreenActive()) renderCabinet();
+      });
+    }, 5000);
+  }
+}
+
+/** Отмена заявки: возвращает питомца в обычное состояние и Points владельцу. */
+async function cancelNftUnbindFlow(tokenId) {
+  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  closeCabinetCardMenu();
+  state.nftDemo.busy = `cancel:${tokenId}`;
+  renderCabinet();
+  try {
+    const result = await apiRequest("/api/nft-demo/unbind", {
+      tokenId: Number(tokenId),
+      cancel: true,
+    });
+    showToast(
+      result?.refunded > 0
+        ? `Clearing cancelled — ${formatPoints(result.refunded)} Points refunded. The marketplace needs a few minutes to show the pet again.`
+        : "Clearing cancelled. The marketplace needs a few minutes to show the pet again.",
+      { durationMs: 6000 }
+    );
+    await refreshNftDemoCharacters();
+  } catch (error) {
+    showToast(error.message || "Couldn't cancel.");
+  } finally {
+    state.nftDemo.busy = "";
+    renderCabinet();
+  }
+}
+
+// Человекочитаемая отсрочка: 2 минуты не должны показываться как «1h».
+function formatUnbindDelay(ms) {
+  const minutes = Math.max(1, Math.round((Number(ms) || 0) / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+/** Подтверждение очистки капсулы в стиле приложения (не нативный confirm). */
+function confirmClearCapsule({ tokenId, petName, cost, delayMs }) {
+  return new Promise((resolve) => {
+    closeBurnConfirm();
+    const backdrop = document.createElement("div");
+    backdrop.id = "burnConfirmBackdrop";
+    backdrop.className = "burn-modal-backdrop";
+    backdrop.innerHTML = `
+      <section class="burn-modal" role="dialog" aria-modal="true" aria-labelledby="clearCapsuleTitle">
+        <h2 class="burn-modal__title" id="clearCapsuleTitle">Clear NFT capsule #${tokenId}?</h2>
+        <p class="burn-modal__text">
+          <strong>${escapeHtml(petName)}</strong> will be destroyed permanently${
+            cost > 0 ? ` and this costs <strong>${formatPoints(cost)} Points</strong>` : ""
+          }.
+        </p>
+        <p class="burn-modal__text">
+          The burn happens in <strong>${formatUnbindDelay(delayMs)}</strong>. Until then the
+          capsule is publicly marked as emptying, and selling it cancels the burn${
+            cost > 0 ? " and refunds your Points" : ""
+          }.
+        </p>
+        <div class="burn-modal__actions">
+          <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-clear-cancel>Cancel</button>
+          <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-clear-confirm>Clear capsule</button>
+        </div>
+      </section>
+    `;
+
+    const finish = (value) => {
+      backdrop.remove();
+      document.body.classList.remove("burn-modal-open");
+      document.removeEventListener("keydown", onKey);
+      resolve(value);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") finish(false);
+    };
+
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop || event.target.closest("[data-clear-cancel]")) return finish(false);
+      if (event.target.closest("[data-clear-confirm]")) return finish(true);
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    document.body.classList.add("burn-modal-open");
+    backdrop.querySelector("[data-clear-cancel]")?.focus();
+  });
+}
+
+async function unbindNftSlotFlow(tokenId) {
+  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  const record = state.characters.find(
+    (item) => String(item?.nftDemo?.tokenId) === String(tokenId)
+  );
+  const confirmed = await confirmClearCapsule({
+    tokenId,
+    petName: record ? getRecordDisplayName(record) : "The bound pet",
+    cost: Math.max(0, Math.floor(Number(state.nftDemo.config.unbindCost) || 0)),
+    delayMs: Number(state.nftDemo.config.unbindDelayMs) || 3600000,
+  });
+  if (!confirmed) return;
+
+  closeCabinetCardMenu();
+  state.nftDemo.busy = `unbind:${tokenId}`;
+  renderCabinet();
+  try {
+    const result = await apiRequest("/api/nft-demo/unbind", { tokenId: Number(tokenId) });
+    const when = result?.executeAt ? new Date(result.executeAt) : null;
+    showToast(
+      when
+        ? `Capsule #${tokenId} will be emptied at ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. It may take a few minutes for the marketplace to show it as emptying.`
+        : `Capsule #${tokenId} is scheduled to be emptied. It may take a few minutes for the marketplace to catch up.`,
+      { durationMs: 6000 }
+    );
+    await refreshNftDemoCharacters();
+    await refreshNftDemoSlots({ silent: true });
+  } catch (error) {
+    showToast(error.message || "Unbind failed.");
+  } finally {
+    state.nftDemo.busy = "";
+    renderCabinet();
+  }
+}
+
+// === end NFT slots demo =============================================
+
 function renderCabinet() {
   // A burn animation is playing on a live card — re-rendering would wipe it.
   // performBurn re-renders once the animation finishes.
   if (state.burningCharacterId) return;
+  ensureNftDemoLoaded();
   if (dashboardTopbar) {
     dashboardTopbar.classList.remove("is-battle-header");
   }
@@ -7019,6 +7482,55 @@ function renderCabinet() {
       }).join("");
 
       const isMenuOpen = String(state.openCardMenuId) === String(record.id);
+      const nftDemoEnabled = isNftDemoEnabled();
+      const nftBoundTokenId = record.nftDemo?.tokenId || null;
+      const nftBurningAt = getBurnDeadline(record);
+      const nftMenuItemMarkup = !nftDemoEnabled
+        ? ""
+        : nftBurningAt
+          ? `
+              <button
+                class="cabinet-card-menu-item"
+                type="button"
+                role="menuitem"
+                data-action="nft-unbind-cancel"
+                data-token-id="${nftBoundTokenId}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/nft-demo/cube.svg" alt="" width="20" height="20" />
+                  Cancel clearing
+                </span>
+              </button>
+          `
+          : nftBoundTokenId
+          ? `
+              <button
+                class="cabinet-card-menu-item cabinet-card-menu-item--danger"
+                type="button"
+                role="menuitem"
+                data-action="nft-unbind"
+                data-token-id="${nftBoundTokenId}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
+                  Clear NFT capsule
+                </span>
+              </button>
+          `
+          : `
+              <button
+                class="cabinet-card-menu-item"
+                type="button"
+                role="menuitem"
+                data-action="nft-bind"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/nft-demo/cube.svg" alt="" width="20" height="20" />
+                  Turn into NFT
+                </span>
+              </button>
+          `;
       const cardMenuMarkup =
         record.status === "completed"
           ? `
@@ -7037,6 +7549,11 @@ function renderCabinet() {
               isMenuOpen
                 ? `
             <div class="cabinet-card-menu" role="menu">
+              ${nftMenuItemMarkup}
+              ${
+                nftBoundTokenId
+                  ? "" /* привязанный к NFT персонаж сжигается только очисткой слота */
+                  : `
               <button
                 class="cabinet-card-menu-item cabinet-card-menu-item--danger"
                 type="button"
@@ -7046,13 +7563,15 @@ function renderCabinet() {
               >
                 <span class="cabinet-card-menu-item__label">
                   <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
-                  Burn
+                  Burn pet
                 </span>
                 <span class="cabinet-card-menu-item__price">
                   ${formatPoints(getBurnCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>
               </button>
+              `
+              }
             </div>
             `
                 : ""
@@ -7060,9 +7579,18 @@ function renderCabinet() {
           `
           : "";
       return `
-        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}" data-character-id="${record.id}">
+        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}${nftBurningAt ? " cabinet-character--nft cabinet-character--nft-burning" : nftBoundTokenId ? " cabinet-character--nft" : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
-            <div class="success-card-title">${record.name || record.displayName || record.creatureType}</div>
+            <div class="success-card-title">
+              <span class="success-card-title__name">${record.name || record.displayName || record.creatureType}</span>
+              ${
+                nftBurningAt
+                  ? `<span class="success-card-nft-badge success-card-nft-badge--burning" data-nft-burn-at="${nftBurningAt}" title="Capsule #${nftBoundTokenId} is being emptied — this pet will burn"><img src="/assets/dashboard/burn-fire.svg" alt="" width="12" height="12" /><span data-nft-burn-left>${formatBurnCountdown(nftBurningAt)}</span></span>`
+                  : nftBoundTokenId
+                    ? `<span class="success-card-nft-badge" title="Bound to NFT capsule #${nftBoundTokenId}">NFT</span>`
+                    : ""
+              }
+            </div>
             ${cardMenuMarkup}
             ${
               isUpgradeable
@@ -7135,6 +7663,8 @@ function renderCabinet() {
   cabinetCard.innerHTML = cabinetCard.innerHTML + buySlotCta;
 
   syncFarmTimerTicker();
+  syncNftDemoWatcher();
+  syncNftBurnTicker();
 }
 
 function isCabinetScreenActive() {
@@ -7310,7 +7840,7 @@ function openBurnConfirm(characterId) {
       </p>
       <div class="burn-modal__actions">
         <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-burn-cancel>Cancel</button>
-        <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-burn-confirm>Burn</button>
+        <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-burn-confirm>Burn pet</button>
       </div>
     </section>
   `;
@@ -9861,6 +10391,29 @@ function init() {
         event.preventDefault();
         if (buySlotButton.disabled) return;
         void buySlotFlow();
+        return;
+      }
+
+      const nftBindButton = event.target.closest('[data-action="nft-bind"]');
+      if (nftBindButton) {
+        event.preventDefault();
+        void bindNftSlotFlow(nftBindButton.dataset.characterId);
+        return;
+      }
+
+      const nftCancelButton = event.target.closest('[data-action="nft-unbind-cancel"]');
+      if (nftCancelButton) {
+        event.preventDefault();
+        if (nftCancelButton.disabled) return;
+        void cancelNftUnbindFlow(nftCancelButton.dataset.tokenId);
+        return;
+      }
+
+      const nftUnbindButton = event.target.closest('[data-action="nft-unbind"]');
+      if (nftUnbindButton) {
+        event.preventDefault();
+        if (nftUnbindButton.disabled) return;
+        void unbindNftSlotFlow(nftUnbindButton.dataset.tokenId);
         return;
       }
 

@@ -121,9 +121,17 @@ The root `app.js`, `index.html`, `styles.css`, and `prod-root-styles.css` at the
 - Economy coefficients (farm rate, battle reward, slot prices, withdrawal params) live in the runtime-tunable `economy-config.js` (defaults ⊕ overrides via `economy-config-store.js`), not hard-coded — read with `getEconomyConfig()`, change via admin `economy-config`. Farm accrual is lazy from timestamps (`farm.js`), no cron. Phase 2 (Points→$PETIX withdrawal, on-ramp, balance reset) is **designed but not built** — see [specs/013-farm-economy/](specs/013-farm-economy/).
 
 <!-- SPECKIT START -->
-Current plan: [specs/015-metamask-auth/plan.md](specs/015-metamask-auth/plan.md)
+Current plan: [specs/016-nft-slots-demo/plan.md](specs/016-nft-slots-demo/plan.md)
 
 See also:
+- [specs/016-nft-slots-demo/spec.md](specs/016-nft-slots-demo/spec.md) — feature spec: демо NFT-коллекции слотов (mint-pass) на Robinhood Chain mainnet — free mint, bind любого персонажа (порог отключён, конфигурируем), NFT = владение персонажем, unbind = сжигание
+- [specs/016-nft-slots-demo/research.md](specs/016-nft-slots-demo/research.md) — Phase 0: параметры RH chain (4663), solc+OZ без Hardhat, дизайн контракта, минт без web3-либы, Pinata/blob-снапшот, синк логин+getLogs, нейтральный Vercel-деплой
+- [specs/016-nft-slots-demo/data-model.md](specs/016-nft-slots-demo/data-model.md) — Slot/Binding/TransferEvent, инварианты, формат метаданных, диаграмма состояний слота
+- [specs/016-nft-slots-demo/contracts/nft-demo-api.md](specs/016-nft-slots-demo/contracts/nft-demo-api.md) — контракты /api/nft-demo/* (config, slots, bind, unbind, sync, публичный metadata) + burn-блок
+- [specs/016-nft-slots-demo/contracts/slot-contract.md](specs/016-nft-slots-demo/contracts/slot-contract.md) — Solidity-интерфейс DemoSlots (ERC721Enumerable+2981+4906, owner/service роли)
+- [specs/016-nft-slots-demo/quickstart.md](specs/016-nft-slots-demo/quickstart.md) — env, деплой контракта, прогон acceptance-сценариев, нейтральный Vercel-проект
+- [specs/016-nft-slots-demo/release-checklist.md](specs/016-nft-slots-demo/release-checklist.md) — **запуск на проде**: что решить до создания коллекции, env, baseURI `/api/nft/metadata/`, порядок выкатки
+- [specs/016-nft-slots-demo/demo-results.md](specs/016-nft-slots-demo/demo-results.md) — итоги прогона в mainnet: замеры скорости, находки по SeaDrop, доработки
 - [specs/015-metamask-auth/spec.md](specs/015-metamask-auth/spec.md) — feature spec: EVM sign-in via MetaMask + WalletConnect, Solana login disabled (data preserved)
 - [specs/015-metamask-auth/research.md](specs/015-metamask-auth/research.md) — Phase 0 decisions (ethers v6, SIWE-like message, vendored WC UMD, lowercase normalization, 410 on solana endpoints)
 - [specs/015-metamask-auth/data-model.md](specs/015-metamask-auth/data-model.md) — entities + invariants (one address = one profile, base58/0x key spaces disjoint)

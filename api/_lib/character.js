@@ -1045,6 +1045,13 @@ function serializeCharacterRecord(record, options = {}) {
     selectedPowerId: record.selectedPowerId || "",
     selectedPower,
     attributes: normalizeAttributes(record.attributes),
+    nftDemo: record.nftDemo?.tokenId
+      ? {
+          tokenId: record.nftDemo.tokenId,
+          boundAt: record.nftDemo.boundAt || null,
+          pendingUnbindAt: record.nftDemo.pendingUnbindAt || null,
+        }
+      : null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     completedAt: record.completedAt || null,
