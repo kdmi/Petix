@@ -1,5 +1,5 @@
 const { handleCors, json, parseJsonBody } = require("../../api/_lib/auth");
-const { bindCharacterToSlot } = require("../../api/_lib/nft-demo");
+const { bindCharacterToSlot } = require("../../api/_lib/nft");
 const { requireEvmSession, sendDomainError } = require("./_shared");
 
 module.exports = async (req, res) => {
@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
     json(res, 200, result);
   } catch (error) {
     if (sendDomainError(res, error)) return;
-    console.error("[nft-demo:bind]", error);
+    console.error("[nft:bind]", error);
     json(res, 500, { error: "Bind failed." });
   }
 };

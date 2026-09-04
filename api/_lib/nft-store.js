@@ -14,16 +14,16 @@ const DATA_DIR =
   process.env.NODE_ENV === "production"
     ? path.join(process.cwd(), ".data")
     : path.join(process.cwd(), ".data", "local-dev");
-const STATE_PATH = path.join(DATA_DIR, "nft-demo.json");
+const STATE_PATH = path.join(DATA_DIR, "nft.json");
 const STATE_BLOB_PATH =
-  process.env.NFT_DEMO_DB_BLOB_PATH ||
+  process.env.NFT_DB_BLOB_PATH ||
   `system/${crypto
     .createHash("sha256")
     .update(
-      String(process.env.INTERNAL_API_SECRET || process.env.SOLANA_AUTH_SECRET || "petix-nft-demo")
+      String(process.env.INTERNAL_API_SECRET || process.env.SOLANA_AUTH_SECRET || "petix-nft")
     )
     .digest("hex")
-    .slice(0, 32)}-nft-demo.json`;
+    .slice(0, 32)}-nft.json`;
 const STATE_BLOB_VERSION_PREFIX = `${STATE_BLOB_PATH.replace(/\.json$/, "")}-v/`;
 const CAS_ATTEMPTS = 4;
 const MAX_TRANSFER_JOURNAL = 500;
@@ -207,7 +207,7 @@ async function writeBlobState(state, { ifMatch = null } = {}) {
   });
 }
 
-async function readNftDemoState() {
+async function readNftState() {
   if (isBlobDbEnabled()) {
     const { state } = await loadBlobStateConsistent();
     return state;
@@ -220,7 +220,7 @@ async function readNftDemoState() {
  * (nothing is written). It may also return a value via `mutate`'s own closure;
  * the resolved value is the normalized post-write state.
  */
-async function withNftDemoState(mutate) {
+async function withNftState(mutate) {
   const pending = writeQueue.catch(() => null).then(async () => {
     if (!isBlobDbEnabled()) {
       const current = await loadLocalState();
@@ -242,7 +242,7 @@ async function withNftDemoState(mutate) {
       }
     }
 
-    console.warn("[nft-demo-store] state CAS kept conflicting — falling back to unconditional write");
+    console.warn("[nft-store] state CAS kept conflicting — falling back to unconditional write");
     await writeBlobState(next);
     return next;
   });
@@ -252,13 +252,13 @@ async function withNftDemoState(mutate) {
 }
 
 async function getBinding(tokenId) {
-  const state = await readNftDemoState();
+  const state = await readNftState();
   return normalizeBinding(tokenId, state.bindings[String(Number(tokenId))]) || null;
 }
 
 async function getBindingByCharacterId(characterId) {
   if (!characterId) return null;
-  const state = await readNftDemoState();
+  const state = await readNftState();
   for (const [tokenId, raw] of Object.entries(state.bindings)) {
     if (raw.characterId === characterId) {
       return normalizeBinding(tokenId, raw);
@@ -268,7 +268,7 @@ async function getBindingByCharacterId(characterId) {
 }
 
 async function listBindings() {
-  const state = await readNftDemoState();
+  const state = await readNftState();
   return Object.entries(state.bindings)
     .map(([tokenId, raw]) => normalizeBinding(tokenId, raw))
     .filter(Boolean)
@@ -286,7 +286,7 @@ function appendTransferEntry(state, entry) {
 /** Token ids currently owned by `wallet` according to the Transfer-log index. */
 async function listTokensOfOwnerFromIndex(wallet) {
   const target = String(wallet || "").toLowerCase();
-  const state = await readNftDemoState();
+  const state = await readNftState();
   return Object.entries(state.owners)
     .filter(([, owner]) => owner === target)
     .map(([tokenId]) => Number(tokenId))
@@ -302,6 +302,6 @@ module.exports = {
   listBindings,
   normalizeBinding,
   normalizeState,
-  readNftDemoState,
-  withNftDemoState,
+  readNftState,
+  withNftState,
 };

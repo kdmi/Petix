@@ -6,17 +6,17 @@ const {
   evmWallet,
   makeCharacter,
   seedCharacters,
-  withNftDemoEnv,
-} = require("./helpers/nft-demo-test-utils");
+  withNftEnv,
+} = require("./helpers/nft-test-utils");
 
 test("bind: level-1 character binds under the default (disabled) threshold", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter({ level: 1 });
     await seedCharacters(store, wallet, [character]);
     chain.state.owners.set(7, wallet);
 
-    const result = await nftDemo.bindCharacterToSlot(wallet, 7, character.id, deps);
+    const result = await nft.bindCharacterToSlot(wallet, 7, character.id, deps);
 
     assert.equal(result.tokenId, 7);
     assert.equal(result.characterId, character.id);
@@ -26,13 +26,13 @@ test("bind: level-1 character binds under the default (disabled) threshold", asy
     assert.deepEqual(chain.state.emitted, []);
     assert.equal(result.metadataUpdateEmitted, undefined);
 
-    const binding = await nftDemoStore.getBinding(7);
+    const binding = await nftStore.getBinding(7);
     assert.equal(binding.characterId, character.id);
     assert.equal(binding.wallet, wallet);
     assert.equal(binding.boundAt, "2026-09-02T12:00:00.000Z");
 
     const profile = await store.getWalletProfile(wallet);
-    assert.deepEqual(profile.characters[0].nftDemo, {
+    assert.deepEqual(profile.characters[0].nft, {
       tokenId: 7,
       boundAt: "2026-09-02T12:00:00.000Z",
     });
@@ -40,15 +40,15 @@ test("bind: level-1 character binds under the default (disabled) threshold", asy
 });
 
 test("bind: LEVEL_TOO_LOW only when the threshold is raised in config", async () => {
-  await withNftDemoEnv(async ({ chain, configOverrides, deps, nftDemo, store }) => {
+  await withNftEnv(async ({ chain, configOverrides, deps, nft, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter({ level: 2 });
     await seedCharacters(store, wallet, [character]);
     chain.state.owners.set(1, wallet);
-    configOverrides.NFT_DEMO_BIND_LEVEL = 3;
+    configOverrides.NFT_BIND_LEVEL = 3;
 
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 1, character.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 1, character.id, deps),
       (error) => {
         assert.equal(error.httpStatus, 422);
         assert.equal(error.httpCode, "LEVEL_TOO_LOW");
@@ -61,31 +61,31 @@ test("bind: LEVEL_TOO_LOW only when the threshold is raised in config", async ()
 });
 
 test("bind: rejects an unminted token and a foreign token", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, store }) => {
     const wallet = evmWallet("a");
     const stranger = evmWallet("b");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character]);
 
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 3, character.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 3, character.id, deps),
       (error) => error.httpCode === "TOKEN_NOT_FOUND"
     );
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 999, character.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 999, character.id, deps),
       (error) => error.httpCode === "TOKEN_NOT_FOUND"
     );
 
     chain.state.owners.set(3, stranger);
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 3, character.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 3, character.id, deps),
       (error) => error.httpCode === "NOT_TOKEN_OWNER"
     );
   });
 });
 
 test("bind: occupied slot and already-bound character are rejected", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, store }) => {
     const wallet = evmWallet("a");
     const first = makeCharacter({ id: "char_11111111-1111-1111-1111-111111111111" });
     const second = makeCharacter({ id: "char_22222222-2222-2222-2222-222222222222" });
@@ -93,21 +93,21 @@ test("bind: occupied slot and already-bound character are rejected", async () =>
     chain.state.owners.set(1, wallet);
     chain.state.owners.set(2, wallet);
 
-    await nftDemo.bindCharacterToSlot(wallet, 1, first.id, deps);
+    await nft.bindCharacterToSlot(wallet, 1, first.id, deps);
 
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 1, second.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 1, second.id, deps),
       (error) => error.httpCode === "SLOT_OCCUPIED"
     );
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 2, first.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 2, first.id, deps),
       (error) => error.httpCode === "CHARACTER_ALREADY_BOUND"
     );
   });
 });
 
 test("bind: concurrent CAS re-check rejects a second bind of the same slot", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const first = makeCharacter({ id: "char_11111111-1111-1111-1111-111111111111" });
     const second = makeCharacter({ id: "char_22222222-2222-2222-2222-222222222222" });
@@ -118,25 +118,25 @@ test("bind: concurrent CAS re-check rejects a second bind of the same slot", asy
     // mutation by having the pre-check see an empty store.
     const originalGetBinding = deps.store.getBinding;
     deps.store = {
-      ...nftDemoStore,
+      ...nftStore,
       getBinding: async () => null, // pre-check always sees empty
     };
-    await nftDemo.bindCharacterToSlot(wallet, 5, first.id, {
+    await nft.bindCharacterToSlot(wallet, 5, first.id, {
       ...deps,
-      store: nftDemoStore,
+      store: nftStore,
     });
 
     await assert.rejects(
-      () => nftDemo.bindCharacterToSlot(wallet, 5, second.id, deps),
+      () => nft.bindCharacterToSlot(wallet, 5, second.id, deps),
       (error) => error.httpCode === "BIND_IN_PROGRESS"
     );
-    deps.store = nftDemoStore;
+    deps.store = nftStore;
     void originalGetBinding;
   });
 });
 
 test("bind: profile-mark failure rolls the binding back", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character]);
@@ -152,26 +152,26 @@ test("bind: profile-mark failure rolls the binding back", async () => {
       },
     };
 
-    await assert.rejects(() => nftDemo.bindCharacterToSlot(wallet, 9, character.id, failingDeps));
+    await assert.rejects(() => nft.bindCharacterToSlot(wallet, 9, character.id, failingDeps));
 
-    assert.equal(await nftDemoStore.getBinding(9), null);
+    assert.equal(await nftStore.getBinding(9), null);
     const profile = await store.getWalletProfile(wallet);
-    assert.equal(profile.characters[0].nftDemo, undefined);
+    assert.equal(profile.characters[0].nft, undefined);
   });
 });
 
 test("очистка: заявка списывает Points, прячет трейты, сжигает по сроку", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character], {
       currency: { balance: 25000, totalEarned: 25000 },
     });
     chain.state.owners.set(4, wallet);
-    await nftDemo.bindCharacterToSlot(wallet, 4, character.id, deps);
+    await nft.bindCharacterToSlot(wallet, 4, character.id, deps);
 
     // Фаза 1: заявка
-    const request = await nftDemo.requestUnbindSlot(wallet, 4, deps);
+    const request = await nft.requestUnbindSlot(wallet, 4, deps);
     assert.equal(request.status, "pending");
     assert.equal(request.pricePaid, 10000);
     assert.equal(request.executeAt, new Date(BASE_NOW + 3600000).toISOString());
@@ -181,29 +181,29 @@ test("очистка: заявка списывает Points, прячет тр�
     assert.equal(afterRequest.characters.length, 1, "персонаж пока жив");
 
     // Метаданные скрывают питомца, чтобы его не купили «вслепую»
-    const pendingMeta = await nftDemo.getTokenMetadata(4, "https://demo.test", deps);
+    const pendingMeta = await nft.getTokenMetadata(4, "https://demo.test", deps);
     assert.deepEqual(pendingMeta.attributes, [{ trait_type: "Status", value: "Unbinding" }]);
     assert.equal(pendingMeta.name, "Slot #4");
 
     // Срок ещё не наступил — ничего не происходит
-    assert.deepEqual((await nftDemo.processPendingUnbinds(deps)).burned, []);
+    assert.deepEqual((await nft.processPendingUnbinds(deps)).burned, []);
     assert.equal((await store.getWalletProfile(wallet)).characters.length, 1);
 
     // Фаза 2: срок пришёл
     const later = { ...deps, now: () => BASE_NOW + 3600001 };
-    const result = await nftDemo.processPendingUnbinds(later);
+    const result = await nft.processPendingUnbinds(later);
     assert.equal(result.burned.length, 1);
     assert.equal(result.burned[0].burnedCharacterId, character.id);
 
     const afterBurn = await store.getWalletProfile(wallet);
     assert.equal(afterBurn.characters.length, 0, "персонаж сгорел");
     assert.equal(afterBurn.currency.balance, 15000, "Points не возвращены");
-    assert.equal(await nftDemoStore.getBinding(4), null, "капсула свободна");
+    assert.equal(await nftStore.getBinding(4), null, "капсула свободна");
   });
 });
 
 test("очистка: продажа до срока отменяет сжигание и возвращает Points", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     const character = makeCharacter({ level: 6 });
@@ -211,14 +211,14 @@ test("очистка: продажа до срока отменяет сжига
       currency: { balance: 25000, totalEarned: 25000 },
     });
     chain.state.owners.set(8, seller);
-    await nftDemo.bindCharacterToSlot(seller, 8, character.id, deps);
-    await nftDemo.requestUnbindSlot(seller, 8, deps);
+    await nft.bindCharacterToSlot(seller, 8, character.id, deps);
+    await nft.requestUnbindSlot(seller, 8, deps);
     assert.equal((await store.getWalletProfile(seller)).currency.balance, 15000);
 
     // Продажа за 5 минут до срока — ровно тот случай, которого мы боялись
     chain.transfer(8, buyer);
     const later = { ...deps, now: () => BASE_NOW + 3600001 };
-    const result = await nftDemo.syncTransfers(later);
+    const result = await nft.syncTransfers(later);
 
     assert.equal(result.moved.length, 1, "персонаж переехал");
     assert.deepEqual(result.burned, [], "сжигание НЕ состоялось");
@@ -231,35 +231,35 @@ test("очистка: продажа до срока отменяет сжига
     assert.equal(sellerProfile.currency.balance, 25000, "Points возвращены продавцу");
     assert.equal(sellerProfile.currency.totalEarned, 25000, "возврат не раздул totalEarned");
 
-    const binding = await nftDemoStore.getBinding(8);
+    const binding = await nftStore.getBinding(8);
     assert.equal(binding.pendingUnbind, null, "заявка снята");
   });
 });
 
 test("очистка: владелец может отменить заявку и вернуть Points", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character], {
       currency: { balance: 25000, totalEarned: 25000 },
     });
     chain.state.owners.set(2, wallet);
-    await nftDemo.bindCharacterToSlot(wallet, 2, character.id, deps);
-    await nftDemo.requestUnbindSlot(wallet, 2, deps);
+    await nft.bindCharacterToSlot(wallet, 2, character.id, deps);
+    await nft.requestUnbindSlot(wallet, 2, deps);
 
-    const cancelled = await nftDemo.cancelUnbindRequest(wallet, 2, deps);
+    const cancelled = await nft.cancelUnbindRequest(wallet, 2, deps);
     assert.equal(cancelled.refunded, 10000);
     assert.equal((await store.getWalletProfile(wallet)).currency.balance, 25000);
-    assert.equal((await nftDemoStore.getBinding(2)).pendingUnbind, null);
+    assert.equal((await nftStore.getBinding(2)).pendingUnbind, null);
 
     // Трейты вернулись
-    const meta = await nftDemo.getTokenMetadata(2, "https://demo.test", deps);
+    const meta = await nft.getTokenMetadata(2, "https://demo.test", deps);
     assert.equal(meta.name, "Nova Cub");
   });
 });
 
 test("очистка: не хватает Points, пустой слот, чужой токен, двойная заявка", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, store }) => {
     const owner = evmWallet("a");
     const stranger = evmWallet("b");
     const character = makeCharacter();
@@ -269,18 +269,18 @@ test("очистка: не хватает Points, пустой слот, чуж�
     chain.state.owners.set(2, owner);
 
     await assert.rejects(
-      () => nftDemo.requestUnbindSlot(owner, 2, deps),
+      () => nft.requestUnbindSlot(owner, 2, deps),
       (error) => error.httpCode === "SLOT_EMPTY"
     );
 
-    await nftDemo.bindCharacterToSlot(owner, 2, character.id, deps);
+    await nft.bindCharacterToSlot(owner, 2, character.id, deps);
 
     await assert.rejects(
-      () => nftDemo.requestUnbindSlot(stranger, 2, deps),
+      () => nft.requestUnbindSlot(stranger, 2, deps),
       (error) => error.httpCode === "NOT_TOKEN_OWNER"
     );
     await assert.rejects(
-      () => nftDemo.requestUnbindSlot(owner, 2, deps),
+      () => nft.requestUnbindSlot(owner, 2, deps),
       (error) => {
         assert.equal(error.httpCode, "INSUFFICIENT_FUNDS");
         assert.equal(error.required, 10000);
@@ -294,29 +294,29 @@ test("очистка: не хватает Points, пустой слот, чуж�
 
     // С деньгами заявка проходит, повторная — отклоняется
     await store.updateWalletProfile(owner, (c) => ({ ...c, currency: { balance: 25000, totalEarned: 25000 } }));
-    await nftDemo.requestUnbindSlot(owner, 2, deps);
+    await nft.requestUnbindSlot(owner, 2, deps);
     await assert.rejects(
-      () => nftDemo.requestUnbindSlot(owner, 2, deps),
+      () => nft.requestUnbindSlot(owner, 2, deps),
       (error) => error.httpCode === "UNBIND_PENDING"
     );
   });
 });
 
 test("refresh при прокачке: дебаунс не даёт спамить API маркетплейса", async () => {
-  await withNftDemoEnv(async ({ chain, deps, nftDemo, nftDemoStore, store }) => {
+  await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character]);
     chain.state.owners.set(3, wallet);
-    await nftDemo.bindCharacterToSlot(wallet, 3, character.id, deps);
+    await nft.bindCharacterToSlot(wallet, 3, character.id, deps);
 
     // Без ключа маркетплейса обновление вообще не запускается.
-    delete process.env.NFT_DEMO_OPENSEA_API_KEY;
-    assert.equal(await nftDemo.refreshBoundCharacterMetadata(character.id, deps), false);
+    delete process.env.NFT_OPENSEA_API_KEY;
+    assert.equal(await nft.refreshBoundCharacterMetadata(character.id, deps), false);
 
     const calls = [];
-    process.env.NFT_DEMO_OPENSEA_API_KEY = "test-key";
-    process.env.NFT_DEMO_CONTRACT = "0xcontract";
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
+    process.env.NFT_CONTRACT = "0xcontract";
     const originalFetch = global.fetch;
     global.fetch = async (url) => {
       calls.push(String(url));
@@ -324,40 +324,40 @@ test("refresh при прокачке: дебаунс не даёт спамит
     };
 
     try {
-      assert.equal(await nftDemo.refreshBoundCharacterMetadata(character.id, deps), true);
+      assert.equal(await nft.refreshBoundCharacterMetadata(character.id, deps), true);
       assert.equal(calls.length, 1);
       assert.match(calls[0], /\/nfts\/3\/refresh$/);
 
       // Повторный левел-ап сразу же — дебаунс гасит второй вызов.
-      assert.equal(await nftDemo.refreshBoundCharacterMetadata(character.id, deps), false);
+      assert.equal(await nft.refreshBoundCharacterMetadata(character.id, deps), false);
       assert.equal(calls.length, 1);
 
-      const binding = await nftDemoStore.getBinding(3);
+      const binding = await nftStore.getBinding(3);
       assert.ok(binding.refreshedAt, "метка времени обновления сохранена");
     } finally {
       global.fetch = originalFetch;
-      delete process.env.NFT_DEMO_OPENSEA_API_KEY;
-      delete process.env.NFT_DEMO_CONTRACT;
+      delete process.env.NFT_OPENSEA_API_KEY;
+      delete process.env.NFT_CONTRACT;
     }
   });
 });
 
 test("refresh при прокачке: непривязанный персонаж игнорируется", async () => {
-  await withNftDemoEnv(async ({ deps, nftDemo, store }) => {
+  await withNftEnv(async ({ deps, nft, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
     await seedCharacters(store, wallet, [character]);
 
-    process.env.NFT_DEMO_OPENSEA_API_KEY = "test-key";
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
     const originalFetch = global.fetch;
     let called = 0;
     global.fetch = async () => { called += 1; return { ok: true, status: 200, text: async () => "" }; };
     try {
-      assert.equal(await nftDemo.refreshBoundCharacterMetadata(character.id, deps), false);
+      assert.equal(await nft.refreshBoundCharacterMetadata(character.id, deps), false);
       assert.equal(called, 0);
     } finally {
       global.fetch = originalFetch;
-      delete process.env.NFT_DEMO_OPENSEA_API_KEY;
+      delete process.env.NFT_OPENSEA_API_KEY;
     }
   });
 });

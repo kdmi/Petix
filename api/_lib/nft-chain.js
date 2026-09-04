@@ -20,21 +20,21 @@ const CONTRACT_ABI = [
 
 const TRANSFER_TOPIC = keccakId("Transfer(address,address,uint256)");
 
-function isNftDemoEnabled() {
-  return process.env.NFT_DEMO_ENABLED === "1";
+function isNftEnabled() {
+  return process.env.NFT_ENABLED === "1";
 }
 
-function getNftDemoEnv() {
+function getNftEnv() {
   return {
-    enabled: isNftDemoEnabled(),
-    contract: String(process.env.NFT_DEMO_CONTRACT || "").trim() || null,
-    chainId: Number(process.env.NFT_DEMO_CHAIN_ID) || null,
-    chainName: String(process.env.NFT_DEMO_CHAIN_NAME || "Robinhood Chain"),
-    rpcUrl: String(process.env.NFT_DEMO_RPC_URL || "").trim() || null,
-    explorerUrl: String(process.env.NFT_DEMO_EXPLORER_URL || "").trim() || null,
-    currencySymbol: String(process.env.NFT_DEMO_CURRENCY_SYMBOL || "ETH"),
-    marketplaceUrl: String(process.env.NFT_DEMO_MARKETPLACE_URL || "").trim() || null,
-    maxSupply: Math.max(1, Math.floor(Number(process.env.NFT_DEMO_MAX_SUPPLY) || 10000)),
+    enabled: isNftEnabled(),
+    contract: String(process.env.NFT_CONTRACT || "").trim() || null,
+    chainId: Number(process.env.NFT_CHAIN_ID) || null,
+    chainName: String(process.env.NFT_CHAIN_NAME || "Robinhood Chain"),
+    rpcUrl: String(process.env.NFT_RPC_URL || "").trim() || null,
+    explorerUrl: String(process.env.NFT_EXPLORER_URL || "").trim() || null,
+    currencySymbol: String(process.env.NFT_CURRENCY_SYMBOL || "ETH"),
+    marketplaceUrl: String(process.env.NFT_MARKETPLACE_URL || "").trim() || null,
+    maxSupply: Math.max(1, Math.floor(Number(process.env.NFT_MAX_SUPPLY) || 10000)),
   };
 }
 
@@ -61,7 +61,7 @@ function isTokenMissingError(error) {
 }
 
 function createChainClient(overrides = {}) {
-  const env = getNftDemoEnv();
+  const env = getNftEnv();
 
   let provider = overrides.provider || null;
   let contract = overrides.contract || null;
@@ -79,9 +79,9 @@ function createChainClient(overrides = {}) {
 
   function requireServiceContract() {
     if (serviceContract) return serviceContract;
-    const secret = process.env.NFT_DEMO_SERVICE_SECRET;
+    const secret = process.env.NFT_SERVICE_SECRET;
     if (!secret) {
-      throw new Error("NFT_DEMO_SERVICE_SECRET is not configured.");
+      throw new Error("NFT_SERVICE_SECRET is not configured.");
     }
     const base = requireContract();
     const signer = new Wallet(secret, provider);
@@ -161,10 +161,10 @@ function createChainClient(overrides = {}) {
      * eth_getCode is NOT usable here — Robinhood Chain's public RPC keeps no
      * archive state — so walk the contract's own logs backwards instead: the
      * first log a token contract emits is written in its deployment block.
-     * NFT_DEMO_START_BLOCK short-circuits the search when it is known.
+     * NFT_START_BLOCK short-circuits the search when it is known.
      */
     async findDeploymentBlock() {
-      const configured = Number(process.env.NFT_DEMO_START_BLOCK);
+      const configured = Number(process.env.NFT_START_BLOCK);
       if (Number.isFinite(configured) && configured > 0) return Math.floor(configured);
 
       const target = requireContract();
@@ -178,8 +178,8 @@ function createChainClient(overrides = {}) {
         throw rpcUnavailable(error);
       }
 
-      const chunk = Number(process.env.NFT_DEMO_LOG_CHUNK) || 50000;
-      const maxLookback = Number(process.env.NFT_DEMO_MAX_LOOKBACK) || 5000000;
+      const chunk = Number(process.env.NFT_LOG_CHUNK) || 50000;
+      const maxLookback = Number(process.env.NFT_MAX_LOOKBACK) || 5000000;
       const emptyChunksBeforeStop = 3; // tolerate quiet gaps in contract activity
 
       let earliest = null;
@@ -229,7 +229,7 @@ function createChainClient(overrides = {}) {
       }
 
       const transfers = [];
-      let chunk = Number(process.env.NFT_DEMO_LOG_CHUNK) || 50000;
+      let chunk = Number(process.env.NFT_LOG_CHUNK) || 50000;
       let cursor = fromBlock;
       while (cursor <= toBlock) {
         const end = Math.min(cursor + chunk - 1, toBlock);
@@ -277,7 +277,7 @@ function createChainClient(overrides = {}) {
           await tx.wait();
           return true;
         } catch (error) {
-          console.warn(`[nft-demo] ${method}(${tokenId}) failed: ${error.shortMessage || error.message}`);
+          console.warn(`[nft] ${method}(${tokenId}) failed: ${error.shortMessage || error.message}`);
         }
       }
       return false;
@@ -289,7 +289,7 @@ module.exports = {
   CONTRACT_ABI,
   TRANSFER_TOPIC,
   createChainClient,
-  getNftDemoEnv,
-  isNftDemoEnabled,
+  getNftEnv,
+  isNftEnabled,
   normalizeAddress,
 };

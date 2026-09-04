@@ -1,6 +1,6 @@
 const { handleCors, json } = require("../../api/_lib/auth");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const { createChainClient, getNftDemoEnv } = require("../../api/_lib/nft-demo-chain");
+const { createChainClient, getNftEnv } = require("../../api/_lib/nft-chain");
 const { requireEvmSession } = require("./_shared");
 
 module.exports = async (req, res) => {
@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   const session = requireEvmSession(req, res);
   if (!session) return;
 
-  const env = getNftDemoEnv();
+  const env = getNftEnv();
   const cfg = await getEconomyConfig();
 
   let totalSupply = null;
@@ -31,10 +31,10 @@ module.exports = async (req, res) => {
     rpcUrl: env.rpcUrl,
     explorerUrl: env.explorerUrl,
     currencySymbol: env.currencySymbol,
-    bindLevel: Math.max(1, Math.floor(Number(cfg.NFT_DEMO_BIND_LEVEL) || 1)),
-    mintLimit: Math.max(1, Math.floor(Number(cfg.NFT_DEMO_MINT_LIMIT) || 5)),
-    unbindCost: Math.max(0, Math.floor(Number(cfg.NFT_DEMO_UNBIND_COST) || 0)),
-    unbindDelayMs: Math.max(0, Math.floor(Number(cfg.NFT_DEMO_UNBIND_DELAY_MS) || 0)),
+    bindLevel: Math.max(1, Math.floor(Number(cfg.NFT_BIND_LEVEL) || 1)),
+    mintLimit: Math.max(1, Math.floor(Number(cfg.NFT_MINT_LIMIT) || 5)),
+    unbindCost: Math.max(0, Math.floor(Number(cfg.NFT_UNBIND_COST) || 0)),
+    unbindDelayMs: Math.max(0, Math.floor(Number(cfg.NFT_UNBIND_DELAY_MS) || 0)),
     maxSupply: env.maxSupply,
     totalSupply,
     // Slots are bought on the marketplace, not minted from here.

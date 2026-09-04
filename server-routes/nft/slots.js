@@ -1,5 +1,5 @@
 const { handleCors, json } = require("../../api/_lib/auth");
-const { listWalletSlots } = require("../../api/_lib/nft-demo");
+const { listWalletSlots } = require("../../api/_lib/nft");
 const { requireEvmSession, sendDomainError } = require("./_shared");
 
 module.exports = async (req, res) => {
@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
     json(res, 200, result);
   } catch (error) {
     if (sendDomainError(res, error)) return;
-    console.error("[nft-demo:slots]", error);
+    console.error("[nft:slots]", error);
     json(res, 500, { error: "Failed to load slots." });
   }
 };

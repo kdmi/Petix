@@ -1,7 +1,7 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { json } = require("../../api/_lib/auth");
-const { LOCAL_IMAGES_DIR } = require("../../api/_lib/nft-demo");
+const { LOCAL_IMAGES_DIR } = require("../../api/_lib/nft");
 
 // Public image endpoint for LOCAL snapshot copies only (bare dev without blob
 // storage). In production snapshots live in IPFS/blob and this route is unused.

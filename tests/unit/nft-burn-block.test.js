@@ -22,7 +22,7 @@ test("POST /api/character/burn rejects a character bound to an NFT slot", async 
   await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store }) => {
     const wallet = createWallet("4");
     const bound = createCompletedCharacter({ id: "char_bound", name: "Bound Pet" });
-    bound.nftDemo = { tokenId: 7, boundAt: "2026-09-02T12:00:00.000Z" };
+    bound.nft = { tokenId: 7, boundAt: "2026-09-02T12:00:00.000Z" };
     await store.updateWalletProfile(wallet, (current) => ({
       ...current,
       characters: [bound],

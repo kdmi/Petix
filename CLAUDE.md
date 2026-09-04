@@ -127,7 +127,7 @@ See also:
 - [specs/016-nft-slots-demo/spec.md](specs/016-nft-slots-demo/spec.md) — feature spec: демо NFT-коллекции слотов (mint-pass) на Robinhood Chain mainnet — free mint, bind любого персонажа (порог отключён, конфигурируем), NFT = владение персонажем, unbind = сжигание
 - [specs/016-nft-slots-demo/research.md](specs/016-nft-slots-demo/research.md) — Phase 0: параметры RH chain (4663), solc+OZ без Hardhat, дизайн контракта, минт без web3-либы, Pinata/blob-снапшот, синк логин+getLogs, нейтральный Vercel-деплой
 - [specs/016-nft-slots-demo/data-model.md](specs/016-nft-slots-demo/data-model.md) — Slot/Binding/TransferEvent, инварианты, формат метаданных, диаграмма состояний слота
-- [specs/016-nft-slots-demo/contracts/nft-demo-api.md](specs/016-nft-slots-demo/contracts/nft-demo-api.md) — контракты /api/nft-demo/* (config, slots, bind, unbind, sync, публичный metadata) + burn-блок
+- [specs/016-nft-slots-demo/contracts/nft-api.md](specs/016-nft-slots-demo/contracts/nft-api.md) — контракты /api/nft/* (config, slots, bind, unbind, sync, публичный metadata) + burn-блок
 - [specs/016-nft-slots-demo/contracts/slot-contract.md](specs/016-nft-slots-demo/contracts/slot-contract.md) — Solidity-интерфейс DemoSlots (ERC721Enumerable+2981+4906, owner/service роли)
 - [specs/016-nft-slots-demo/quickstart.md](specs/016-nft-slots-demo/quickstart.md) — env, деплой контракта, прогон acceptance-сценариев, нейтральный Vercel-проект
 - [specs/016-nft-slots-demo/release-checklist.md](specs/016-nft-slots-demo/release-checklist.md) — **запуск на проде**: что решить до создания коллекции, env, baseURI `/api/nft/metadata/`, порядок выкатки

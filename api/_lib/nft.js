@@ -4,8 +4,8 @@ const path = require("path");
 const { getEconomyConfig } = require("./economy-config");
 const { claimFarm, normalizeFarmState } = require("./farm");
 const { debitCurrency } = require("./currency");
-const { createChainClient, getNftDemoEnv, isNftDemoEnabled } = require("./nft-demo-chain");
-const nftDemoStore = require("./nft-demo-store");
+const { createChainClient, getNftEnv, isNftEnabled } = require("./nft-chain");
+const nftStore = require("./nft-store");
 const {
   deleteStoredImage,
   getWalletProfile,
@@ -20,15 +20,15 @@ const {
 
 // Collection size comes from env: the demo collection is deployed via OpenSea
 // Studio, so the cap lives on their contract, not ours.
-const MAX_SUPPLY = Math.max(1, Math.floor(Number(process.env.NFT_DEMO_MAX_SUPPLY) || 10000));
+const MAX_SUPPLY = Math.max(1, Math.floor(Number(process.env.NFT_MAX_SUPPLY) || 10000));
 const LOCAL_IMAGE_PREFIX = "local:";
 const LOCAL_IMAGES_DIR = path.join(
   process.cwd(),
   ".data",
   process.env.NODE_ENV === "production" ? "" : "local-dev",
-  "nft-demo-images"
+  "nft-images"
 );
-const BLOB_SNAPSHOT_PREFIX = "nft-demo-images";
+const BLOB_SNAPSHOT_PREFIX = "nft-images";
 
 const VARIABLE_TRAIT_LABELS = {
   ELEMENT: "Element",
@@ -45,11 +45,11 @@ const VARIABLE_TRAIT_LABELS = {
 // endpoint queues an immediate re-read (minutes, not hours). Best-effort and
 // non-blocking — the demo works without a key, just slower.
 async function requestMarketplaceRefresh(tokenId) {
-  const apiKey = process.env.NFT_DEMO_OPENSEA_API_KEY;
-  const contract = process.env.NFT_DEMO_CONTRACT;
+  const apiKey = process.env.NFT_OPENSEA_API_KEY;
+  const contract = process.env.NFT_CONTRACT;
   if (!apiKey || !contract) return false;
 
-  const chain = process.env.NFT_DEMO_OPENSEA_CHAIN || "robinhood";
+  const chain = process.env.NFT_OPENSEA_CHAIN || "robinhood";
   const url = `https://api.opensea.io/api/v2/chain/${chain}/contract/${contract}/nfts/${tokenId}/refresh`;
 
   try {
@@ -60,12 +60,12 @@ async function requestMarketplaceRefresh(tokenId) {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      console.warn(`[nft-demo] marketplace refresh ${tokenId}: HTTP ${response.status} ${body.slice(0, 120)}`);
+      console.warn(`[nft] marketplace refresh ${tokenId}: HTTP ${response.status} ${body.slice(0, 120)}`);
       return false;
     }
     return true;
   } catch (error) {
-    console.warn(`[nft-demo] marketplace refresh ${tokenId} failed: ${error.message}`);
+    console.warn(`[nft] marketplace refresh ${tokenId} failed: ${error.message}`);
     return false;
   }
 }
@@ -81,12 +81,12 @@ async function requestMarketplaceRefresh(tokenId) {
 async function refreshBoundCharacterMetadata(characterId, depOverrides) {
   // Зовётся из боя и апгрейда — то есть на каждом левел-апе всех игроков.
   // Пока фича выключена, не должно быть даже чтения хранилища.
-  if (!isNftDemoEnabled()) return false;
-  if (!characterId || !process.env.NFT_DEMO_OPENSEA_API_KEY) return false;
+  if (!isNftEnabled()) return false;
+  if (!characterId || !process.env.NFT_OPENSEA_API_KEY) return false;
 
   const deps = resolveDeps(depOverrides);
   const debounceMs =
-    Math.max(0, Number(process.env.NFT_DEMO_REFRESH_DEBOUNCE_MS) || 10 * 60 * 1000);
+    Math.max(0, Number(process.env.NFT_REFRESH_DEBOUNCE_MS) || 10 * 60 * 1000);
 
   try {
     const binding = await deps.store.getBindingByCharacterId(characterId);
@@ -97,7 +97,7 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
     if (Number.isFinite(lastAt) && now - lastAt < debounceMs) return false;
 
     // Метку ставим ДО запроса: параллельные бои не должны выстрелить пачкой.
-    await deps.store.withNftDemoState((state) => {
+    await deps.store.withNftState((state) => {
       const stored = state.bindings[String(binding.tokenId)];
       if (stored) stored.refreshedAt = new Date(now).toISOString();
       return state;
@@ -105,7 +105,7 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
 
     return await requestMarketplaceRefresh(binding.tokenId);
   } catch (error) {
-    console.warn(`[nft-demo] progression refresh failed: ${error.message}`);
+    console.warn(`[nft] progression refresh failed: ${error.message}`);
     return false;
   }
 }
@@ -129,7 +129,7 @@ function normalizeTokenId(rawValue) {
 function buildDefaultDeps() {
   return {
     chain: createChainClient(),
-    store: nftDemoStore,
+    store: nftStore,
     profiles: { getWalletProfile, saveWalletProfile, updateWalletProfile },
     getConfig: getEconomyConfig,
     deleteStoredImage,
@@ -190,7 +190,7 @@ async function pinToPinata(buffer, fileName, mimeType, jwt) {
   if (!payload?.IpfsHash) {
     throw fail(502, "Pinata pin returned no CID.", "PIN_FAILED");
   }
-  const gatewayHost = String(process.env.NFT_DEMO_IPFS_GATEWAY || "https://gateway.pinata.cloud")
+  const gatewayHost = String(process.env.NFT_IPFS_GATEWAY || "https://gateway.pinata.cloud")
     .replace(/\/$/, "");
   return {
     imageUri: `ipfs://${payload.IpfsHash}`,
@@ -203,7 +203,7 @@ async function snapshotCharacterImage(tokenId, character) {
   const fileName = `${tokenId}-${character.id}.${extension}`;
   const buffer = await readCharacterImageBytes(character);
 
-  const pinataJwt = process.env.NFT_DEMO_PINATA_JWT;
+  const pinataJwt = process.env.NFT_PINATA_JWT;
   if (pinataJwt) {
     return pinToPinata(buffer, fileName, mimeType, pinataJwt);
   }
@@ -255,7 +255,7 @@ function resolveImageUrl(binding, origin) {
   if (binding.imageGatewayUrl) return binding.imageGatewayUrl;
   const uri = String(binding.imageUri || "");
   if (uri.startsWith(LOCAL_IMAGE_PREFIX)) {
-    return `${origin}/api/nft-demo/image?file=${encodeURIComponent(uri.slice(LOCAL_IMAGE_PREFIX.length))}`;
+    return `${origin}/api/nft/image?file=${encodeURIComponent(uri.slice(LOCAL_IMAGE_PREFIX.length))}`;
   }
   return uri || null;
 }
@@ -264,18 +264,18 @@ function buildPlaceholderMetadata(tokenId, origin) {
   return {
     name: `Slot #${tokenId}`,
     description: "An empty slot. Bind a companion to turn it into a collectible.",
-    image: `${origin}/assets/nft-demo/placeholder.png`,
+    image: `${origin}/assets/nft/placeholder.png`,
     attributes: [{ trait_type: "Status", value: "Empty Slot" }],
   };
 }
 
 function buildCollectionMetadata(origin) {
   return {
-    name: process.env.NFT_DEMO_COLLECTION_NAME || "Slot Box",
+    name: process.env.NFT_COLLECTION_NAME || "Slot Box",
     description:
       `A fixed collection of ${MAX_SUPPLY.toLocaleString("en-US")} capsules. ` +
       "Each capsule starts empty and can be turned into a unique companion collectible.",
-    image: `${origin}/assets/nft-demo/placeholder.png`,
+    image: `${origin}/assets/nft/placeholder.png`,
   };
 }
 
@@ -353,7 +353,7 @@ async function getTokenMetadata(rawTokenId, origin, depOverrides) {
       name: `Slot #${tokenId}`,
       description:
         "The companion inside is scheduled to be released. This capsule will be empty soon.",
-      image: `${origin}/assets/nft-demo/placeholder.png`,
+      image: `${origin}/assets/nft/placeholder.png`,
       attributes: [{ trait_type: "Status", value: "Unbinding" }],
     };
   }
@@ -421,7 +421,7 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
       await deps.profiles.updateWalletProfile(target, (current) => {
         const characters = current.characters || (current.characters = []);
         if (!characters.some((record) => record.id === movedCharacter.id)) {
-          movedCharacter.nftDemo = { tokenId: binding.tokenId, boundAt: binding.boundAt };
+          movedCharacter.nft = { tokenId: binding.tokenId, boundAt: binding.boundAt };
           characters.push(movedCharacter);
         }
         return current;
@@ -443,7 +443,7 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
   };
 
   try {
-    await deps.store.withNftDemoState((state) => {
+    await deps.store.withNftState((state) => {
       const stored = state.bindings[String(binding.tokenId)];
       if (stored && stored.characterId === binding.characterId) {
         stored.wallet = target;
@@ -468,12 +468,12 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
  */
 async function ensureOwnerIndex(depOverrides) {
   const deps = resolveDeps(depOverrides);
-  let state = await deps.store.readNftDemoState();
+  let state = await deps.store.readNftState();
 
   let startBlock = state.startBlock;
   if (!startBlock) {
     startBlock = await deps.chain.findDeploymentBlock();
-    state = await deps.store.withNftDemoState((current) => {
+    state = await deps.store.withNftState((current) => {
       current.startBlock = startBlock;
       return current;
     });
@@ -485,7 +485,7 @@ async function ensureOwnerIndex(depOverrides) {
     return state;
   }
 
-  return deps.store.withNftDemoState((current) => {
+  return deps.store.withNftState((current) => {
     for (const transfer of transfers) {
       const key = String(transfer.tokenId);
       if (!transfer.to || /^0x0{40}$/.test(transfer.to)) delete current.owners[key];
@@ -524,7 +524,7 @@ async function syncWalletSlots(wallet, depOverrides) {
 /** Full sync: scan Transfer logs since the watermark, reconcile touched bindings. */
 async function syncTransfers(depOverrides) {
   const deps = resolveDeps(depOverrides);
-  const state = await deps.store.readNftDemoState();
+  const state = await deps.store.readNftState();
   const fromBlock = state.lastSyncedBlock + 1;
   const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock);
 
@@ -535,7 +535,7 @@ async function syncTransfers(depOverrides) {
 
   // Keep the ownership index in step with the same scan.
   if (transfers.length) {
-    await deps.store.withNftDemoState((current) => {
+    await deps.store.withNftState((current) => {
       for (const transfer of transfers) {
         const key = String(transfer.tokenId);
         if (!transfer.to || /^0x0{40}$/.test(transfer.to)) delete current.owners[key];
@@ -567,7 +567,7 @@ async function syncTransfers(depOverrides) {
   }
 
   if (toBlock >= fromBlock - 1) {
-    await deps.store.withNftDemoState((current) => {
+    await deps.store.withNftState((current) => {
       current.lastSyncedBlock = Math.max(current.lastSyncedBlock, toBlock);
       return current;
     });
@@ -614,12 +614,12 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
   if (character.status !== "completed") {
     throw fail(403, "Only completed characters can be bound.", "NOT_CHARACTER_OWNER");
   }
-  if (character.nftDemo?.tokenId) {
+  if (character.nft?.tokenId) {
     throw fail(409, "This character is already bound to a slot.", "CHARACTER_ALREADY_BOUND");
   }
 
   const cfg = await deps.getConfig();
-  const requiredLevel = Math.max(1, Math.floor(Number(cfg.NFT_DEMO_BIND_LEVEL) || 1));
+  const requiredLevel = Math.max(1, Math.floor(Number(cfg.NFT_BIND_LEVEL) || 1));
   const level = Math.max(1, Math.floor(Number(character.level) || 1));
   if (level < requiredLevel) {
     throw fail(422, "Character level is too low.", "LEVEL_TOO_LOW", {
@@ -633,7 +633,7 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
     : await snapshotCharacterImage(tokenId, character);
 
   const boundAt = new Date(deps.now()).toISOString();
-  await deps.store.withNftDemoState((state) => {
+  await deps.store.withNftState((state) => {
     // Re-check inside the CAS mutation: a concurrent bind may have landed.
     if (state.bindings[String(tokenId)]) {
       throw fail(409, "A bind for this slot is already in progress.", "BIND_IN_PROGRESS");
@@ -657,11 +657,11 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
     await deps.profiles.updateWalletProfile(wallet, (current) => {
       const record = (current.characters || []).find((item) => item.id === characterId);
       if (!record) throw fail(404, "Character not found.", "CHARACTER_NOT_FOUND");
-      record.nftDemo = { tokenId, boundAt };
+      record.nft = { tokenId, boundAt };
       return current;
     });
   } catch (error) {
-    await deps.store.withNftDemoState((state) => {
+    await deps.store.withNftState((state) => {
       const stored = state.bindings[String(tokenId)];
       if (stored && stored.characterId === characterId) {
         delete state.bindings[String(tokenId)];
@@ -712,11 +712,11 @@ function refundPoints(profile, amount) {
 
 /** Best-effort: есть ли активный листинг на маркетплейсе. null — не смогли узнать. */
 async function hasActiveMarketplaceListing(tokenId) {
-  const apiKey = process.env.NFT_DEMO_OPENSEA_API_KEY;
-  const contract = process.env.NFT_DEMO_CONTRACT;
+  const apiKey = process.env.NFT_OPENSEA_API_KEY;
+  const contract = process.env.NFT_CONTRACT;
   if (!apiKey || !contract) return null;
 
-  const chain = process.env.NFT_DEMO_OPENSEA_CHAIN || "robinhood";
+  const chain = process.env.NFT_OPENSEA_CHAIN || "robinhood";
   const url = `https://api.opensea.io/api/v2/orders/${chain}/seaport/listings?asset_contract_address=${contract}&token_ids=${tokenId}&order_by=created_date&order_direction=desc&limit=1`;
   try {
     const response = await fetch(url, {
@@ -762,8 +762,8 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
   }
 
   const cfg = await deps.getConfig();
-  const cost = Math.max(0, Math.floor(Number(cfg.NFT_DEMO_UNBIND_COST) || 0));
-  const delayMs = Math.max(0, Math.floor(Number(cfg.NFT_DEMO_UNBIND_DELAY_MS) || 0));
+  const cost = Math.max(0, Math.floor(Number(cfg.NFT_UNBIND_COST) || 0));
+  const delayMs = Math.max(0, Math.floor(Number(cfg.NFT_UNBIND_DELAY_MS) || 0));
   const now = deps.now();
   const executeAt = new Date(now + delayMs).toISOString();
 
@@ -778,7 +778,7 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
   });
 
   try {
-    await deps.store.withNftDemoState((state) => {
+    await deps.store.withNftState((state) => {
       const stored = state.bindings[String(tokenId)];
       if (!stored) throw fail(409, "This slot is already empty.", "SLOT_EMPTY");
       if (stored.pendingUnbind) throw fail(409, "This slot is already being cleared.", "UNBIND_PENDING");
@@ -803,7 +803,7 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
   await deps.profiles
     .updateWalletProfile(owner, (current) => {
       const record = (current.characters || []).find((item) => item.id === binding.characterId);
-      if (record?.nftDemo) record.nftDemo.pendingUnbindAt = executeAt;
+      if (record?.nft) record.nft.pendingUnbindAt = executeAt;
       return current;
     })
     .catch(() => null);
@@ -828,7 +828,7 @@ async function cancelUnbindRequest(wallet, rawTokenId, depOverrides) {
   if (!binding?.pendingUnbind) throw fail(409, "Nothing to cancel.", "NO_PENDING_UNBIND");
 
   const { pricePaid, requestedBy } = binding.pendingUnbind;
-  await deps.store.withNftDemoState((state) => {
+  await deps.store.withNftState((state) => {
     const stored = state.bindings[String(tokenId)];
     if (stored) stored.pendingUnbind = null;
     return state;
@@ -837,7 +837,7 @@ async function cancelUnbindRequest(wallet, rawTokenId, depOverrides) {
   await deps.profiles
     .updateWalletProfile(requestedBy || owner, (current) => {
       const record = (current.characters || []).find((item) => item.id === binding.characterId);
-      if (record?.nftDemo) delete record.nftDemo.pendingUnbindAt;
+      if (record?.nft) delete record.nft.pendingUnbindAt;
       if (pricePaid > 0) refundPoints(current, pricePaid);
       return current;
     })
@@ -853,7 +853,7 @@ async function releasePendingUnbind(tokenId, deps) {
   if (!binding?.pendingUnbind) return null;
 
   const { pricePaid, requestedBy } = binding.pendingUnbind;
-  await deps.store.withNftDemoState((state) => {
+  await deps.store.withNftState((state) => {
     const stored = state.bindings[String(tokenId)];
     if (stored) stored.pendingUnbind = null;
     return state;
@@ -864,7 +864,7 @@ async function releasePendingUnbind(tokenId, deps) {
         const record = (current.characters || []).find(
           (item) => item.id === binding.characterId
         );
-        if (record?.nftDemo) delete record.nftDemo.pendingUnbindAt;
+        if (record?.nft) delete record.nft.pendingUnbindAt;
         if (pricePaid > 0) refundPoints(current, pricePaid);
         return current;
       })
@@ -876,7 +876,7 @@ async function releasePendingUnbind(tokenId, deps) {
 /** Фаза 2: исполнение созревших заявок. Зовётся из синка (крон раз в минуту). */
 async function processPendingUnbinds(depOverrides) {
   const deps = resolveDeps(depOverrides);
-  const state = await deps.store.readNftDemoState();
+  const state = await deps.store.readNftState();
   const now = deps.now();
 
   const due = Object.values(state.bindings).filter(
@@ -900,7 +900,7 @@ async function processPendingUnbinds(depOverrides) {
       const result = await executeUnbind(binding, owner, deps);
       if (result) burned.push(result);
     } catch (error) {
-      console.warn(`[nft-demo] pending unbind ${binding.tokenId} failed: ${error.message}`);
+      console.warn(`[nft] pending unbind ${binding.tokenId} failed: ${error.message}`);
     }
   }
 
@@ -928,7 +928,7 @@ async function executeUnbind(binding, owner, deps) {
   });
 
   try {
-    await deps.store.withNftDemoState((state) => {
+    await deps.store.withNftState((state) => {
       delete state.bindings[String(binding.tokenId)];
       return state;
     });
@@ -942,7 +942,7 @@ async function executeUnbind(binding, owner, deps) {
     try {
       await deps.deleteStoredImage(removed.image);
     } catch (error) {
-      console.warn("[nft-demo:unbind:image]", error.message);
+      console.warn("[nft:unbind:image]", error.message);
     }
   }
 

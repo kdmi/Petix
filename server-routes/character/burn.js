@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
         throw fail(400, "Only completed pets can be burned.", "NOT_COMPLETED");
       }
 
-      if (character.nftDemo?.tokenId) {
+      if (character.nft?.tokenId) {
         // Привязанный к NFT-слоту персонаж сжигается только очисткой слота
         // текущим on-chain владельцем токена (feature 016).
         throw fail(409, "This pet is bound to an NFT slot — clear the slot instead.", "CHARACTER_BOUND_TO_NFT");

@@ -1056,7 +1056,7 @@ const state = {
   farmActionCharacterId: "",
   recentClaims: {},
   // NFT slots demo (feature 016): config=null → выключено/не загружено
-  nftDemo: {
+  nft: {
     config: null,
     slots: [],
     slotsError: "",
@@ -2697,7 +2697,7 @@ async function restoreCharacterState() {
 
   // Kick the NFT demo config off in parallel with the profile fetch so the
   // card menu is complete on first paint instead of gaining an item later.
-  ensureNftDemoLoaded();
+  ensureNftLoaded();
 
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
@@ -6950,22 +6950,22 @@ async function startFightFlow(characterId) {
 // === NFT slots demo (feature 016) ===================================
 // A neutral on-chain collection of "slots": mint from the wallet (gas only),
 // bind a pet into a slot, transfer the token to hand the pet over, clear the
-// slot to burn the pet. Everything hides unless /api/nft-demo/config says
+// slot to burn the pet. Everything hides unless /api/nft/config says
 // enabled.
 
-let nftDemoLoadPromise = null;
-const NFT_DEMO_CONFIG_CACHE_KEY = "petix_nft_demo_config";
+let nftLoadPromise = null;
+const NFT_CONFIG_CACHE_KEY = "petix_nft_demo_config";
 
-function isNftDemoEnabled() {
-  return Boolean(state.nftDemo.config?.enabled);
+function isNftEnabled() {
+  return Boolean(state.nft.config?.enabled);
 }
 
 // The config decides whether the card menu shows "Turn into NFT". Fetching it
 // over the network would make that item pop in a moment after the menu opens,
 // so the last known config is cached and applied on the very first paint.
-function readCachedNftDemoConfig() {
+function readCachedNftConfig() {
   try {
-    const raw = window.localStorage.getItem(NFT_DEMO_CONFIG_CACHE_KEY);
+    const raw = window.localStorage.getItem(NFT_CONFIG_CACHE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed?.enabled ? parsed : null;
   } catch {
@@ -6973,52 +6973,52 @@ function readCachedNftDemoConfig() {
   }
 }
 
-function writeCachedNftDemoConfig(config) {
+function writeCachedNftConfig(config) {
   try {
     if (config?.enabled) {
-      window.localStorage.setItem(NFT_DEMO_CONFIG_CACHE_KEY, JSON.stringify(config));
+      window.localStorage.setItem(NFT_CONFIG_CACHE_KEY, JSON.stringify(config));
     } else {
-      window.localStorage.removeItem(NFT_DEMO_CONFIG_CACHE_KEY);
+      window.localStorage.removeItem(NFT_CONFIG_CACHE_KEY);
     }
   } catch {}
 }
 
-function ensureNftDemoLoaded() {
-  if (!state.isAuthenticated || state.nftDemo.hydrated || nftDemoLoadPromise) return;
+function ensureNftLoaded() {
+  if (!state.isAuthenticated || state.nft.hydrated || nftLoadPromise) return;
 
-  if (!state.nftDemo.config) {
-    state.nftDemo.config = readCachedNftDemoConfig();
+  if (!state.nft.config) {
+    state.nft.config = readCachedNftConfig();
   }
 
-  nftDemoLoadPromise = (async () => {
+  nftLoadPromise = (async () => {
     try {
       // Only the config on boot: slot ownership is re-checked on demand, so a
       // slot bought seconds ago is picked up without waiting for a page reload.
-      const config = await apiRequest("/api/nft-demo/config", {}, "GET");
-      const changed = JSON.stringify(config) !== JSON.stringify(state.nftDemo.config);
-      state.nftDemo.config = config;
-      writeCachedNftDemoConfig(config);
+      const config = await apiRequest("/api/nft/config", {}, "GET");
+      const changed = JSON.stringify(config) !== JSON.stringify(state.nft.config);
+      state.nft.config = config;
+      writeCachedNftConfig(config);
       if (changed && isCabinetScreenActive()) renderCabinet();
     } catch {
-      state.nftDemo.config = null; // disabled (404) or unavailable — hide the entry
-      writeCachedNftDemoConfig(null);
+      state.nft.config = null; // disabled (404) or unavailable — hide the entry
+      writeCachedNftConfig(null);
       if (isCabinetScreenActive()) renderCabinet();
     } finally {
-      state.nftDemo.hydrated = true;
-      nftDemoLoadPromise = null;
+      state.nft.hydrated = true;
+      nftLoadPromise = null;
     }
   })();
 }
 
-async function refreshNftDemoSlots({ silent = false } = {}) {
-  if (!isNftDemoEnabled()) return;
-  state.nftDemo.slotsError = "";
+async function refreshNftSlots({ silent = false } = {}) {
+  if (!isNftEnabled()) return;
+  state.nft.slotsError = "";
   try {
-    const data = await apiRequest("/api/nft-demo/slots", {}, "GET");
-    state.nftDemo.slots = Array.isArray(data.slots) ? data.slots : [];
+    const data = await apiRequest("/api/nft/slots", {}, "GET");
+    state.nft.slots = Array.isArray(data.slots) ? data.slots : [];
     if (Array.isArray(data.synced) && data.synced.length) {
       // Companions arrived with transferred tokens — refresh the roster.
-      await refreshNftDemoCharacters();
+      await refreshNftCharacters();
       showToast(
         data.synced.length === 1
           ? "A companion arrived with a transferred slot."
@@ -7026,15 +7026,15 @@ async function refreshNftDemoSlots({ silent = false } = {}) {
       );
     }
   } catch (error) {
-    state.nftDemo.slotsError =
+    state.nft.slotsError =
       error.code === "RPC_UNAVAILABLE"
         ? "Chain RPC is unavailable — try again."
         : error.message || "Failed to load slots.";
-    if (!silent) showToast(state.nftDemo.slotsError);
+    if (!silent) showToast(state.nft.slotsError);
   }
 }
 
-async function refreshNftDemoCharacters() {
+async function refreshNftCharacters() {
   try {
     const data = await apiRequest("/api/character/me", {}, "GET");
     syncStateWithPayload(data);
@@ -7045,46 +7045,46 @@ async function refreshNftDemoCharacters() {
 // on-chain, but nothing on THIS page would notice: the buyer's login triggers
 // the move, the seller just keeps looking at a pet they no longer own. Poll
 // while the roster is on screen so it disappears on its own.
-const NFT_DEMO_WATCH_INTERVAL_MS = 45000;
-let nftDemoWatchTimer = 0;
-let nftDemoWatchInFlight = false;
+const NFT_WATCH_INTERVAL_MS = 45000;
+let nftWatchTimer = 0;
+let nftWatchInFlight = false;
 
-function syncNftDemoWatcher() {
+function syncNftWatcher() {
   const shouldWatch =
-    isNftDemoEnabled() && isCabinetScreenActive() && document.visibilityState === "visible";
+    isNftEnabled() && isCabinetScreenActive() && document.visibilityState === "visible";
 
-  if (shouldWatch && !nftDemoWatchTimer) {
-    nftDemoWatchTimer = window.setInterval(runNftDemoWatchTick, NFT_DEMO_WATCH_INTERVAL_MS);
-  } else if (!shouldWatch && nftDemoWatchTimer) {
-    window.clearInterval(nftDemoWatchTimer);
-    nftDemoWatchTimer = 0;
+  if (shouldWatch && !nftWatchTimer) {
+    nftWatchTimer = window.setInterval(runNftWatchTick, NFT_WATCH_INTERVAL_MS);
+  } else if (!shouldWatch && nftWatchTimer) {
+    window.clearInterval(nftWatchTimer);
+    nftWatchTimer = 0;
   }
 }
 
-async function runNftDemoWatchTick() {
-  if (nftDemoWatchInFlight || state.nftDemo.busy) return;
+async function runNftWatchTick() {
+  if (nftWatchInFlight || state.nft.busy) return;
   if (!isCabinetScreenActive() || document.visibilityState !== "visible") {
-    syncNftDemoWatcher();
+    syncNftWatcher();
     return;
   }
   // Nothing to lose track of unless a pet of ours is bound to a slot.
-  if (!state.characters.some((record) => record?.nftDemo?.tokenId)) return;
+  if (!state.characters.some((record) => record?.nft?.tokenId)) return;
 
-  nftDemoWatchInFlight = true;
+  nftWatchInFlight = true;
   try {
     const before = state.characters.map((record) => record.id).join(",");
-    await refreshNftDemoCharacters();
+    await refreshNftCharacters();
     const after = state.characters.map((record) => record.id).join(",");
     if (before !== after) {
       showToast("A pet left with its NFT slot.");
       renderCabinet();
     }
   } finally {
-    nftDemoWatchInFlight = false;
+    nftWatchInFlight = false;
   }
 }
 
-document.addEventListener("visibilitychange", syncNftDemoWatcher);
+document.addEventListener("visibilitychange", syncNftWatcher);
 
 // Выбор капсулы под питомца. Оформлен теми же классами, что и модалка
 // сжигания (.burn-modal*) — чтобы не заводить второй визуальный язык.
@@ -7113,7 +7113,7 @@ function pickNftSlot(emptySlots, petName, marketplaceUrl) {
                   .map(
                     (slot) => `
                   <button class="nft-picker__slot" type="button" data-pick="${slot.tokenId}">
-                    <img src="/assets/nft-demo/placeholder.png" alt="" width="64" height="64" />
+                    <img src="/assets/nft/placeholder.png" alt="" width="64" height="64" />
                     <span>Capsule #${slot.tokenId}</span>
                   </button>
                 `
@@ -7121,7 +7121,7 @@ function pickNftSlot(emptySlots, petName, marketplaceUrl) {
                   .join("")}
               </div>`
             : `<div class="nft-picker__empty">
-                <img src="/assets/nft-demo/placeholder.png" alt="" width="96" height="96" />
+                <img src="/assets/nft/placeholder.png" alt="" width="96" height="96" />
               </div>`
         }
         <div class="burn-modal__actions">
@@ -7159,11 +7159,11 @@ function pickNftSlot(emptySlots, petName, marketplaceUrl) {
 }
 
 async function bindNftSlotFlow(characterId) {
-  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  if (!isNftEnabled() || state.nft.busy) return;
   const record = state.characters.find((item) => String(item.id) === String(characterId));
   if (!record) return;
 
-  const bindLevel = Math.max(1, Math.floor(Number(state.nftDemo.config.bindLevel) || 1));
+  const bindLevel = Math.max(1, Math.floor(Number(state.nft.config.bindLevel) || 1));
   if ((Number(record.level) || 1) < bindLevel) {
     showToast(`Binding unlocks at level ${bindLevel}.`);
     return;
@@ -7172,48 +7172,48 @@ async function bindNftSlotFlow(characterId) {
   // Всегда перепроверяем владение по клику: капсулу могли купить минуту назад,
   // и устаревшее состояние сказало бы «капсул нет».
   closeCabinetCardMenu();
-  state.nftDemo.busy = `check:${characterId}`;
+  state.nft.busy = `check:${characterId}`;
   renderCabinet();
-  await refreshNftDemoSlots({ silent: true });
-  state.nftDemo.busy = "";
+  await refreshNftSlots({ silent: true });
+  state.nft.busy = "";
   renderCabinet();
 
-  if (state.nftDemo.slotsError) {
-    showToast(state.nftDemo.slotsError);
+  if (state.nft.slotsError) {
+    showToast(state.nft.slotsError);
     return;
   }
 
-  const emptySlots = state.nftDemo.slots.filter((slot) => slot.state === "empty");
+  const emptySlots = state.nft.slots.filter((slot) => slot.state === "empty");
   const tokenId = await pickNftSlot(
     emptySlots,
     getRecordDisplayName(record),
-    state.nftDemo.config.marketplaceUrl
+    state.nft.config.marketplaceUrl
   );
   if (!tokenId) return;
 
-  state.nftDemo.busy = `bind:${characterId}`;
+  state.nft.busy = `bind:${characterId}`;
   renderCabinet();
   try {
-    await apiRequest("/api/nft-demo/bind", { tokenId, characterId });
+    await apiRequest("/api/nft/bind", { tokenId, characterId });
     // Метаданные на маркетплейсе — это их кэш: у нас данные уже новые, а там
     // появятся через несколько минут. Без этой оговорки выглядит как поломка.
     showToast(
       `Sealed into capsule #${tokenId}. It may take a few minutes for the marketplace to show the pet.`,
       { durationMs: 6000 }
     );
-    await refreshNftDemoCharacters();
-    await refreshNftDemoSlots({ silent: true });
+    await refreshNftCharacters();
+    await refreshNftSlots({ silent: true });
   } catch (error) {
     showToast(error.message || "Bind failed.");
   } finally {
-    state.nftDemo.busy = "";
+    state.nft.busy = "";
     renderCabinet();
   }
 }
 
 /** Срок сжигания привязанного питомца или null, если заявки нет / уже прошла. */
 function getBurnDeadline(record) {
-  const raw = record?.nftDemo?.pendingUnbindAt;
+  const raw = record?.nft?.pendingUnbindAt;
   if (!raw) return null;
   const at = Date.parse(raw);
   return Number.isFinite(at) && at > Date.now() ? raw : null;
@@ -7269,7 +7269,7 @@ function tickNftBurnTimers() {
     window.clearInterval(nftBurnTimerInterval);
     nftBurnTimerInterval = 0;
     window.setTimeout(() => {
-      void refreshNftDemoCharacters().then(() => {
+      void refreshNftCharacters().then(() => {
         if (isCabinetScreenActive()) renderCabinet();
       });
     }, 5000);
@@ -7278,12 +7278,12 @@ function tickNftBurnTimers() {
 
 /** Отмена заявки: возвращает питомца в обычное состояние и Points владельцу. */
 async function cancelNftUnbindFlow(tokenId) {
-  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  if (!isNftEnabled() || state.nft.busy) return;
   closeCabinetCardMenu();
-  state.nftDemo.busy = `cancel:${tokenId}`;
+  state.nft.busy = `cancel:${tokenId}`;
   renderCabinet();
   try {
-    const result = await apiRequest("/api/nft-demo/unbind", {
+    const result = await apiRequest("/api/nft/unbind", {
       tokenId: Number(tokenId),
       cancel: true,
     });
@@ -7293,11 +7293,11 @@ async function cancelNftUnbindFlow(tokenId) {
         : "Clearing cancelled. The marketplace needs a few minutes to show the pet again.",
       { durationMs: 6000 }
     );
-    await refreshNftDemoCharacters();
+    await refreshNftCharacters();
   } catch (error) {
     showToast(error.message || "Couldn't cancel.");
   } finally {
-    state.nftDemo.busy = "";
+    state.nft.busy = "";
     renderCabinet();
   }
 }
@@ -7360,23 +7360,23 @@ function confirmClearCapsule({ tokenId, petName, cost, delayMs }) {
 }
 
 async function unbindNftSlotFlow(tokenId) {
-  if (!isNftDemoEnabled() || state.nftDemo.busy) return;
+  if (!isNftEnabled() || state.nft.busy) return;
   const record = state.characters.find(
-    (item) => String(item?.nftDemo?.tokenId) === String(tokenId)
+    (item) => String(item?.nft?.tokenId) === String(tokenId)
   );
   const confirmed = await confirmClearCapsule({
     tokenId,
     petName: record ? getRecordDisplayName(record) : "The bound pet",
-    cost: Math.max(0, Math.floor(Number(state.nftDemo.config.unbindCost) || 0)),
-    delayMs: Number(state.nftDemo.config.unbindDelayMs) || 3600000,
+    cost: Math.max(0, Math.floor(Number(state.nft.config.unbindCost) || 0)),
+    delayMs: Number(state.nft.config.unbindDelayMs) || 3600000,
   });
   if (!confirmed) return;
 
   closeCabinetCardMenu();
-  state.nftDemo.busy = `unbind:${tokenId}`;
+  state.nft.busy = `unbind:${tokenId}`;
   renderCabinet();
   try {
-    const result = await apiRequest("/api/nft-demo/unbind", { tokenId: Number(tokenId) });
+    const result = await apiRequest("/api/nft/unbind", { tokenId: Number(tokenId) });
     const when = result?.executeAt ? new Date(result.executeAt) : null;
     showToast(
       when
@@ -7384,12 +7384,12 @@ async function unbindNftSlotFlow(tokenId) {
         : `Capsule #${tokenId} is scheduled to be emptied. It may take a few minutes for the marketplace to catch up.`,
       { durationMs: 6000 }
     );
-    await refreshNftDemoCharacters();
-    await refreshNftDemoSlots({ silent: true });
+    await refreshNftCharacters();
+    await refreshNftSlots({ silent: true });
   } catch (error) {
     showToast(error.message || "Unbind failed.");
   } finally {
-    state.nftDemo.busy = "";
+    state.nft.busy = "";
     renderCabinet();
   }
 }
@@ -7400,7 +7400,7 @@ function renderCabinet() {
   // A burn animation is playing on a live card — re-rendering would wipe it.
   // performBurn re-renders once the animation finishes.
   if (state.burningCharacterId) return;
-  ensureNftDemoLoaded();
+  ensureNftLoaded();
   if (dashboardTopbar) {
     dashboardTopbar.classList.remove("is-battle-header");
   }
@@ -7482,10 +7482,10 @@ function renderCabinet() {
       }).join("");
 
       const isMenuOpen = String(state.openCardMenuId) === String(record.id);
-      const nftDemoEnabled = isNftDemoEnabled();
-      const nftBoundTokenId = record.nftDemo?.tokenId || null;
+      const nftEnabled = isNftEnabled();
+      const nftBoundTokenId = record.nft?.tokenId || null;
       const nftBurningAt = getBurnDeadline(record);
-      const nftMenuItemMarkup = !nftDemoEnabled
+      const nftMenuItemMarkup = !nftEnabled
         ? ""
         : nftBurningAt
           ? `
@@ -7497,7 +7497,7 @@ function renderCabinet() {
                 data-token-id="${nftBoundTokenId}"
               >
                 <span class="cabinet-card-menu-item__label">
-                  <img src="/assets/nft-demo/cube.svg" alt="" width="20" height="20" />
+                  <img src="/assets/nft/cube.svg" alt="" width="20" height="20" />
                   Cancel clearing
                 </span>
               </button>
@@ -7526,7 +7526,7 @@ function renderCabinet() {
                 data-character-id="${record.id}"
               >
                 <span class="cabinet-card-menu-item__label">
-                  <img src="/assets/nft-demo/cube.svg" alt="" width="20" height="20" />
+                  <img src="/assets/nft/cube.svg" alt="" width="20" height="20" />
                   Turn into NFT
                 </span>
               </button>
@@ -7663,7 +7663,7 @@ function renderCabinet() {
   cabinetCard.innerHTML = cabinetCard.innerHTML + buySlotCta;
 
   syncFarmTimerTicker();
-  syncNftDemoWatcher();
+  syncNftWatcher();
   syncNftBurnTicker();
 }
 

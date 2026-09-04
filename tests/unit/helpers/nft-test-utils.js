@@ -3,13 +3,13 @@ const os = require("os");
 const path = require("path");
 
 // Isolated env + fake chain for NFT slots demo tests (feature 016). Profiles
-// and the nft-demo state use the real stores against a temp cwd; the chain is
+// and the nft state use the real stores against a temp cwd; the chain is
 // always injected.
 
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
-const NFT_DEMO_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/nft-demo-store.js");
-const NFT_DEMO_PATH = path.resolve(__dirname, "../../../api/_lib/nft-demo.js");
-const NFT_DEMO_CHAIN_PATH = path.resolve(__dirname, "../../../api/_lib/nft-demo-chain.js");
+const NFT_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/nft-store.js");
+const NFT_PATH = path.resolve(__dirname, "../../../api/_lib/nft.js");
+const NFT_CHAIN_PATH = path.resolve(__dirname, "../../../api/_lib/nft-chain.js");
 const ECONOMY_CONFIG_PATH = path.resolve(__dirname, "../../../api/_lib/economy-config.js");
 
 const BASE_NOW = Date.parse("2026-09-02T12:00:00.000Z");
@@ -140,36 +140,36 @@ function makeCharacter(overrides = {}) {
   };
 }
 
-async function withNftDemoEnv(run) {
+async function withNftEnv(run) {
   const originalCwd = process.cwd();
   const originalEnv = {
     NODE_ENV: process.env.NODE_ENV,
-    NFT_DEMO_ENABLED: process.env.NFT_DEMO_ENABLED,
+    NFT_ENABLED: process.env.NFT_ENABLED,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
-    NFT_DEMO_PINATA_JWT: process.env.NFT_DEMO_PINATA_JWT,
+    NFT_PINATA_JWT: process.env.NFT_PINATA_JWT,
     INTERNAL_API_SECRET: process.env.INTERNAL_API_SECRET,
   };
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "petix-nft-demo-"));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "petix-nft-"));
 
   try {
     process.chdir(tempDir);
     process.env.NODE_ENV = "test";
-    process.env.NFT_DEMO_ENABLED = "1";
-    process.env.INTERNAL_API_SECRET = "petix-nft-demo-internal-secret";
+    process.env.NFT_ENABLED = "1";
+    process.env.INTERNAL_API_SECRET = "petix-nft-internal-secret";
     delete process.env.BLOB_READ_WRITE_TOKEN;
-    delete process.env.NFT_DEMO_PINATA_JWT;
+    delete process.env.NFT_PINATA_JWT;
 
     const store = freshRequire(STORE_PATH);
     const economyConfig = freshRequire(ECONOMY_CONFIG_PATH);
-    freshRequire(NFT_DEMO_CHAIN_PATH);
-    const nftDemoStore = freshRequire(NFT_DEMO_STORE_PATH);
-    const nftDemo = freshRequire(NFT_DEMO_PATH);
+    freshRequire(NFT_CHAIN_PATH);
+    const nftStore = freshRequire(NFT_STORE_PATH);
+    const nft = freshRequire(NFT_PATH);
 
     const chain = createFakeChain();
     const configOverrides = {};
     const deps = {
       chain,
-      store: nftDemoStore,
+      store: nftStore,
       profiles: {
         getWalletProfile: store.getWalletProfile,
         saveWalletProfile: store.saveWalletProfile,
@@ -189,15 +189,15 @@ async function withNftDemoEnv(run) {
       configOverrides,
       deps,
       economyConfig,
-      nftDemo,
-      nftDemoStore,
+      nft,
+      nftStore,
       store,
       tempDir,
     });
   } finally {
-    clearModule(NFT_DEMO_PATH);
-    clearModule(NFT_DEMO_STORE_PATH);
-    clearModule(NFT_DEMO_CHAIN_PATH);
+    clearModule(NFT_PATH);
+    clearModule(NFT_STORE_PATH);
+    clearModule(NFT_CHAIN_PATH);
     clearModule(ECONOMY_CONFIG_PATH);
     clearModule(STORE_PATH);
     process.chdir(originalCwd);
@@ -223,5 +223,5 @@ module.exports = {
   evmWallet,
   makeCharacter,
   seedCharacters,
-  withNftDemoEnv,
+  withNftEnv,
 };

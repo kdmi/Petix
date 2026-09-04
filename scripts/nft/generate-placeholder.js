@@ -1,4 +1,4 @@
-// Generates assets/nft-demo/placeholder.png — the neutral "empty slot" image
+// Generates assets/nft/placeholder.png — the neutral "empty slot" image
 // (1024×1024, dark ground, ring + plus glyph). No external deps: raw RGB
 // scanlines deflated with zlib and wrapped into a minimal PNG by hand.
 const fs = require("fs");
@@ -6,7 +6,7 @@ const path = require("path");
 const zlib = require("zlib");
 
 const SIZE = 1024;
-const OUT_PATH = path.resolve(__dirname, "../../assets/nft-demo/placeholder.png");
+const OUT_PATH = path.resolve(__dirname, "../../assets/nft/placeholder.png");
 
 function crc32(buffer) {
   let crc = 0xffffffff;

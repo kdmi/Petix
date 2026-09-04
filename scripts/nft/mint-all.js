@@ -5,7 +5,7 @@
 // Temporarily sets mintPrice=0 and walletLimit=MAX_SUPPLY (owner-only calls),
 // then mints sequentially with explicit nonces in small concurrent batches.
 //
-// Usage: node scripts/nft-demo/mint-all.js [count]
+// Usage: node scripts/nft/mint-all.js [count]
 const fs = require("fs");
 const path = require("path");
 const { Contract, JsonRpcProvider, Wallet, formatEther } = require("ethers");
@@ -17,15 +17,15 @@ const BATCH_SIZE = 10;
 
 async function main() {
   const artifact = JSON.parse(fs.readFileSync(ARTIFACT_PATH, "utf8"));
-  const { NFT_DEMO_RPC_URL, NFT_DEMO_CHAIN_ID, NFT_DEMO_CONTRACT, NFT_DEMO_OWNER_SECRET } =
+  const { NFT_RPC_URL, NFT_CHAIN_ID, NFT_CONTRACT, NFT_OWNER_SECRET } =
     process.env;
-  if (!NFT_DEMO_CONTRACT || !NFT_DEMO_OWNER_SECRET) {
-    throw new Error("NFT_DEMO_CONTRACT and NFT_DEMO_OWNER_SECRET are required.");
+  if (!NFT_CONTRACT || !NFT_OWNER_SECRET) {
+    throw new Error("NFT_CONTRACT and NFT_OWNER_SECRET are required.");
   }
 
-  const provider = new JsonRpcProvider(NFT_DEMO_RPC_URL, Number(NFT_DEMO_CHAIN_ID));
-  const owner = new Wallet(NFT_DEMO_OWNER_SECRET, provider);
-  const contract = new Contract(NFT_DEMO_CONTRACT, artifact.abi, owner);
+  const provider = new JsonRpcProvider(NFT_RPC_URL, Number(NFT_CHAIN_ID));
+  const owner = new Wallet(NFT_OWNER_SECRET, provider);
+  const contract = new Contract(NFT_CONTRACT, artifact.abi, owner);
 
   const [maxSupply, totalSupply, price, limit] = await Promise.all([
     contract.MAX_SUPPLY(),
@@ -77,9 +77,9 @@ async function main() {
   ]);
   console.log(`\nDone. Supply is now ${finalSupply}/${maxSupply}`);
   console.log(`Gas spent: ${formatEther(balanceBefore - balanceAfter)} ETH`);
-  const explorer = (process.env.NFT_DEMO_EXPLORER_URL || "").replace(/\/$/, "");
+  const explorer = (process.env.NFT_EXPLORER_URL || "").replace(/\/$/, "");
   if (explorer) {
-    console.log(`Collection: ${explorer}/token/${NFT_DEMO_CONTRACT}`);
+    console.log(`Collection: ${explorer}/token/${NFT_CONTRACT}`);
   }
 }
 

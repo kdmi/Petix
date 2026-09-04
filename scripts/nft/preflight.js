@@ -2,8 +2,8 @@
 // Гоняется и для демо, и перед боевым запуском — все проверки одинаковы,
 // отличаются только значения в env.
 //
-// Запуск:  node scripts/nft-demo/preflight.js
-//          NFT_METADATA_BASE=https://petix.fun node scripts/nft-demo/preflight.js
+// Запуск:  node scripts/nft/preflight.js
+//          NFT_METADATA_BASE=https://petix.fun node scripts/nft/preflight.js
 const fs = require("fs");
 const path = require("path");
 const { Contract, JsonRpcProvider, Wallet, formatEther } = require("ethers");
@@ -42,39 +42,39 @@ function warn(label, detail = "") {
 
 async function main() {
   const env = {
-    enabled: process.env.NFT_DEMO_ENABLED,
-    contract: process.env.NFT_DEMO_CONTRACT,
-    chainId: Number(process.env.NFT_DEMO_CHAIN_ID),
-    rpcUrl: process.env.NFT_DEMO_RPC_URL,
-    explorer: process.env.NFT_DEMO_EXPLORER_URL,
-    serviceSecret: process.env.NFT_DEMO_SERVICE_SECRET,
-    openseaKey: process.env.NFT_DEMO_OPENSEA_API_KEY,
-    marketplace: process.env.NFT_DEMO_MARKETPLACE_URL,
-    maxSupply: process.env.NFT_DEMO_MAX_SUPPLY,
-    startBlock: process.env.NFT_DEMO_START_BLOCK,
+    enabled: process.env.NFT_ENABLED,
+    contract: process.env.NFT_CONTRACT,
+    chainId: Number(process.env.NFT_CHAIN_ID),
+    rpcUrl: process.env.NFT_RPC_URL,
+    explorer: process.env.NFT_EXPLORER_URL,
+    serviceSecret: process.env.NFT_SERVICE_SECRET,
+    openseaKey: process.env.NFT_OPENSEA_API_KEY,
+    marketplace: process.env.NFT_MARKETPLACE_URL,
+    maxSupply: process.env.NFT_MAX_SUPPLY,
+    startBlock: process.env.NFT_START_BLOCK,
     metadataBase: process.env.NFT_METADATA_BASE, // домен, на котором живут метаданные
   };
 
   console.log("\n1. Переменные окружения");
-  env.enabled === "1" ? ok("NFT_DEMO_ENABLED=1") : bad("NFT_DEMO_ENABLED не равен 1", "фича выключена");
-  env.contract ? ok("NFT_DEMO_CONTRACT", env.contract) : bad("NFT_DEMO_CONTRACT не задан");
-  Number.isFinite(env.chainId) ? ok("NFT_DEMO_CHAIN_ID", String(env.chainId)) : bad("NFT_DEMO_CHAIN_ID не задан");
-  env.rpcUrl ? ok("NFT_DEMO_RPC_URL", env.rpcUrl) : bad("NFT_DEMO_RPC_URL не задан");
+  env.enabled === "1" ? ok("NFT_ENABLED=1") : bad("NFT_ENABLED не равен 1", "фича выключена");
+  env.contract ? ok("NFT_CONTRACT", env.contract) : bad("NFT_CONTRACT не задан");
+  Number.isFinite(env.chainId) ? ok("NFT_CHAIN_ID", String(env.chainId)) : bad("NFT_CHAIN_ID не задан");
+  env.rpcUrl ? ok("NFT_RPC_URL", env.rpcUrl) : bad("NFT_RPC_URL не задан");
   // Ключ нужен только для ончейн-событий, а они отключены — отсутствие не ошибка.
   env.serviceSecret
-    ? ok("NFT_DEMO_SERVICE_SECRET задан", "не используется: ончейн-события выключены")
-    : ok("NFT_DEMO_SERVICE_SECRET не задан", "и не нужен — приложение не шлёт транзакций");
-  env.explorer ? ok("NFT_DEMO_EXPLORER_URL", env.explorer) : warn("NFT_DEMO_EXPLORER_URL не задан", "ссылки на эксплорер не появятся");
+    ? ok("NFT_SERVICE_SECRET задан", "не используется: ончейн-события выключены")
+    : ok("NFT_SERVICE_SECRET не задан", "и не нужен — приложение не шлёт транзакций");
+  env.explorer ? ok("NFT_EXPLORER_URL", env.explorer) : warn("NFT_EXPLORER_URL не задан", "ссылки на эксплорер не появятся");
   env.marketplace
-    ? ok("NFT_DEMO_MARKETPLACE_URL", env.marketplace)
-    : bad("NFT_DEMO_MARKETPLACE_URL не задан", "кнопка «Get capsules» не появится");
+    ? ok("NFT_MARKETPLACE_URL", env.marketplace)
+    : bad("NFT_MARKETPLACE_URL не задан", "кнопка «Get capsules» не появится");
   env.openseaKey
-    ? ok("NFT_DEMO_OPENSEA_API_KEY задан", "обновление метаданных ~3 мин")
-    : warn("NFT_DEMO_OPENSEA_API_KEY не задан", "метаданные будут обновляться до получаса");
-  env.maxSupply ? ok("NFT_DEMO_MAX_SUPPLY", env.maxSupply) : warn("NFT_DEMO_MAX_SUPPLY не задан", "по умолчанию 10000");
+    ? ok("NFT_OPENSEA_API_KEY задан", "обновление метаданных ~3 мин")
+    : warn("NFT_OPENSEA_API_KEY не задан", "метаданные будут обновляться до получаса");
+  env.maxSupply ? ok("NFT_MAX_SUPPLY", env.maxSupply) : warn("NFT_MAX_SUPPLY не задан", "по умолчанию 10000");
   env.startBlock
-    ? ok("NFT_DEMO_START_BLOCK", env.startBlock)
-    : warn("NFT_DEMO_START_BLOCK не задан", "блок деплоя будет искаться сканированием логов (медленнее)");
+    ? ok("NFT_START_BLOCK", env.startBlock)
+    : warn("NFT_START_BLOCK не задан", "блок деплоя будет искаться сканированием логов (медленнее)");
 
   if (!env.contract || !env.rpcUrl || !Number.isFinite(env.chainId)) {
     console.log("\nБез contract/RPC/chainId дальше проверять нечего.");
@@ -122,7 +122,7 @@ async function main() {
     baseURI.endsWith("/")
       ? ok("слэш на конце есть", "у каждого токена свои метаданные")
       : bad("НЕТ слэша на конце", "SeaDrop отдаст всем токенам одну заглушку");
-    /nft-demo/.test(baseURI) &&
+    /nft/.test(baseURI) &&
       warn("в публичном baseURI слово «demo»", "для боевой коллекции используйте /api/nft/metadata/");
     if (env.metadataBase && !baseURI.startsWith(env.metadataBase)) {
       bad("baseURI ведёт не на ожидаемый домен", `ожидали ${env.metadataBase}`);
@@ -174,16 +174,16 @@ async function main() {
 
   console.log("\n5. Артефакты");
   fs.existsSync(ARTIFACT_PATH)
-    ? ok("контракт скомпилирован", "scripts/nft-demo/artifacts/")
+    ? ok("контракт скомпилирован", "scripts/nft/artifacts/")
     : warn("артефактов нет", "нужны только если деплоите свой контракт");
-  const placeholder = path.join(process.cwd(), "assets", "nft-demo", "placeholder.png");
+  const placeholder = path.join(process.cwd(), "assets", "nft", "placeholder.png");
   if (fs.existsSync(placeholder)) {
     const kb = Math.round(fs.statSync(placeholder).size / 1024);
     kb > 500
       ? warn("заглушка капсулы весит много", `${kb} КБ — в интерфейсе показывается 64px`)
       : ok("заглушка капсулы", `${kb} КБ`);
   } else {
-    bad("нет assets/nft-demo/placeholder.png");
+    bad("нет assets/nft/placeholder.png");
   }
 
   console.log("");

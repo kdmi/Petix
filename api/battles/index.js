@@ -6,7 +6,7 @@ const {
   parseJsonBody,
 } = require("../_lib/auth");
 const { generateBattleNarration } = require("../_lib/battle-narration");
-const { refreshBoundCharacterMetadata } = require("../_lib/nft-demo");
+const { refreshBoundCharacterMetadata } = require("../_lib/nft");
 const {
   applyProgressionToCharacterRecord,
   buildBattleRevealBundle,

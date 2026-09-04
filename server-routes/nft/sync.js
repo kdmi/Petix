@@ -5,7 +5,7 @@ const {
   isLikelyEvmAddress,
   json,
 } = require("../../api/_lib/auth");
-const { syncTransfers } = require("../../api/_lib/nft-demo");
+const { syncTransfers } = require("../../api/_lib/nft");
 const { sendDomainError } = require("./_shared");
 
 // Manual/periodic ownership sync. Three callers, three auth paths:
@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
     json(res, 200, result);
   } catch (error) {
     if (sendDomainError(res, error)) return;
-    console.error("[nft-demo:sync]", error);
+    console.error("[nft:sync]", error);
     json(res, 500, { error: "Sync failed." });
   }
 };

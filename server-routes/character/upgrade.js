@@ -8,7 +8,7 @@ const {
 } = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { updateWalletProfile } = require("../../api/_lib/store");
-const { refreshBoundCharacterMetadata } = require("../../api/_lib/nft-demo");
+const { refreshBoundCharacterMetadata } = require("../../api/_lib/nft");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;

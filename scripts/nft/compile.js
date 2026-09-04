@@ -1,7 +1,7 @@
 // Compiles contracts/DemoSlots.sol with solc-js (no Hardhat/Foundry), resolving
 // @openzeppelin/contracts imports from node_modules. Writes the ABI, bytecode
 // and the standard-json input (for Blockscout source verification) into
-// scripts/nft-demo/artifacts/.
+// scripts/nft/artifacts/.
 const fs = require("fs");
 const path = require("path");
 const solc = require("solc");

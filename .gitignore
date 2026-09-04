@@ -14,5 +14,9 @@ node_modules/
 CLAUDE.local.md
 # Локальные настройки агента
 .claude/
-# Артефакты компиляции контракта (пересобираются scripts/nft-demo/compile.js)
-scripts/nft-demo/artifacts/
+# Артефакты компиляции контракта (пересобираются scripts/nft/compile.js)
+scripts/nft/artifacts/
+
+# Внутренние планы — не для публичного репозитория
+PLAN.md
+BLOB_OPTIMIZATION_PLAN.md

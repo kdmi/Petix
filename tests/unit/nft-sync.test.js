@@ -6,19 +6,19 @@ const {
   evmWallet,
   makeCharacter,
   seedCharacters,
-  withNftDemoEnv,
-} = require("./helpers/nft-demo-test-utils");
+  withNftEnv,
+} = require("./helpers/nft-test-utils");
 
 const HOUR_MS = 3600000;
 
 async function bindTo(env, wallet, tokenId, character) {
   await seedCharacters(env.store, wallet, [character]);
   env.chain.state.owners.set(tokenId, wallet);
-  await env.nftDemo.bindCharacterToSlot(wallet, tokenId, character.id, env.deps);
+  await env.nft.bindCharacterToSlot(wallet, tokenId, character.id, env.deps);
 }
 
 test("sync: a transfer moves the character with full progression to the buyer", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     const character = makeCharacter({
@@ -29,7 +29,7 @@ test("sync: a transfer moves the character with full progression to the buyer", 
     await bindTo(env, seller, 10, character);
 
     env.chain.transfer(10, buyer);
-    const result = await env.nftDemo.syncTransfers(env.deps);
+    const result = await env.nft.syncTransfers(env.deps);
 
     assert.equal(result.moved.length, 1);
     assert.equal(result.moved[0].tokenId, 10);
@@ -46,13 +46,13 @@ test("sync: a transfer moves the character with full progression to the buyer", 
     assert.equal(movedCharacter.level, 7);
     assert.equal(movedCharacter.experience, 420);
     assert.equal(movedCharacter.attributes.stamina, 9);
-    assert.deepEqual(movedCharacter.nftDemo.tokenId, 10);
+    assert.deepEqual(movedCharacter.nft.tokenId, 10);
     assert.equal(movedCharacter.farmState.active, false);
 
-    const binding = await env.nftDemoStore.getBinding(10);
+    const binding = await env.nftStore.getBinding(10);
     assert.equal(binding.wallet, buyer);
 
-    const state = await env.nftDemoStore.readNftDemoState();
+    const state = await env.nftStore.readNftState();
     assert.equal(state.transfers.length, 1);
     assert.equal(state.transfers[0].detectedBy, "sync");
     assert.equal(state.lastSyncedBlock, env.chain.state.blockNumber);
@@ -60,7 +60,7 @@ test("sync: a transfer moves the character with full progression to the buyer", 
 });
 
 test("sync: an active farm settles in favour of the seller before the move", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     // 5 полных часов фарма Common L1 при FARM_BASE=10 → 50 Points продавцу.
@@ -77,10 +77,10 @@ test("sync: an active farm settles in favour of the seller before the move", asy
     env.chain.state.owners.set(2, seller);
     // Привязываем через прямую вставку binding — bind заблокировал бы фарм? Нет:
     // bind не проверяет фарм, но снапшот-мок не трогает farmState. Обычный bind ок.
-    await env.nftDemo.bindCharacterToSlot(seller, 2, character.id, env.deps);
+    await env.nft.bindCharacterToSlot(seller, 2, character.id, env.deps);
 
     env.chain.transfer(2, buyer);
-    await env.nftDemo.syncTransfers(env.deps);
+    await env.nft.syncTransfers(env.deps);
 
     const sellerProfile = await env.store.getWalletProfile(seller);
     assert.equal(sellerProfile.currency.balance, 50);
@@ -92,7 +92,7 @@ test("sync: an active farm settles in favour of the seller before the move", asy
 });
 
 test("sync: multiple transfers between syncs collapse into one move to the final owner", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const middleman = evmWallet("b");
     const finalOwner = evmWallet("c");
@@ -101,7 +101,7 @@ test("sync: multiple transfers between syncs collapse into one move to the final
 
     env.chain.transfer(5, middleman);
     env.chain.transfer(5, finalOwner);
-    const result = await env.nftDemo.syncTransfers(env.deps);
+    const result = await env.nft.syncTransfers(env.deps);
 
     assert.equal(result.moved.length, 1);
     assert.equal(result.moved[0].toWallet, finalOwner);
@@ -112,25 +112,25 @@ test("sync: multiple transfers between syncs collapse into one move to the final
     assert.equal(finalProfile.characters[0].id, character.id);
 
     // Повторный синк идемпотентен.
-    const second = await env.nftDemo.syncTransfers(env.deps);
+    const second = await env.nft.syncTransfers(env.deps);
     assert.equal(second.moved.length, 0);
   });
 });
 
 test("sync: transferring an EMPTY slot moves nothing", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     env.chain.state.owners.set(1, seller);
     env.chain.transfer(1, buyer);
 
-    const result = await env.nftDemo.syncTransfers(env.deps);
+    const result = await env.nft.syncTransfers(env.deps);
     assert.equal(result.moved.length, 0);
   });
 });
 
 test("login sync: listWalletSlots reconciles foreign bindings and reports them", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     const character = makeCharacter();
@@ -139,7 +139,7 @@ test("login sync: listWalletSlots reconciles foreign bindings and reports them",
     // Прямой перевод без прогона syncTransfers — покупатель просто заходит на сайт.
     env.chain.state.owners.set(3, buyer);
 
-    const result = await env.nftDemo.listWalletSlots(buyer, env.deps);
+    const result = await env.nft.listWalletSlots(buyer, env.deps);
 
     assert.equal(result.synced.length, 1);
     assert.equal(result.synced[0].tokenId, 3);
@@ -152,20 +152,20 @@ test("login sync: listWalletSlots reconciles foreign bindings and reports them",
     const buyerProfile = await env.store.getWalletProfile(buyer);
     assert.equal(buyerProfile.characters[0].id, character.id);
 
-    const state = await env.nftDemoStore.readNftDemoState();
+    const state = await env.nftStore.readNftState();
     assert.equal(state.transfers[0].detectedBy, "login");
   });
 });
 
 test("move rollback: a failing buyer-profile write restores the seller profile", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
     const character = makeCharacter();
     await bindTo(env, seller, 6, character);
     env.chain.transfer(6, buyer);
 
-    const binding = await env.nftDemoStore.getBinding(6);
+    const binding = await env.nftStore.getBinding(6);
     let calls = 0;
     const failingDeps = {
       ...env.deps,
@@ -180,7 +180,7 @@ test("move rollback: a failing buyer-profile write restores the seller profile",
     };
 
     await assert.rejects(() =>
-      env.nftDemo.moveBoundCharacter(binding, buyer, { detectedBy: "sync" }, failingDeps)
+      env.nft.moveBoundCharacter(binding, buyer, { detectedBy: "sync" }, failingDeps)
     );
 
     const sellerProfile = await env.store.getWalletProfile(seller);
@@ -189,20 +189,20 @@ test("move rollback: a failing buyer-profile write restores the seller profile",
     const buyerProfile = await env.store.getWalletProfile(buyer);
     assert.equal(buyerProfile.characters.length, 0);
 
-    const unchangedBinding = await env.nftDemoStore.getBinding(6);
+    const unchangedBinding = await env.nftStore.getBinding(6);
     assert.equal(unchangedBinding.wallet, seller);
   });
 });
 
 test("move: a buyer with no profile (or an escrow contract address) gets one on the fly", async () => {
-  await withNftDemoEnv(async (env) => {
+  await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const escrow = evmWallet("e"); // адрес-контракт неотличим от EOA — просто адрес
     const character = makeCharacter();
     await bindTo(env, seller, 4, character);
 
     env.chain.transfer(4, escrow);
-    await env.nftDemo.syncTransfers(env.deps);
+    await env.nft.syncTransfers(env.deps);
 
     const escrowProfile = await env.store.getWalletProfile(escrow);
     assert.equal(escrowProfile.characters.length, 1);

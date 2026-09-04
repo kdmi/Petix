@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/nft-demo/sync",
+      "path": "/api/nft/sync",
       "schedule": "* * * * *"
     }
   ]
