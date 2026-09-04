@@ -22,6 +22,13 @@ module.exports = async (req, res) => {
   }
 
   if (!isNftDemoEnabled()) {
+    // Синк дёргает Vercel Cron раз в минуту. Пока фича выключена (код выкачен,
+    // коллекции ещё нет), отвечаем 200 — иначе логи забиты ежеминутными 404 и
+    // крон выглядит сломанным. Пользовательские маршруты по-прежнему 404.
+    if (action === "sync") {
+      json(res, 200, { skipped: true, reason: "NFT_DEMO_DISABLED" });
+      return;
+    }
     json(res, 404, { error: "NFT demo is disabled.", code: "NFT_DEMO_DISABLED" });
     return;
   }
