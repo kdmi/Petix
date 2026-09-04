@@ -4,7 +4,7 @@ const path = require("path");
 const { getEconomyConfig } = require("./economy-config");
 const { claimFarm, normalizeFarmState } = require("./farm");
 const { debitCurrency } = require("./currency");
-const { createChainClient, getNftDemoEnv } = require("./nft-demo-chain");
+const { createChainClient, getNftDemoEnv, isNftDemoEnabled } = require("./nft-demo-chain");
 const nftDemoStore = require("./nft-demo-store");
 const {
   deleteStoredImage,
@@ -79,6 +79,9 @@ async function requestMarketplaceRefresh(tokenId) {
  * ломать бой или апгрейд. Вызывать без await.
  */
 async function refreshBoundCharacterMetadata(characterId, depOverrides) {
+  // Зовётся из боя и апгрейда — то есть на каждом левел-апе всех игроков.
+  // Пока фича выключена, не должно быть даже чтения хранилища.
+  if (!isNftDemoEnabled()) return false;
   if (!characterId || !process.env.NFT_DEMO_OPENSEA_API_KEY) return false;
 
   const deps = resolveDeps(depOverrides);
