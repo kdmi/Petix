@@ -9,3 +9,14 @@ node_modules/
 .env.*
 
 .plea/
+
+# Приватный лог решений — CLAUDE.md помечает его как «not checked in»
+CLAUDE.local.md
+# Локальные настройки агента
+.claude/
+# Артефакты компиляции контракта (пересобираются scripts/nft/compile.js)
+scripts/nft/artifacts/
+
+# Внутренние планы — не для публичного репозитория
+PLAN.md
+BLOB_OPTIMIZATION_PLAN.md

@@ -78,6 +78,22 @@ Minimum recommended variables:
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated allowed origins |
 | `BATTLE_NARRATION_BUDGET_MS` | Optional | Timeout budget for battle narration |
 
+#### NFT slots demo (feature 016)
+
+Off by default. The demo is meant to run as a **separate, unbranded Vercel project** deployed from this same repo (its own Blob store and secrets), so the public `tokenURI` carries a neutral `*.vercel.app` domain rather than `petix.fun`. See [specs/016-nft-slots-demo/quickstart.md](specs/016-nft-slots-demo/quickstart.md).
+
+| Variable | Required (demo) | Purpose |
+| --- | --- | --- |
+| `NFT_ENABLED` | Yes | `1` turns the whole demo on; unset/`0` hides it and leaves the base product unchanged |
+| `NFT_CONTRACT` | Yes | Deployed `DemoSlots` address |
+| `NFT_CHAIN_ID` | Yes | `4663` (Robinhood Chain mainnet) or `46630` (testnet) |
+| `NFT_RPC_URL` | Yes | Chain RPC (public `https://rpc.mainnet.chain.robinhood.com` or an Alchemy endpoint) |
+| `NFT_EXPLORER_URL` | Recommended | Blockscout base URL for slot links |
+| `NFT_SERVICE_SECRET` | Yes | Private key of the service wallet (emits ERC-4906 `MetadataUpdate`); a fresh key, env-only, no collection-admin rights |
+| `NFT_PINATA_JWT` | Optional | Pins bound-pet images to IPFS; without it, images are copied to a write-once Blob path |
+
+Runtime-tunable via the admin `economy-config`: `NFT_BIND_LEVEL` (default `1` — any character can be bound) and `NFT_MINT_LIMIT` (default `5`). Contract build/deploy/preflight scripts live in `scripts/nft/` (they additionally read `NFT_OWNER_SECRET`, kept local — never in Vercel).
+
 ### Start The App
 
 ```bash

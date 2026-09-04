@@ -26,6 +26,10 @@ const DEFAULTS = Object.freeze({
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
   WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
   POINTS_PER_PETIX: 1,
+  NFT_BIND_LEVEL: 1, // мин. уровень персонажа для заливки в NFT-слот (016; 1 = порог отключён)
+  NFT_MINT_LIMIT: 5, // лимит бесплатного минта слотов на кошелёк (инфо для фронта; on-chain лимит задаётся в контракте)
+  NFT_UNBIND_COST: 10000, // цена очистки капсулы (сжигание привязанного персонажа)
+  NFT_UNBIND_DELAY_MS: 3600000, // отсрочка сжигания: час на то, чтобы статус разошёлся по маркетплейсам
 });
 
 const CACHE_TTL_MS = Number(process.env.ECONOMY_CONFIG_CACHE_TTL_MS) || 15000;
@@ -84,6 +88,10 @@ function validateConfigPatch(patch) {
     "WITHDRAW_FEE_PCT",
     "WITHDRAW_ENABLED",
     "POINTS_PER_PETIX",
+    "NFT_BIND_LEVEL",
+    "NFT_MINT_LIMIT",
+    "NFT_UNBIND_COST",
+    "NFT_UNBIND_DELAY_MS",
   ];
   for (const key of numericKeys) {
     if (key in patch) {

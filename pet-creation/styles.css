@@ -8113,3 +8113,195 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   height: 14px;
   width: 14px;
 }
+
+/* NFT-bound pet: badge next to the name + purple frame (feature 016) */
+
+.cabinet-success-card .success-card-title {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+/* Имя ужимается многоточием, бейдж не сжимается никогда — иначе длинное имя
+   выдавило бы его под кнопку меню. */
+.success-card-title__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.success-card-nft-badge {
+  background: #f4ebff;
+  border-radius: 6px;
+  color: #6941c6;
+  flex: 0 0 auto;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+  padding: 1px 6px;
+}
+
+/* Капсула на очистке: вместо NFT — огонёк с обратным отсчётом. */
+.success-card-nft-badge--burning {
+  align-items: center;
+  background: #fef3f2;
+  color: #b42318;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  gap: 3px;
+  letter-spacing: 0;
+}
+
+.success-card-nft-badge--burning img {
+  display: block;
+}
+
+/* Карточка на сжигании — красная рамка вместо фиолетовой.
+   Составной селектор нужен, чтобы перебить .cabinet-character--nft ниже по файлу:
+   специфичность там та же, и без этого выигрывал бы фиолетовый. */
+.cabinet-character--nft.cabinet-character--nft-burning .success-card {
+  box-shadow: 0 0 0 2px #f04438, 0 6px 24px rgba(240, 68, 56, 0.32);
+}
+
+/* Выбор капсулы: живёт внутри .burn-modal, поэтому фон, скругления и кнопки
+   наследуются от неё — здесь только сетка капсул. (feature 016) */
+
+.nft-picker {
+  max-width: 420px;
+}
+
+.nft-picker__grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  margin-bottom: 20px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.nft-picker__slot {
+  align-items: center;
+  background: #f9fafb;
+  border: 2px solid #eaecf0;
+  border-radius: 14px;
+  color: #101828;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+  padding: 12px 8px;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Без transform: плитка живёт в контейнере с overflow-y, и сдвиг вверх её
+   обрезал. Тот же акцент даём рамкой, фоном и мягкой тенью. */
+.nft-picker__slot:hover,
+.nft-picker__slot:focus-visible {
+  background: #fff;
+  border-color: #7a5af8;
+  box-shadow: 0 4px 12px rgba(122, 90, 248, 0.22);
+  outline: none;
+}
+
+.nft-picker__slot img {
+  border-radius: 10px;
+  display: block;
+}
+
+/* Нет капсул: показываем предмет, за которым нужно идти в коллекцию */
+.nft-picker__empty {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+.nft-picker__empty img {
+  border-radius: 14px;
+  display: block;
+}
+
+.burn-modal__btn--buy {
+  align-items: center;
+  background: #7a5af8;
+  color: #fff;
+  display: inline-flex;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.burn-modal__btn--buy:hover,
+.burn-modal__btn--buy:focus-visible {
+  background: #6941c6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nft-picker__slot {
+    transition: none;
+  }
+}
+
+/* NFT-bound pet: badge next to the name + purple frame (feature 016) */
+
+.cabinet-success-card .success-card-title {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+/* Имя ужимается многоточием, бейдж не сжимается никогда — иначе длинное имя
+   выдавило бы его под кнопку меню. */
+.success-card-title__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.success-card-nft-badge {
+  background: #f4ebff;
+  border-radius: 6px;
+  color: #6941c6;
+  flex: 0 0 auto;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+  padding: 1px 6px;
+}
+
+/* Капсула на очистке: вместо NFT — огонёк с обратным отсчётом. */
+.success-card-nft-badge--burning {
+  align-items: center;
+  background: #fef3f2;
+  color: #b42318;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  gap: 3px;
+  letter-spacing: 0;
+}
+
+.success-card-nft-badge--burning img {
+  display: block;
+}
+
+/* Карточка на сжигании — красная рамка вместо фиолетовой.
+   Составной селектор нужен, чтобы перебить .cabinet-character--nft ниже по файлу:
+   специфичность там та же, и без этого выигрывал бы фиолетовый. */
+.cabinet-character--nft.cabinet-character--nft-burning .success-card {
+  box-shadow: 0 0 0 2px #f04438, 0 6px 24px rgba(240, 68, 56, 0.32);
+}
+
+/* Фиолетовая рамка с подсветкой — NFT-питомец читается в списке мгновенно */
+.cabinet-character--nft .success-card {
+  box-shadow: 0 0 0 2px #7a5af8, 0 6px 24px rgba(122, 90, 248, 0.35);
+}
+
+

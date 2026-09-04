@@ -8,6 +8,7 @@ const {
 } = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { updateWalletProfile } = require("../../api/_lib/store");
+const { refreshBoundCharacterMetadata } = require("../../api/_lib/nft");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -86,6 +87,10 @@ module.exports = async (req, res) => {
     const updatedCharacter = profile.characters.find(
       (record) => String(record?.id || "").trim() === characterId
     );
+
+    // Статы видны в трейтах NFT — просим маркетплейс перечитать (дебаунс внутри).
+    // Намеренно без await: витрина не должна задерживать ответ игроку.
+    void refreshBoundCharacterMetadata(characterId);
 
     json(res, 200, {
       success: true,

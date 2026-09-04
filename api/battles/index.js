@@ -6,6 +6,7 @@ const {
   parseJsonBody,
 } = require("../_lib/auth");
 const { generateBattleNarration } = require("../_lib/battle-narration");
+const { refreshBoundCharacterMetadata } = require("../_lib/nft");
 const {
   applyProgressionToCharacterRecord,
   buildBattleRevealBundle,
@@ -344,6 +345,16 @@ module.exports = async (req, res) => {
     };
 
     await saveBattleRecord(readyBattle);
+
+    // Уровень виден в трейтах NFT. Обновляем витрину только при левел-апе и
+    // только после финализации боя (до этого возможен откат профилей).
+    // Без await: маркетплейс не должен задерживать ответ игроку.
+    if (simulation.battle.result?.attackerRewards?.levelUp) {
+      void refreshBoundCharacterMetadata(attacker.character.id);
+    }
+    if (simulation.battle.result?.defenderRewards?.levelUp) {
+      void refreshBoundCharacterMetadata(defender.character.id);
+    }
 
     if (!attackerCurrency && attacker?.wallet) {
       const freshAttackerProfile = await getWalletProfile(attacker.wallet).catch(() => null);
