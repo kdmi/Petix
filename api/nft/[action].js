@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
       json(res, 200, { skipped: true, reason: "NFT_DISABLED" });
       return;
     }
-    json(res, 404, { error: "NFT demo is disabled.", code: "NFT_DISABLED" });
+    json(res, 404, { error: "NFT capsules are disabled.", code: "NFT_DISABLED" });
     return;
   }
 
