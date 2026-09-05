@@ -4,5 +4,10 @@
       "path": "/api/nft/sync",
       "schedule": "* * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "assets/character/shape-reference.png"
+    }
+  }
 }

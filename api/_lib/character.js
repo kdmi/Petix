@@ -54,11 +54,19 @@ const LOCAL_FALLBACK_IMAGE_PATH = path.join(
   "character",
   "current-pet.jpg"
 );
+const SHAPE_REFERENCE_IMAGE_PATH = path.join(
+  process.cwd(),
+  "assets",
+  "character",
+  "shape-reference.png"
+);
+const SHAPE_REFERENCE_LINE =
+  "Use the attached reference image strictly as the shape and camera guide: match its rounded cube silhouette, proportions, and viewing angle. Its flat gray shading carries no styling information — ignore it completely and render the creature in the style described above.";
 
 const IMAGE_PROMPT_TEMPLATE = [
   "Perfectly square 1:1 image canvas. Focused tight medium shot centered on the main body, which occupies a significant portion (around 70%) of the frame. Clean, minimal padding around the creature to ensure that accessories, hats, or effects are contained and not cropped by the edges.",
   "",
-  "High-quality stylized hand-painted 3D game asset illustration of a cute creature, isolated on a very light, soft pastel mono-color background that complements the overall palette. The aesthetic is that of a collectible toy with clean lines, soft gradients, and hand-drawn details.",
+  "16bit low res SEGA sprite style illustration of a cute creature, isolated on a very light, soft pastel mono-color background that complements the overall palette.",
   "",
   "The main body is a simple, rounded cube with absolutely no legs, lower appendages, or distinct feet, presenting a pure cubic form featuring a [CREATURE_TYPE] design.",
   "",
@@ -127,6 +135,7 @@ const NAME_PROMPT_TEMPLATE = [
 ].join("\n");
 
 let variablesCache = null;
+let shapeReferenceCache;
 let rarityChancesCache = null;
 let rarityChancesCacheExpiresAt = 0;
 
@@ -697,7 +706,29 @@ function getImageExtension(mimeType) {
   return "png";
 }
 
-async function requestGeminiImage(prompt) {
+async function loadShapeReferenceImage() {
+  if (shapeReferenceCache !== undefined) {
+    return shapeReferenceCache;
+  }
+
+  try {
+    const buffer = await fs.readFile(SHAPE_REFERENCE_IMAGE_PATH);
+    shapeReferenceCache = {
+      base64: buffer.toString("base64"),
+      mimeType: "image/png",
+    };
+  } catch (error) {
+    console.warn(
+      "[character:image]",
+      `Shape reference image is unavailable, falling back to a text-only prompt: ${error.message}`
+    );
+    shapeReferenceCache = null;
+  }
+
+  return shapeReferenceCache;
+}
+
+async function requestGeminiImage(prompt, referenceImage) {
   if (!shouldUseLiveCharacterGeneration()) {
     return null;
   }
@@ -719,7 +750,19 @@ async function requestGeminiImage(prompt) {
         contents: [
           {
             role: "user",
-            parts: [{ text: prompt }],
+            parts: [
+              ...(referenceImage
+                ? [
+                    {
+                      inlineData: {
+                        mimeType: referenceImage.mimeType,
+                        data: referenceImage.base64,
+                      },
+                    },
+                  ]
+                : []),
+              { text: prompt },
+            ],
           },
         ],
         generationConfig: {
@@ -752,7 +795,7 @@ async function requestGeminiImage(prompt) {
   return null;
 }
 
-async function generateCharacterImage(prompt, characterId, imageStore) {
+async function generateCharacterImage(prompt, characterId, imageStore, referenceImage) {
   if (!shouldUseLiveCharacterGeneration()) {
     const storedImage = await imageStore.copyFallbackImage(characterId, LOCAL_FALLBACK_IMAGE_PATH);
     return {
@@ -765,7 +808,7 @@ async function generateCharacterImage(prompt, characterId, imageStore) {
   }
 
   try {
-    const image = await requestGeminiImage(prompt);
+    const image = await requestGeminiImage(prompt, referenceImage);
     if (!image?.base64) {
       console.warn("[character:image]", "Gemini image response did not include inline image data.");
       throw new Error(IMAGE_GENERATION_ERROR_MESSAGE);
@@ -843,12 +886,20 @@ async function buildCharacterDraft(creatureTypeInput, imageStore) {
   const rarity = pickRarity(rarityChancesTable);
   const context = createPromptContext(creatureType, variables);
   const characterId = createCharacterId();
-  const imagePrompt = fillTemplate(IMAGE_PROMPT_TEMPLATE, context);
+  const referenceImage = shouldUseLiveCharacterGeneration()
+    ? await loadShapeReferenceImage()
+    : null;
+  const imagePrompt = [
+    fillTemplate(IMAGE_PROMPT_TEMPLATE, context),
+    referenceImage ? SHAPE_REFERENCE_LINE : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const powerPrompt = fillTemplate(POWERS_PROMPT_TEMPLATE, context);
   const namePrompt = fillTemplate(NAME_PROMPT_TEMPLATE, context);
 
   const [image, powerGeneration, nameGeneration] = await Promise.all([
-    generateCharacterImage(imagePrompt, characterId, imageStore),
+    generateCharacterImage(imagePrompt, characterId, imageStore, referenceImage),
     generatePowerOptions(powerPrompt, context),
     generateCharacterName(namePrompt, context),
   ]);
