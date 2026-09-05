@@ -224,6 +224,14 @@ function createPromptContext(creatureType, variables) {
   };
 }
 
+// The reference line is only appended when the image actually ships with the
+// request, so a stored prompt always matches what the model was given.
+function buildImagePrompt(context, referenceImage) {
+  return [fillTemplate(IMAGE_PROMPT_TEMPLATE, context), referenceImage ? SHAPE_REFERENCE_LINE : ""]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -889,12 +897,7 @@ async function buildCharacterDraft(creatureTypeInput, imageStore) {
   const referenceImage = shouldUseLiveCharacterGeneration()
     ? await loadShapeReferenceImage()
     : null;
-  const imagePrompt = [
-    fillTemplate(IMAGE_PROMPT_TEMPLATE, context),
-    referenceImage ? SHAPE_REFERENCE_LINE : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const imagePrompt = buildImagePrompt(context, referenceImage);
   const powerPrompt = fillTemplate(POWERS_PROMPT_TEMPLATE, context);
   const namePrompt = fillTemplate(NAME_PROMPT_TEMPLATE, context);
 
@@ -1121,6 +1124,11 @@ module.exports = {
   applyAttributeIncrements,
   buildCharacterImageUrl,
   buildCharacterDraft,
+  buildImagePrompt,
+  createPromptContext,
+  getImageExtension,
+  loadShapeReferenceImage,
+  requestGeminiImage,
   getAttributeIncrementSpend,
   getAttributePointBudget,
   getExperienceForNextLevel,
