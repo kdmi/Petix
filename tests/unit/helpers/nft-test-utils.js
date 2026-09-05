@@ -64,10 +64,15 @@ function createFakeChain({ owners = {}, blockNumber = 100, enumerable = true } =
     async findDeploymentBlock() {
       return state.deploymentBlock;
     },
-    async scanTransfers(fromBlock) {
+    async scanTransfers(fromBlock, { maxBlocks = null } = {}) {
+      // Mirrors the real chunking cap so tests can exercise a cold-start backlog.
+      let toBlock = state.blockNumber;
+      if (maxBlocks && toBlock - fromBlock > maxBlocks) toBlock = fromBlock + maxBlocks;
       return {
-        toBlock: state.blockNumber,
-        transfers: state.transfers.filter((entry) => entry.blockNumber >= fromBlock),
+        toBlock,
+        transfers: state.transfers.filter(
+          (entry) => entry.blockNumber >= fromBlock && entry.blockNumber <= toBlock
+        ),
       };
     },
     async emitMetadataUpdate(tokenId) {

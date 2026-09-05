@@ -209,3 +209,40 @@ test("move: a buyer with no profile (or an escrow contract address) gets one on 
     assert.equal(escrowProfile.characters[0].id, character.id);
   });
 });
+
+test("sync: a huge block backlog is walked down in bounded runs", async () => {
+  await withNftEnv(async (env) => {
+    const seller = evmWallet("a");
+    const buyer = evmWallet("b");
+    await bindTo(env, seller, 10, makeCharacter({ level: 4 }));
+
+    // The collection was deployed long before the feature was switched on:
+    // ~600k blocks of gap, which on Robinhood Chain is well under a day.
+    env.chain.state.blockNumber = 599999;
+    env.chain.transfer(10, buyer);
+
+    const first = await env.nft.syncTransfers(env.deps);
+    assert.equal(first.moved.length, 0, "the head is out of reach on the first run");
+    assert.ok(first.scannedToBlock < 600000, "one run must not scan to the head");
+
+    let state = await env.nftStore.readNftState();
+    assert.ok(state.lastSyncedBlock > 0, "the watermark has to advance or sync wedges");
+
+    // The per-minute cron keeps going until it catches up.
+    let runs = 1;
+    let moved = [];
+    while (state.lastSyncedBlock < 600000 && runs < 10) {
+      const result = await env.nft.syncTransfers(env.deps);
+      moved = moved.concat(result.moved);
+      state = await env.nftStore.readNftState();
+      runs += 1;
+    }
+
+    assert.ok(runs < 10, "the backlog must not need an unbounded number of runs");
+    assert.equal(moved.length, 1, "the character reaches the buyer once the scan catches up");
+    assert.equal(moved[0].toWallet, buyer);
+
+    const buyerProfile = await env.store.getWalletProfile(buyer);
+    assert.equal(buyerProfile.characters.length, 1);
+  });
+});

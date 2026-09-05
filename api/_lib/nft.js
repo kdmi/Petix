@@ -21,6 +21,18 @@ const {
 // Collection size comes from env: the demo collection is deployed via OpenSea
 // Studio, so the cap lives on their contract, not ours.
 const MAX_SUPPLY = Math.max(1, Math.floor(Number(process.env.NFT_MAX_SUPPLY) || 10000));
+
+// One sync run scans a bounded window of blocks. Without a cap, the very first
+// run after launch has to walk from the deployment block to the chain head in a
+// single invocation — on Robinhood Chain that is ~864k blocks per day of gap,
+// which outgrows the function timeout. Worse, a run that dies never advances the
+// watermark, so every later run repeats the same doomed scan and ownership sync
+// stops for good. With the cap the watermark moves every run and the per-minute
+// cron walks any backlog down on its own.
+const SYNC_MAX_BLOCKS = Math.max(
+  1000,
+  Math.floor(Number(process.env.NFT_SYNC_MAX_BLOCKS) || 250000)
+);
 const LOCAL_IMAGE_PREFIX = "local:";
 const LOCAL_IMAGES_DIR = path.join(
   process.cwd(),
@@ -480,7 +492,9 @@ async function ensureOwnerIndex(depOverrides) {
   }
 
   const fromBlock = state.lastSyncedBlock ? state.lastSyncedBlock + 1 : startBlock;
-  const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock);
+  const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock, {
+    maxBlocks: SYNC_MAX_BLOCKS,
+  });
   if (!transfers.length && toBlock <= state.lastSyncedBlock) {
     return state;
   }
@@ -526,7 +540,9 @@ async function syncTransfers(depOverrides) {
   const deps = resolveDeps(depOverrides);
   const state = await deps.store.readNftState();
   const fromBlock = state.lastSyncedBlock + 1;
-  const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock);
+  const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock, {
+    maxBlocks: SYNC_MAX_BLOCKS,
+  });
 
   const touched = new Map();
   for (const transfer of transfers) {
