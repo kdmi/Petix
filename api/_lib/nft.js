@@ -338,11 +338,6 @@ async function snapshotCharacterImage(tokenId, character) {
 // Metadata (public contract — see specs/016 data-model.md)
 // ---------------------------------------------------------------------------
 
-function titleCaseCreature(value) {
-  const text = String(value || "").trim();
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Companion";
-}
-
 function resolveImageUrl(binding, origin) {
   if (binding.imageGatewayUrl) return binding.imageGatewayUrl;
   const uri = String(binding.imageUri || "");
@@ -397,7 +392,14 @@ function buildBoundMetadata(tokenId, binding, character, origin) {
 
   return {
     name: character.name || character.displayName || `Capsule #${tokenId}`,
-    description: `${character.rarity || "Common"} ${titleCaseCreature(character.creatureType).toLowerCase()}.`,
+    // Постоянный текст без единого пользовательского слова. Тип существа игрок
+    // вписывает сам, а публиковать его пришлось бы через стоп-лист на всех
+    // языках — война, которую не выиграть, ради слова, которое и так видно на
+    // картинке. Что это за существо, показывает изображение; чем оно ценно —
+    // трейты.
+    description:
+      `A companion sealed inside capsule #${tokenId}. ` +
+      "Whoever holds the capsule owns the companion and everything it has earned.",
     image: resolveImageUrl(binding, origin),
     attributes,
   };

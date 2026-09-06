@@ -78,7 +78,11 @@ test("metadata: an occupied capsule serves the trimmed trait set and no prompts"
       assert.ok(!(dropped in byTrait), `${dropped} не должен попадать в трейты`);
     }
 
+    // Тип существа игрок вписывает свободным текстом — наружу он не идёт
+    // ни трейтом, ни в описании: фильтровать его на всех языках нереально,
+    // а картинку и так модерирует генератор.
     const raw = JSON.stringify(metadata).toLowerCase();
+    assert.ok(!raw.includes("cat"), "тип существа не публикуется");
     assert.ok(!raw.includes("prompt"));
     assert.ok(!raw.includes("secret"));
     assert.ok(!raw.includes("petix"));
