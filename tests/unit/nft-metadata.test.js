@@ -16,9 +16,9 @@ test("metadata: minted empty slot serves the neutral placeholder", async () => {
 
     const metadata = await nft.getTokenMetadata(12, ORIGIN, deps);
 
-    assert.equal(metadata.name, "Slot #12");
+    assert.equal(metadata.name, "Capsule #12");
     assert.equal(metadata.image, `${ORIGIN}/assets/nft/placeholder.png`);
-    assert.deepEqual(metadata.attributes, [{ trait_type: "Status", value: "Empty Slot" }]);
+    assert.deepEqual(metadata.attributes, [{ trait_type: "Status", value: "Empty" }]);
     assert.ok(!JSON.stringify(metadata).toLowerCase().includes("petix"));
   });
 });
@@ -32,7 +32,7 @@ test("metadata: unminted and out-of-range tokens resolve to null (404)", async (
   });
 });
 
-test("metadata: bound slot serves the character with full traits and no prompts", async () => {
+test("metadata: an occupied capsule serves the trimmed trait set and no prompts", async () => {
   await withNftEnv(async ({ chain, deps, nft, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter({
@@ -52,23 +52,31 @@ test("metadata: bound slot serves the character with full traits and no prompts"
     const byTrait = Object.fromEntries(
       metadata.attributes.map((entry) => [entry.trait_type, entry.value])
     );
-    assert.equal(byTrait.Status, "Bound");
+    assert.equal(byTrait.Status, "Occupied");
     assert.equal(byTrait.Rarity, "Epic");
-    assert.equal(byTrait.Creature, "Cat");
-    assert.equal(byTrait.Element, "Origami paper");
-    assert.equal(byTrait["Profession Style"], "Twitch streamer");
-    assert.equal(byTrait["Element Effects"], "Floating jigsaw pieces");
-    assert.equal(byTrait["Facial Features"], "Half-closed lazy eyes");
-    // пустые variables не попадают в трейты
-    assert.ok(!("Top Item" in byTrait));
-    assert.ok(!("Body Color" in byTrait));
-    assert.ok(!("Side Details" in byTrait));
-    assert.equal(byTrait.Power, "Paper Storm");
+    assert.equal(byTrait.Obsession, "Origami paper");
     assert.equal(byTrait.Level, 3);
-    assert.equal(byTrait.Stamina, 4);
-    assert.equal(byTrait.Agility, 2);
-    assert.equal(byTrait.Strength, 3);
-    assert.equal(byTrait.Intelligence, 4);
+    // Top Item в этой фикстуре пуст — пустые variables в трейты не идут.
+    assert.deepEqual(Object.keys(byTrait).sort(), ["Level", "Obsession", "Rarity", "Status"]);
+
+    // Всё остальное намеренно вне метаданных: внешность видна на картинке,
+    // способность уникальна у каждого питомца, атрибуты растут от игры.
+    for (const dropped of [
+      "Creature",
+      "Power",
+      "Element",
+      "Profession Style",
+      "Element Effects",
+      "Facial Features",
+      "Body Color",
+      "Side Details",
+      "Stamina",
+      "Agility",
+      "Strength",
+      "Intelligence",
+    ]) {
+      assert.ok(!(dropped in byTrait), `${dropped} не должен попадать в трейты`);
+    }
 
     const raw = JSON.stringify(metadata).toLowerCase();
     assert.ok(!raw.includes("prompt"));
@@ -97,7 +105,7 @@ test("metadata: reflects the live character level after progression", async () =
   });
 });
 
-test("metadata: Unbinding во время заявки, затем снова пустой слот", async () => {
+test("metadata: Clearing во время заявки, затем снова пустая капсула", async () => {
   await withNftEnv(async ({ chain, deps, nft, store }) => {
     const wallet = evmWallet("a");
     const character = makeCharacter();
@@ -109,12 +117,12 @@ test("metadata: Unbinding во время заявки, затем снова п
 
     await nft.requestUnbindSlot(wallet, 6, deps);
     const pending = await nft.getTokenMetadata(6, ORIGIN, deps);
-    assert.deepEqual(pending.attributes, [{ trait_type: "Status", value: "Unbinding" }]);
+    assert.deepEqual(pending.attributes, [{ trait_type: "Status", value: "Clearing" }]);
     assert.equal(pending.image, `${ORIGIN}/assets/nft/placeholder.png`);
 
     await nft.processPendingUnbinds({ ...deps, now: () => Date.parse("2026-09-02T14:00:00.000Z") });
     const cleared = await nft.getTokenMetadata(6, ORIGIN, deps);
-    assert.deepEqual(cleared.attributes, [{ trait_type: "Status", value: "Empty Slot" }]);
+    assert.deepEqual(cleared.attributes, [{ trait_type: "Status", value: "Empty" }]);
   });
 });
 
@@ -125,5 +133,32 @@ test("metadata: collection-level document is neutral", async () => {
     assert.match(metadata.description, /10,000 capsules/, "supply берётся из конфига");
     assert.equal(metadata.image, `${ORIGIN}/assets/nft/placeholder.png`);
     assert.ok(!JSON.stringify(metadata).toLowerCase().includes("petix"));
+  });
+});
+
+test("metadata: Top Item is served when the pet actually has one", async () => {
+  await withNftEnv(async ({ chain, deps, nft, store }) => {
+    const wallet = evmWallet("b");
+    const character = makeCharacter({
+      variables: {
+        ELEMENT: "Pure caffeine",
+        PROFESSION_STYLE: "Tired IT support",
+        TOP_ITEM: "Traffic cone",
+        BODY_COLOR: "Vantablack",
+      },
+    });
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(9, wallet);
+    await nft.bindCharacterToSlot(wallet, 9, character.id, deps);
+
+    const metadata = await nft.getTokenMetadata(9, ORIGIN, deps);
+    const byTrait = Object.fromEntries(
+      metadata.attributes.map((entry) => [entry.trait_type, entry.value])
+    );
+
+    assert.equal(byTrait["Top Item"], "Traffic cone");
+    assert.equal(byTrait.Obsession, "Pure caffeine");
+    assert.ok(!("Body Color" in byTrait), "внешность остаётся на картинке");
+    assert.ok(!("Profession Style" in byTrait));
   });
 });

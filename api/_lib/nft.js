@@ -29,6 +29,12 @@ const MAX_SUPPLY = Math.max(1, Math.floor(Number(process.env.NFT_MAX_SUPPLY) || 
 // watermark, so every later run repeats the same doomed scan and ownership sync
 // stops for good. With the cap the watermark moves every run and the per-minute
 // cron walks any backlog down on its own.
+/** Число из env, где 0 — валидное значение (`|| fallback` его бы съел). */
+function envNumber(name, fallback) {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
+}
+
 const SYNC_MAX_BLOCKS = Math.max(
   1000,
   Math.floor(Number(process.env.NFT_SYNC_MAX_BLOCKS) || 250000)
@@ -42,14 +48,12 @@ const LOCAL_IMAGES_DIR = path.join(
 );
 const BLOB_SNAPSHOT_PREFIX = "nft-images";
 
+// Из семи сгенерированных переменных в метаданные идут только две. Остальные
+// (стиль, цвет тела, детали лица и боков, эффекты) описывают внешность, которая
+// и так на картинке, и лишь засоряют фильтры маркетплейса.
 const VARIABLE_TRAIT_LABELS = {
-  ELEMENT: "Element",
-  PROFESSION_STYLE: "Profession Style",
+  ELEMENT: "Obsession",
   TOP_ITEM: "Top Item",
-  ELEMENT_EFFECTS: "Element Effects",
-  BODY_COLOR: "Body Color",
-  FACIAL_FEATURES: "Facial Features",
-  SIDE_DETAILS: "Side Details",
 };
 
 // Marketplaces cache token metadata and only re-read it lazily: the on-chain
@@ -97,8 +101,7 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
   if (!characterId || !process.env.NFT_OPENSEA_API_KEY) return false;
 
   const deps = resolveDeps(depOverrides);
-  const debounceMs =
-    Math.max(0, Number(process.env.NFT_REFRESH_DEBOUNCE_MS) || 10 * 60 * 1000);
+  const debounceMs = envNumber("NFT_REFRESH_DEBOUNCE_MS", 10 * 60 * 1000);
 
   try {
     const binding = await deps.store.getBindingByCharacterId(characterId);
@@ -106,7 +109,12 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
 
     const now = deps.now();
     const lastAt = Date.parse(binding.refreshedAt || 0);
-    if (Number.isFinite(lastAt) && now - lastAt < debounceMs) return false;
+    if (Number.isFinite(lastAt) && now - lastAt < debounceMs) {
+      // Слишком рано для повторного запроса, но уровень уже другой: помечаем
+      // токен, иначе обновление потеряется до следующего левел-апа.
+      await markRefreshPending(binding.tokenId, now, deps);
+      return false;
+    }
 
     // Метку ставим ДО запроса: параллельные бои не должны выстрелить пачкой.
     await deps.store.withNftState((state) => {
@@ -115,11 +123,83 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
       return state;
     });
 
-    return await requestMarketplaceRefresh(binding.tokenId);
+    const delivered = await requestMarketplaceRefresh(binding.tokenId);
+    if (!delivered) {
+      // Маркетплейс не принял (таймаут, 5xx, лимит) — отдадим крону.
+      await markRefreshPending(binding.tokenId, now, deps);
+      return false;
+    }
+    await clearRefreshPending(binding.tokenId, deps);
+    return true;
   } catch (error) {
     console.warn(`[nft] progression refresh failed: ${error.message}`);
     return false;
   }
+}
+
+async function markRefreshPending(tokenId, now, deps) {
+  await deps.store.withNftState((state) => {
+    const stored = state.bindings[String(tokenId)];
+    if (stored && !stored.refreshPendingSince) {
+      stored.refreshPendingSince = new Date(now).toISOString();
+    }
+    return state;
+  });
+}
+
+async function clearRefreshPending(tokenId, deps) {
+  await deps.store.withNftState((state) => {
+    const stored = state.bindings[String(tokenId)];
+    if (stored) delete stored.refreshPendingSince;
+    return state;
+  });
+}
+
+/**
+ * Досылает обновления, которые не доехали с первого раза: запрос к маркетплейсу
+ * упал или попал в дебаунс. Гоняется кроном раз в минуту, поэтому берём немного
+ * токенов за проход — нагрузка получается пропорциональна числу реальных
+ * левел-апов, а не размеру коллекции.
+ */
+async function drainRefreshQueue(depOverrides) {
+  if (!isNftEnabled() || !process.env.NFT_OPENSEA_API_KEY) {
+    return { refreshed: [], pending: 0 };
+  }
+
+  const deps = resolveDeps(depOverrides);
+  const debounceMs = envNumber("NFT_REFRESH_DEBOUNCE_MS", 10 * 60 * 1000);
+  const batchSize = Math.max(1, Math.floor(envNumber("NFT_REFRESH_BATCH", 20)));
+
+  const state = await deps.store.readNftState();
+  const now = deps.now();
+
+  const queued = Object.entries(state.bindings || {})
+    .filter(([, binding]) => binding?.refreshPendingSince)
+    .filter(([, binding]) => {
+      const lastAt = Date.parse(binding.refreshedAt || 0);
+      return !Number.isFinite(lastAt) || now - lastAt >= debounceMs;
+    })
+    // Самые давно ждущие — первыми.
+    .sort(
+      (a, b) =>
+        Date.parse(a[1].refreshPendingSince) - Date.parse(b[1].refreshPendingSince)
+    );
+
+  const refreshed = [];
+  for (const [key] of queued.slice(0, batchSize)) {
+    const tokenId = Number(key);
+    await deps.store.withNftState((current) => {
+      const stored = current.bindings[key];
+      if (stored) stored.refreshedAt = new Date(deps.now()).toISOString();
+      return current;
+    });
+    if (await requestMarketplaceRefresh(tokenId)) {
+      await clearRefreshPending(tokenId, deps);
+      refreshed.push(tokenId);
+    }
+  }
+
+  return { refreshed, pending: Math.max(0, queued.length - refreshed.length) };
 }
 
 function fail(status, message, code, extra) {
@@ -274,10 +354,10 @@ function resolveImageUrl(binding, origin) {
 
 function buildPlaceholderMetadata(tokenId, origin) {
   return {
-    name: `Slot #${tokenId}`,
-    description: "An empty slot. Bind a companion to turn it into a collectible.",
+    name: `Capsule #${tokenId}`,
+    description: "An empty capsule. Put a companion inside to turn it into a collectible.",
     image: `${origin}/assets/nft/placeholder.png`,
-    attributes: [{ trait_type: "Status", value: "Empty Slot" }],
+    attributes: [{ trait_type: "Status", value: "Empty" }],
   };
 }
 
@@ -293,9 +373,8 @@ function buildCollectionMetadata(origin) {
 
 function buildBoundMetadata(tokenId, binding, character, origin) {
   const attributes = [
-    { trait_type: "Status", value: "Bound" },
+    { trait_type: "Status", value: "Occupied" },
     { trait_type: "Rarity", value: character.rarity || "Common" },
-    { trait_type: "Creature", value: titleCaseCreature(character.creatureType) },
   ];
 
   const variables = character.variables || {};
@@ -306,34 +385,18 @@ function buildBoundMetadata(tokenId, binding, character, origin) {
     }
   }
 
-  const selectedPower = Array.isArray(character.powers)
-    ? character.powers.find((power) => power?.id === character.selectedPowerId)
-    : null;
-  if (selectedPower?.title) {
-    attributes.push({ trait_type: "Power", value: selectedPower.title });
-  }
-
+  // Способность и четыре атрибута сюда не идут: текст способности генерится под
+  // каждого питомца отдельно (фильтровать нечего), а атрибуты растут от игры —
+  // редкость коллекции превратилась бы в «кто больше играл». Прогресс передаёт
+  // один Level.
   attributes.push({
     trait_type: "Level",
     display_type: "number",
     value: Math.max(1, Math.floor(Number(character.level) || 1)),
   });
-  const stats = character.attributes || {};
-  for (const [key, label] of [
-    ["stamina", "Stamina"],
-    ["agility", "Agility"],
-    ["strength", "Strength"],
-    ["intelligence", "Intelligence"],
-  ]) {
-    attributes.push({
-      trait_type: label,
-      display_type: "number",
-      value: Math.max(0, Math.floor(Number(stats[key]) || 0)),
-    });
-  }
 
   return {
-    name: character.name || character.displayName || `Slot #${tokenId}`,
+    name: character.name || character.displayName || `Capsule #${tokenId}`,
     description: `${character.rarity || "Common"} ${titleCaseCreature(character.creatureType).toLowerCase()}.`,
     image: resolveImageUrl(binding, origin),
     attributes,
@@ -362,11 +425,11 @@ async function getTokenMetadata(rawTokenId, origin, depOverrides) {
   // трейтов, чтобы никто не купил капсулу, рассчитывая на её содержимое.
   if (binding.pendingUnbind) {
     return {
-      name: `Slot #${tokenId}`,
+      name: `Capsule #${tokenId}`,
       description:
         "The companion inside is scheduled to be released. This capsule will be empty soon.",
       image: `${origin}/assets/nft/placeholder.png`,
-      attributes: [{ trait_type: "Status", value: "Unbinding" }],
+      attributes: [{ trait_type: "Status", value: "Clearing" }],
     };
   }
 
@@ -593,12 +656,17 @@ async function syncTransfers(depOverrides) {
   // владение уже актуально, а внутри всё равно перепроверяем ownerOf.
   const unbinds = await processPendingUnbinds(deps);
 
+  // Досылаем обновления витрины, не доехавшие с первого раза.
+  const refreshes = await drainRefreshQueue(deps);
+
   return {
     scannedFromBlock: fromBlock,
     scannedToBlock: toBlock,
     moved,
     burned: unbinds.burned,
     cancelledUnbinds: unbinds.cancelled,
+    refreshed: refreshes.refreshed,
+    refreshPending: refreshes.pending,
     errors,
   };
 }
@@ -707,7 +775,7 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
 // прокачанным персонажем, дождаться сделки и сжечь его в последний момент —
 // продавцу это ничего не стоит, он персонажа и так отдавал. Поэтому:
 //   1) заявка: списываем Points, помечаем капсулу, метаданные сразу показывают
-//      Unbinding и прячут трейты — у кэша маркетплейсов есть час, чтобы это
+//      Clearing и прячут трейты — у кэша маркетплейсов есть час, чтобы это
 //      разошлось;
 //   2) исполнение (через час, из синка): свежий ownerOf. Владелец сменился —
 //      значит капсулу продали, сжигание отменяем и возвращаем Points, персонаж
@@ -824,7 +892,7 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
     })
     .catch(() => null);
 
-  // Просим маркетплейс перечитать СРАЗУ: статус Unbinding должен разойтись за
+  // Просим маркетплейс перечитать СРАЗУ: статус Clearing должен разойтись за
   // час ожидания, иначе покупатель увидит питомца, которого уже нет.
   const marketplaceRefreshed = await requestMarketplaceRefresh(tokenId);
 
@@ -1030,6 +1098,7 @@ module.exports = {
   normalizeTokenId,
   processPendingUnbinds,
   refreshBoundCharacterMetadata,
+  drainRefreshQueue,
   requestUnbindSlot,
   requestMarketplaceRefresh,
   snapshotCharacterImage,

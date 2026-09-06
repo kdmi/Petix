@@ -182,8 +182,8 @@ test("очистка: заявка списывает Points, прячет тр�
 
     // Метаданные скрывают питомца, чтобы его не купили «вслепую»
     const pendingMeta = await nft.getTokenMetadata(4, "https://demo.test", deps);
-    assert.deepEqual(pendingMeta.attributes, [{ trait_type: "Status", value: "Unbinding" }]);
-    assert.equal(pendingMeta.name, "Slot #4");
+    assert.deepEqual(pendingMeta.attributes, [{ trait_type: "Status", value: "Clearing" }]);
+    assert.equal(pendingMeta.name, "Capsule #4");
 
     // Срок ещё не наступил — ничего не происходит
     assert.deepEqual((await nft.processPendingUnbinds(deps)).burned, []);
@@ -358,6 +358,67 @@ test("refresh при прокачке: непривязанный персона
     } finally {
       global.fetch = originalFetch;
       delete process.env.NFT_OPENSEA_API_KEY;
+    }
+  });
+});
+
+test("refresh: не доехавшее обновление досылается кроном, а не теряется", async () => {
+  await withNftEnv(async (env) => {
+    const { deps, nft, nftStore, store, chain } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(5, wallet);
+    await nft.bindCharacterToSlot(wallet, 5, character.id, deps);
+
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
+    process.env.NFT_CONTRACT = "0xcontract";
+    process.env.NFT_REFRESH_DEBOUNCE_MS = "0";
+    const originalFetch = global.fetch;
+    let accept = false;
+    const calls = [];
+
+    global.fetch = async (url) => {
+      calls.push(String(url));
+      // Маркетплейс сначала лежит, потом оживает.
+      return accept
+        ? { ok: true, status: 200, text: async () => "" }
+        : { ok: false, status: 503, text: async () => "unavailable" };
+    };
+
+    try {
+      assert.equal(await nft.refreshBoundCharacterMetadata(character.id, deps), false);
+      assert.equal(calls.length, 1);
+
+      let binding = await nftStore.getBinding(5);
+      assert.ok(binding.refreshPendingSince, "токен помечен как ждущий обновления");
+
+      // Крон приходит, пока маркетплейс всё ещё лежит: метка обязана остаться.
+      let drained = await nft.drainRefreshQueue(deps);
+      assert.deepEqual(drained.refreshed, []);
+      assert.equal(drained.pending, 1);
+      binding = await nftStore.getBinding(5);
+      assert.ok(binding.refreshPendingSince, "неудача не снимает токен с очереди");
+
+      // Маркетплейс ожил — следующий проход крона добивает обновление.
+      accept = true;
+      drained = await nft.drainRefreshQueue(deps);
+      assert.deepEqual(drained.refreshed, [5]);
+      assert.equal(drained.pending, 0);
+
+      binding = await nftStore.getBinding(5);
+      assert.ok(!binding.refreshPendingSince, "доставленное обновление снято с очереди");
+
+      // Очередь пуста — лишних запросов крон не делает.
+      const before = calls.length;
+      drained = await nft.drainRefreshQueue(deps);
+      assert.deepEqual(drained.refreshed, []);
+      assert.equal(calls.length, before, "пустая очередь не дёргает маркетплейс");
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.NFT_OPENSEA_API_KEY;
+      delete process.env.NFT_CONTRACT;
+      delete process.env.NFT_REFRESH_DEBOUNCE_MS;
     }
   });
 });

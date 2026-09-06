@@ -80,6 +80,9 @@ function normalizeBinding(tokenId, raw) {
     imageGatewayUrl: raw.imageGatewayUrl ? String(raw.imageGatewayUrl) : null,
     boundAt: raw.boundAt || null,
     refreshedAt: raw.refreshedAt || null,
+    // Обновление витрины не доехало (маркетплейс лёг или сработал дебаунс) —
+    // токен ждёт, пока его дошлёт крон.
+    refreshPendingSince: raw.refreshPendingSince || null,
     // Отложенное сжигание: заявка живёт здесь до момента исполнения.
     pendingUnbind:
       raw.pendingUnbind && raw.pendingUnbind.executeAt
