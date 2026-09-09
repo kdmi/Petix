@@ -214,7 +214,21 @@ async function syncRevealState(depOverrides) {
   const deps = resolveDeps(depOverrides);
   const current = isRevealed(deps.now()) ? "revealed" : "sealed";
   const state = await deps.store.readNftState();
-  if (state.lastRevealState === current) return null;
+
+  // Ревил делается транзакцией setBaseURI — приложению об этом никто не
+  // сообщает. Поэтому сравниваем адрес метаданных с последним известным: его
+  // смена (в любую сторону, включая откат из Studio) значит, что витрине надо
+  // перечитать всю коллекцию.
+  let baseUri = null;
+  try {
+    baseUri = deps.chain.getBaseUri ? await deps.chain.getBaseUri() : null;
+  } catch (error) {
+    console.warn(`[nft] baseURI read failed: ${error.message}`);
+  }
+
+  const flagChanged = state.lastRevealState !== current;
+  const uriChanged = baseUri !== null && state.lastBaseUri !== baseUri;
+  if (!flagChanged && !uriChanged) return null;
 
   let until = 0;
   try {
@@ -226,10 +240,11 @@ async function syncRevealState(depOverrides) {
 
   await deps.store.withNftState((next) => {
     next.lastRevealState = current;
+    if (baseUri !== null) next.lastBaseUri = baseUri;
     if (until > 0) next.refreshSweep = { next: 1, until: Math.min(MAX_SUPPLY, until) };
     return next;
   });
-  return { state: current, until };
+  return { state: current, baseUri, until, reason: uriChanged ? "baseURI" : "flag" };
 }
 
 async function drainRefreshQueue(depOverrides) {

@@ -44,6 +44,10 @@ const EMPTY_STATE = {
   // Состояние витрины на момент последнего прохода крона: "sealed" | "revealed".
   // Смена значения — сигнал, что метаданные изменились у всех токенов сразу.
   lastRevealState: null,
+  // Последний известный адрес метаданных. Его смена = ревил (или откат его
+  // Studio), и это единственный сигнал, по которому мы узнаём, что метаданные
+  // поменялись сразу у всей коллекции.
+  lastBaseUri: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -138,6 +142,8 @@ function normalizeState(parsed) {
       parsed.lastRevealState === "sealed" || parsed.lastRevealState === "revealed"
         ? parsed.lastRevealState
         : null,
+    lastBaseUri:
+      typeof parsed.lastBaseUri === "string" && parsed.lastBaseUri ? parsed.lastBaseUri : null,
   };
 }
 

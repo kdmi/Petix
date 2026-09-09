@@ -16,6 +16,7 @@ const CONTRACT_ABI = [
   // OpenSea's ERC721ContractMetadata (SeaDrop) names it differently.
   "function emitBatchMetadataUpdate(uint256 fromTokenId, uint256 toTokenId)",
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+  "function baseURI() view returns (string)",
 ];
 
 const TRANSFER_TOPIC = keccakId("Transfer(address,address,uint256)");
@@ -91,6 +92,15 @@ function createChainClient(overrides = {}) {
 
   return {
     env,
+
+    /** Текущий адрес метаданных. Его смена и есть ревил. */
+    async getBaseUri() {
+      try {
+        return String(await requireContract().baseURI());
+      } catch (error) {
+        throw rpcUnavailable(error);
+      }
+    },
 
     async getTotalSupply() {
       try {
