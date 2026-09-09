@@ -52,6 +52,9 @@ const EMPTY_STATE = {
   // другая коллекция, и привязки, владельцы и отметка сканирования от прошлой
   // к ней не имеют отношения.
   contract: null,
+  // Проверка того, что витрина действительно перечитала метаданные. Запускается
+  // после обхода: OpenSea принимает запрос молча и обновляет через раз.
+  refreshAudit: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -150,6 +153,16 @@ function normalizeState(parsed) {
       typeof parsed.lastBaseUri === "string" && parsed.lastBaseUri ? parsed.lastBaseUri : null,
     contract:
       typeof parsed.contract === "string" && parsed.contract ? parsed.contract.toLowerCase() : null,
+    refreshAudit:
+      parsed.refreshAudit && Number(parsed.refreshAudit.until) > 0
+        ? {
+            next: Math.max(1, Math.floor(Number(parsed.refreshAudit.next) || 1)),
+            until: Math.max(1, Math.floor(Number(parsed.refreshAudit.until) || 1)),
+            attempt: Math.max(1, Math.floor(Number(parsed.refreshAudit.attempt) || 1)),
+            notBefore: Math.max(0, Math.floor(Number(parsed.refreshAudit.notBefore) || 0)),
+            staleCount: Math.max(0, Math.floor(Number(parsed.refreshAudit.staleCount) || 0)),
+          }
+        : null,
   };
 }
 

@@ -36,6 +36,13 @@ function envNumber(name, fallback) {
   return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
 }
 
+// Пауза перед проверкой и число заходов. OpenSea обрабатывает запросы не сразу,
+// поэтому проверять раньше бессмысленно — объявим устаревшим всё подряд.
+const AUDIT_DELAY_MS = envNumber("NFT_AUDIT_DELAY_MS", 10 * 60 * 1000);
+const AUDIT_MAX_ATTEMPTS = Math.max(1, Math.floor(envNumber("NFT_AUDIT_ATTEMPTS", 3)));
+// Трейты от origin не зависят, а сравниваем мы только их.
+const AUDIT_ORIGIN = "https://audit.invalid";
+
 const SYNC_MAX_BLOCKS = Math.max(
   1000,
   Math.floor(Number(process.env.NFT_SYNC_MAX_BLOCKS) || 250000)
@@ -200,6 +207,57 @@ async function clearRefreshPending(tokenId, deps) {
  * Ставит обход всей коллекции: витрина перечитает каждый токен. Нужно ровно
  * один раз — на ревиле, когда метаданные меняются у всех сразу.
  */
+/**
+ * Что о токене думает витрина прямо сейчас. Нужно, чтобы не верить на слово
+ * запросу на перечитывание: на Robinhood Chain OpenSea принимает его молча и
+ * обновляет через раз.
+ */
+async function readMarketplaceToken(tokenId) {
+  const apiKey = process.env.NFT_OPENSEA_API_KEY;
+  const contract = process.env.NFT_CONTRACT;
+  if (!apiKey || !contract) return null;
+
+  const chain = process.env.NFT_OPENSEA_CHAIN || "robinhood";
+  const url = `https://api.opensea.io/api/v2/chain/${chain}/contract/${contract}/nfts/${tokenId}`;
+  try {
+    const response = await fetch(url, {
+      headers: { "x-api-key": apiKey, accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const traits = {};
+    for (const trait of body?.nft?.traits || []) {
+      if (trait?.trait_type) traits[trait.trait_type] = String(trait.value);
+    }
+    return { traits };
+  } catch (error) {
+    console.warn(`[nft] marketplace read ${tokenId} failed: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Сошлись ли метаданные витрины с нашими. Сравниваем по трейтам: картинку
+ * OpenSea проксирует через свой домен, по URL её не сверить.
+ */
+async function isMarketplaceInSync(tokenId, origin, depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const [ours, theirs] = await Promise.all([
+    getTokenMetadata(tokenId, origin, deps),
+    readMarketplaceToken(tokenId),
+  ]);
+  if (!ours || !theirs) return null; // нечего сравнивать — не наше дело
+
+  const expected = {};
+  for (const trait of ours.attributes || []) expected[trait.trait_type] = String(trait.value);
+
+  for (const [key, value] of Object.entries(expected)) {
+    if (theirs.traits[key] !== value) return false;
+  }
+  return true;
+}
+
 async function scheduleFullRefresh(untilTokenId, depOverrides) {
   const deps = resolveDeps(depOverrides);
   const until = Math.max(1, Math.min(MAX_SUPPLY, Math.floor(Number(untilTokenId) || 0)));
@@ -313,11 +371,65 @@ async function drainRefreshQueue(depOverrides) {
       refreshed.push(tokenId);
       cursor = tokenId + 1;
     }
+    const done = cursor > until;
     await deps.store.withNftState((current) => {
-      current.refreshSweep = cursor > until ? null : { next: cursor, until };
+      current.refreshSweep = done ? null : { next: cursor, until };
+      // Обход закончен — ставим проверку. Не сразу: витрине нужно время, иначе
+      // мы объявим устаревшим всё подряд.
+      if (done) {
+        current.refreshAudit = {
+          next: 1,
+          until,
+          attempt: 1,
+          notBefore: now + AUDIT_DELAY_MS,
+          staleCount: 0,
+        };
+      }
       return current;
     });
     return { refreshed, pending: Math.max(0, until - cursor + 1), sweeping: true };
+  }
+
+  // Проверка: сверяем трейты у витрины с нашими и переспрашиваем несошедшиеся.
+  if (state.refreshAudit && now >= state.refreshAudit.notBefore) {
+    const { next, until, attempt } = state.refreshAudit;
+    const last = Math.min(until, next + batchSize - 1);
+    let stale = 0;
+    const rechecked = [];
+    for (let tokenId = next; tokenId <= last; tokenId += 1) {
+      const inSync = await isMarketplaceInSync(tokenId, AUDIT_ORIGIN, deps);
+      if (inSync === false) {
+        stale += 1;
+        await requestMarketplaceRefresh(tokenId);
+        rechecked.push(tokenId);
+      }
+    }
+
+    const finished = last >= until;
+    const staleTotal = state.refreshAudit.staleCount + stale;
+    await deps.store.withNftState((current) => {
+      if (!finished) {
+        current.refreshAudit = { ...state.refreshAudit, next: last + 1, staleCount: staleTotal };
+      } else if (staleTotal > 0 && attempt < AUDIT_MAX_ATTEMPTS) {
+        // Часть токенов витрина так и не перечитала — заходим ещё раз.
+        current.refreshAudit = {
+          next: 1,
+          until,
+          attempt: attempt + 1,
+          notBefore: now + AUDIT_DELAY_MS,
+          staleCount: 0,
+        };
+      } else {
+        if (staleTotal > 0) {
+          console.warn(
+            `[nft] ${staleTotal} tokens still stale on the marketplace after ${attempt} passes`
+          );
+        }
+        current.refreshAudit = null;
+      }
+      return current;
+    });
+    return { refreshed: rechecked, pending: finished ? 0 : until - last, auditing: true, attempt };
   }
 
   const queued = Object.entries(state.bindings || {})
@@ -1329,6 +1441,8 @@ module.exports = {
   refreshBoundCharacterMetadata,
   drainRefreshQueue,
   scheduleFullRefresh,
+  isMarketplaceInSync,
+  readMarketplaceToken,
   syncRevealState,
   resetStateOnContractChange,
   getCapsuleTier,

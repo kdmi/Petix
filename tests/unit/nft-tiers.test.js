@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  TIER_LABELS,
   TIER_ORDER,
   buildTierMap,
   computeTierCounts,
@@ -150,6 +151,63 @@ test("бонус: с выключенной фичей игра считаетс
     } finally {
       if (previous === undefined) delete process.env.NFT_ENABLED;
       else process.env.NFT_ENABLED = previous;
+    }
+  });
+});
+
+test("обновление: витрину не берём на слово — проверяем и переспрашиваем", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, nftStore } = env;
+    for (let id = 1; id <= 3; id += 1) chain.state.owners.set(id, evmWallet("a"));
+
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
+    process.env.NFT_CONTRACT = "0xcontract";
+    const originalFetch = global.fetch;
+
+    // Витрина «обновила» только первый токен, у остальных остался Sealed.
+    const refreshCalls = [];
+    global.fetch = async (url) => {
+      const raw = String(url);
+      if (raw.endsWith("/refresh")) {
+        refreshCalls.push(Number(raw.match(/nfts\/(\d+)\/refresh/)[1]));
+        return { ok: true, status: 200, text: async () => "" };
+      }
+      const tokenId = Number(raw.match(/nfts\/(\d+)$/)[1]);
+      const traits =
+        tokenId === 1
+          ? [{ trait_type: "Status", value: "Empty" }, { trait_type: "Tier", value: TIER_LABELS[nft.getCapsuleTier(1)] }]
+          : [{ trait_type: "Status", value: "Sealed" }];
+      return { ok: true, status: 200, json: async () => ({ nft: { traits } }) };
+    };
+
+    try {
+      await nft.scheduleFullRefresh(3, deps);
+      await nft.drainRefreshQueue(deps); // обход: просим перечитать 1..3
+      assert.deepEqual(refreshCalls, [1, 2, 3], "обход просит перечитать все токены");
+
+      let state = await nftStore.readNftState();
+      assert.ok(state.refreshAudit, "после обхода ставится проверка");
+
+      // Пауза перед проверкой читается при загрузке модуля, поэтому просто
+      // отматываем срок в прошлое.
+      await nftStore.withNftState((current) => {
+        current.refreshAudit = { ...current.refreshAudit, notBefore: 0 };
+        return current;
+      });
+
+      refreshCalls.length = 0;
+      const audit = await nft.drainRefreshQueue(deps);
+      assert.equal(audit.auditing, true);
+      // Первый сошёлся, второй и третий — нет, их переспрашиваем.
+      assert.deepEqual(refreshCalls, [2, 3], "переспрашиваем только несошедшиеся");
+
+      state = await nftStore.readNftState();
+      assert.ok(state.refreshAudit, "остались расхождения — назначен ещё заход");
+      assert.equal(state.refreshAudit.attempt, 2);
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.NFT_OPENSEA_API_KEY;
+      delete process.env.NFT_CONTRACT;
     }
   });
 });
