@@ -2594,6 +2594,15 @@ function openAdminPanelFromMenu() {
 function redirectToLandingAuthPrompt() {
   const targetUrl = new URL("/", window.location.origin);
   targetUrl.searchParams.set("auth", "1");
+
+  // Уводим на лендинг только если мы не на нём. Там, где этот же скрипт отдаётся
+  // и по корню (демо-стенды), редирект на "/" отправлял бы страницу саму на
+  // себя — и она перезагружалась бы без конца.
+  if (window.location.pathname === "/") {
+    showWalletAuthState();
+    return;
+  }
+
   window.location.replace(targetUrl.toString());
 }
 
