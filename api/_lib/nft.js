@@ -196,6 +196,20 @@ async function clearRefreshPending(tokenId, deps) {
  * токенов за проход — нагрузка получается пропорциональна числу реальных
  * левел-апов, а не размеру коллекции.
  */
+/**
+ * Ставит обход всей коллекции: витрина перечитает каждый токен. Нужно ровно
+ * один раз — на ревиле, когда метаданные меняются у всех сразу.
+ */
+async function scheduleFullRefresh(untilTokenId, depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const until = Math.max(1, Math.min(MAX_SUPPLY, Math.floor(Number(untilTokenId) || 0)));
+  await deps.store.withNftState((state) => {
+    state.refreshSweep = { next: 1, until };
+    return state;
+  });
+  return { next: 1, until };
+}
+
 async function drainRefreshQueue(depOverrides) {
   if (!isNftEnabled() || !process.env.NFT_OPENSEA_API_KEY) {
     return { refreshed: [], pending: 0 };
@@ -207,6 +221,22 @@ async function drainRefreshQueue(depOverrides) {
 
   const state = await deps.store.readNftState();
   const now = deps.now();
+
+  // Обход коллекции идёт вперёд очереди: на ревиле важно, чтобы новые картинки
+  // разошлись, а точечные обновления прокачки подождут минуту.
+  if (state.refreshSweep) {
+    const { next, until } = state.refreshSweep;
+    const last = Math.min(until, next + batchSize - 1);
+    const refreshed = [];
+    for (let tokenId = next; tokenId <= last; tokenId += 1) {
+      if (await requestMarketplaceRefresh(tokenId)) refreshed.push(tokenId);
+    }
+    await deps.store.withNftState((current) => {
+      current.refreshSweep = last >= until ? null : { next: last + 1, until };
+      return current;
+    });
+    return { refreshed, pending: Math.max(0, until - last), sweeping: true };
+  }
 
   const queued = Object.entries(state.bindings || {})
     .filter(([, binding]) => binding?.refreshPendingSince)
@@ -1210,6 +1240,7 @@ module.exports = {
   processPendingUnbinds,
   refreshBoundCharacterMetadata,
   drainRefreshQueue,
+  scheduleFullRefresh,
   getCapsuleTier,
   getWalletCapsuleBonus,
   isRevealed,

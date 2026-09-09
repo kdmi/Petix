@@ -5,7 +5,8 @@ const {
   isLikelyEvmAddress,
   json,
 } = require("../../api/_lib/auth");
-const { syncTransfers } = require("../../api/_lib/nft");
+const { syncTransfers, scheduleFullRefresh } = require("../../api/_lib/nft");
+const { createChainClient } = require("../../api/_lib/nft-chain");
 const { sendDomainError } = require("./_shared");
 
 // Manual/periodic ownership sync. Three callers, three auth paths:
@@ -47,6 +48,18 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // ?refreshAll=1 ставит обход всей коллекции. Дёргается вручную на ревиле:
+    // метаданные меняются у всех токенов сразу, и витрине надо об этом сказать.
+    const url = new URL(req.url || "/", "http://localhost");
+    if (url.searchParams.get("refreshAll") === "1") {
+      // Клиент цепочки создаётся здесь, а не при загрузке модуля: на проде с
+      // выключенной фичей конфига нет, и падать на импорте нельзя.
+      const supply = await createChainClient().getTotalSupply();
+      const sweep = await scheduleFullRefresh(supply);
+      json(res, 200, { scheduledRefresh: sweep });
+      return;
+    }
+
     const result = await syncTransfers();
     json(res, 200, result);
   } catch (error) {

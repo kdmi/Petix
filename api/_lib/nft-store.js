@@ -37,6 +37,10 @@ const EMPTY_STATE = {
   startBlock: 0,
   lastSyncedBlock: 0,
   transfers: [],
+  // Курсор обхода коллекции для обновления витрины. Нужен на ревиле: метаданные
+  // меняются у всех токенов разом, а дёргать маркетплейс тысячей запросов в
+  // одном вызове нельзя. Крон идёт по номерам пачками и двигает курсор.
+  refreshSweep: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -120,6 +124,13 @@ function normalizeState(parsed) {
     transfers: Array.isArray(parsed.transfers)
       ? parsed.transfers.slice(-MAX_TRANSFER_JOURNAL).map((entry) => cloneValue(entry))
       : [],
+    refreshSweep:
+      parsed.refreshSweep && Number(parsed.refreshSweep.until) > 0
+        ? {
+            next: Math.max(1, Math.floor(Number(parsed.refreshSweep.next) || 1)),
+            until: Math.max(1, Math.floor(Number(parsed.refreshSweep.until) || 1)),
+          }
+        : null,
   };
 }
 
