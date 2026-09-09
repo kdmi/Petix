@@ -22,7 +22,7 @@ test("metadata: minted empty slot serves the neutral placeholder", async () => {
     const tier = nft.getCapsuleTier(12);
     assert.ok(tier, "у каждого номера в тираже есть тир");
     assert.equal(metadata.image, `${ORIGIN}/assets/nft/capsules/${tier}.png`);
-    assert.deepEqual(metadata.attributes.map((a) => a.trait_type), ["Status", "Tier"]);
+    assert.deepEqual(metadata.attributes.map((a) => a.trait_type), ["Status", "Capsule Tier"]);
     assert.equal(metadata.attributes[0].value, "Empty");
     assert.ok(!JSON.stringify(metadata).toLowerCase().includes("petix"));
   });
@@ -62,7 +62,7 @@ test("metadata: an occupied capsule serves the trimmed trait set and no prompts"
     assert.equal(byTrait.Obsession, "Origami paper");
     assert.equal(byTrait.Level, 3);
     // Top Item в этой фикстуре пуст — пустые variables в трейты не идут.
-    assert.deepEqual(Object.keys(byTrait).sort(), ["Level", "Obsession", "Rarity", "Status", "Tier"]);
+    assert.deepEqual(Object.keys(byTrait).sort(), ["Capsule Tier", "Level", "Obsession", "Rarity", "Status"]);
 
     // Всё остальное намеренно вне метаданных: внешность видна на картинке,
     // способность уникальна у каждого питомца, атрибуты растут от игры.
@@ -126,7 +126,7 @@ test("metadata: Clearing во время заявки, затем снова п�
 
     await nft.requestUnbindSlot(wallet, 6, deps);
     const pending = await nft.getTokenMetadata(6, ORIGIN, deps);
-    assert.deepEqual(pending.attributes.map((a) => a.trait_type), ["Status", "Tier"]);
+    assert.deepEqual(pending.attributes.map((a) => a.trait_type), ["Status", "Capsule Tier"]);
     assert.equal(pending.attributes[0].value, "Clearing");
 
     await nft.processPendingUnbinds({ ...deps, now: () => Date.parse("2026-09-02T14:00:00.000Z") });

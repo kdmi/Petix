@@ -175,7 +175,7 @@ test("обновление: витрину не берём на слово — �
       const tokenId = Number(raw.match(/nfts\/(\d+)$/)[1]);
       const traits =
         tokenId === 1
-          ? [{ trait_type: "Status", value: "Empty" }, { trait_type: "Tier", value: TIER_LABELS[nft.getCapsuleTier(1)] }]
+          ? [{ trait_type: "Status", value: "Empty" }, { trait_type: "Capsule Tier", value: TIER_LABELS[nft.getCapsuleTier(1)] }]
           : [{ trait_type: "Status", value: "Sealed" }];
       return { ok: true, status: 200, json: async () => ({ nft: { traits } }) };
     };
@@ -258,5 +258,23 @@ test("тир дозаполняется у привязок, сделанных 
     const profile = await store.getWalletProfile(wallet);
     const record = profile.characters.find((item) => item.id === character.id);
     assert.equal(record.nft.tier, nft.getCapsuleTier(2), "тир восстановлен при загрузке списка");
+  });
+});
+
+test("тир доезжает до клиента через сериализацию персонажа", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, store } = env;
+    const character = require("../../api/_lib/character");
+    const wallet = evmWallet("a");
+    const record = makeCharacter();
+    await seedCharacters(store, wallet, [record]);
+    chain.state.owners.set(5, wallet);
+    await nft.bindCharacterToSlot(wallet, 5, record.id, deps);
+
+    const profile = await store.getWalletProfile(wallet);
+    const stored = profile.characters.find((item) => item.id === record.id);
+    const serialized = character.serializeCharacterRecord(stored);
+    assert.equal(serialized.nft.tokenId, 5);
+    assert.equal(serialized.nft.tier, nft.getCapsuleTier(5), "без этого поля фронт красит всё фиолетовым");
   });
 });

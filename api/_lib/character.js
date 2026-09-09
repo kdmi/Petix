@@ -1104,6 +1104,8 @@ function serializeCharacterRecord(record, options = {}) {
           tokenId: record.nft.tokenId,
           boundAt: record.nft.boundAt || null,
           pendingUnbindAt: record.nft.pendingUnbindAt || null,
+          // Тир капсулы — по нему дашборд красит рамку и бейдж (018).
+          tier: record.nft.tier || null,
         }
       : null,
     createdAt: record.createdAt,

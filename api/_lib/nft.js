@@ -667,7 +667,7 @@ function buildPlaceholderMetadata(tokenId, origin) {
       : `${origin}/assets/nft/placeholder.png`,
     attributes: [
       { trait_type: "Status", value: "Empty" },
-      ...(tier ? [{ trait_type: "Tier", value: TIER_LABELS[tier] }] : []),
+      ...(tier ? [{ trait_type: "Capsule Tier", value: TIER_LABELS[tier] }] : []),
     ],
   };
 }
@@ -686,7 +686,7 @@ function buildBoundMetadata(tokenId, binding, character, origin) {
   const tier = getCapsuleTier(tokenId);
   const attributes = [
     { trait_type: "Status", value: "Occupied" },
-    ...(tier ? [{ trait_type: "Tier", value: TIER_LABELS[tier] }] : []),
+    ...(tier ? [{ trait_type: "Capsule Tier", value: TIER_LABELS[tier] }] : []),
     { trait_type: "Rarity", value: character.rarity || "Common" },
   ];
 
@@ -762,7 +762,7 @@ async function getTokenMetadata(rawTokenId, origin, depOverrides) {
       attributes: [
         { trait_type: "Status", value: "Clearing" },
         ...(getCapsuleTier(tokenId)
-          ? [{ trait_type: "Tier", value: TIER_LABELS[getCapsuleTier(tokenId)] }]
+          ? [{ trait_type: "Capsule Tier", value: TIER_LABELS[getCapsuleTier(tokenId)] }]
           : []),
       ],
     };
