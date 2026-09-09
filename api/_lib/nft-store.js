@@ -41,6 +41,9 @@ const EMPTY_STATE = {
   // меняются у всех токенов разом, а дёргать маркетплейс тысячей запросов в
   // одном вызове нельзя. Крон идёт по номерам пачками и двигает курсор.
   refreshSweep: null,
+  // Состояние витрины на момент последнего прохода крона: "sealed" | "revealed".
+  // Смена значения — сигнал, что метаданные изменились у всех токенов сразу.
+  lastRevealState: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -130,6 +133,10 @@ function normalizeState(parsed) {
             next: Math.max(1, Math.floor(Number(parsed.refreshSweep.next) || 1)),
             until: Math.max(1, Math.floor(Number(parsed.refreshSweep.until) || 1)),
           }
+        : null,
+    lastRevealState:
+      parsed.lastRevealState === "sealed" || parsed.lastRevealState === "revealed"
+        ? parsed.lastRevealState
         : null,
   };
 }

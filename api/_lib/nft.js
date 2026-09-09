@@ -210,6 +210,28 @@ async function scheduleFullRefresh(untilTokenId, depOverrides) {
   return { next: 1, until };
 }
 
+async function syncRevealState(depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const current = isRevealed(deps.now()) ? "revealed" : "sealed";
+  const state = await deps.store.readNftState();
+  if (state.lastRevealState === current) return null;
+
+  let until = 0;
+  try {
+    until = Number(await deps.chain.getTotalSupply()) || 0;
+  } catch (error) {
+    console.warn(`[nft] reveal sweep skipped: ${error.message}`);
+    return null;
+  }
+
+  await deps.store.withNftState((next) => {
+    next.lastRevealState = current;
+    if (until > 0) next.refreshSweep = { next: 1, until: Math.min(MAX_SUPPLY, until) };
+    return next;
+  });
+  return { state: current, until };
+}
+
 async function drainRefreshQueue(depOverrides) {
   if (!isNftEnabled() || !process.env.NFT_OPENSEA_API_KEY) {
     return { refreshed: [], pending: 0 };
@@ -797,6 +819,11 @@ async function syncTransfers(depOverrides) {
   // владение уже актуально, а внутри всё равно перепроверяем ownerOf.
   const unbinds = await processPendingUnbinds(deps);
 
+  // Ревил меняет метаданные у всех токенов разом, и витрина об этом не узнает
+  // сама. Ловим смену состояния и ставим обход коллекции — один раз на переход,
+  // в обе стороны (чтобы можно было прогнать ревил на тестовой коллекции).
+  await syncRevealState(deps);
+
   // Досылаем обновления витрины, не доехавшие с первого раза.
   const refreshes = await drainRefreshQueue(deps);
 
@@ -1241,6 +1268,7 @@ module.exports = {
   refreshBoundCharacterMetadata,
   drainRefreshQueue,
   scheduleFullRefresh,
+  syncRevealState,
   getCapsuleTier,
   getWalletCapsuleBonus,
   isRevealed,
