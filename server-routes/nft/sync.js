@@ -7,6 +7,7 @@ const {
 } = require("../../api/_lib/auth");
 const { syncTransfers, scheduleFullRefresh } = require("../../api/_lib/nft");
 const { createChainClient } = require("../../api/_lib/nft-chain");
+const nftStore = require("../../api/_lib/nft-store");
 const { sendDomainError } = require("./_shared");
 
 // Manual/periodic ownership sync. Three callers, three auth paths:
@@ -61,7 +62,21 @@ module.exports = async (req, res) => {
     }
 
     const result = await syncTransfers();
-    json(res, 200, result);
+
+    // Диагностика: без неё «пустой ответ» одинаково выглядит и когда всё
+    // обновлено, и когда ключ маркетплейса не задан и мы вообще ничего не шлём.
+    const state = await nftStore.readNftState();
+    json(res, 200, {
+      ...result,
+      marketplace: {
+        keyConfigured: Boolean(process.env.NFT_OPENSEA_API_KEY),
+        contract: state.contract,
+        sweep: state.refreshSweep,
+        audit: state.refreshAudit,
+        lastBaseUri: state.lastBaseUri,
+        lastRevealState: state.lastRevealState,
+      },
+    });
   } catch (error) {
     if (sendDomainError(res, error)) return;
     console.error("[nft:sync]", error);
