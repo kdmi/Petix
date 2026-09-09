@@ -48,6 +48,10 @@ const EMPTY_STATE = {
   // Studio), и это единственный сигнал, по которому мы узнаём, что метаданные
   // поменялись сразу у всей коллекции.
   lastBaseUri: null,
+  // Адрес контракта, к которому относится всё остальное. Сменился — значит это
+  // другая коллекция, и привязки, владельцы и отметка сканирования от прошлой
+  // к ней не имеют отношения.
+  contract: null,
 };
 
 let writeQueue = Promise.resolve();
@@ -144,6 +148,8 @@ function normalizeState(parsed) {
         : null,
     lastBaseUri:
       typeof parsed.lastBaseUri === "string" && parsed.lastBaseUri ? parsed.lastBaseUri : null,
+    contract:
+      typeof parsed.contract === "string" && parsed.contract ? parsed.contract.toLowerCase() : null,
   };
 }
 

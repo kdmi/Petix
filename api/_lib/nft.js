@@ -210,6 +210,45 @@ async function scheduleFullRefresh(untilTokenId, depOverrides) {
   return { next: 1, until };
 }
 
+/**
+ * Состояние привязано к конкретному контракту. Если в конфиге оказалась другая
+ * коллекция, всё накопленное — привязки, индекс владельцев, отметка
+ * просканированных блоков — относится к чужим токенам. Начинаем с чистого листа
+ * и с блока деплоя новой коллекции, иначе синк будет годами доползать до неё
+ * от старой отметки.
+ */
+async function resetStateOnContractChange(depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const contract = String(process.env.NFT_CONTRACT || "").toLowerCase();
+  if (!contract) return null;
+
+  const state = await deps.store.readNftState();
+  if (state.contract === contract) return null;
+
+  const configuredStart = Math.max(0, Math.floor(Number(process.env.NFT_START_BLOCK) || 0));
+  if (state.contract) {
+    console.warn(
+      `[nft] contract changed ${state.contract} → ${contract}: resetting bindings, owners and watermark`
+    );
+  }
+
+  await deps.store.withNftState((next) => {
+    next.contract = contract;
+    if (state.contract) {
+      next.bindings = {};
+      next.owners = {};
+      next.transfers = [];
+      next.refreshSweep = null;
+      next.lastBaseUri = null;
+      next.lastRevealState = null;
+    }
+    next.startBlock = configuredStart;
+    next.lastSyncedBlock = configuredStart ? configuredStart - 1 : 0;
+    return next;
+  });
+  return { contract, startBlock: configuredStart };
+}
+
 async function syncRevealState(depOverrides) {
   const deps = resolveDeps(depOverrides);
   const current = isRevealed(deps.now()) ? "revealed" : "sealed";
@@ -265,14 +304,20 @@ async function drainRefreshQueue(depOverrides) {
     const { next, until } = state.refreshSweep;
     const last = Math.min(until, next + batchSize - 1);
     const refreshed = [];
+    // Курсор двигается только по успешно отправленным. Иначе отказ витрины
+    // (лимит, пятисотка) тихо выбросил бы токен из обхода, и он остался бы со
+    // старой картинкой навсегда — заметить это было бы нечем.
+    let cursor = next;
     for (let tokenId = next; tokenId <= last; tokenId += 1) {
-      if (await requestMarketplaceRefresh(tokenId)) refreshed.push(tokenId);
+      if (!(await requestMarketplaceRefresh(tokenId))) break;
+      refreshed.push(tokenId);
+      cursor = tokenId + 1;
     }
     await deps.store.withNftState((current) => {
-      current.refreshSweep = last >= until ? null : { next: last + 1, until };
+      current.refreshSweep = cursor > until ? null : { next: cursor, until };
       return current;
     });
-    return { refreshed, pending: Math.max(0, until - last), sweeping: true };
+    return { refreshed, pending: Math.max(0, until - cursor + 1), sweeping: true };
   }
 
   const queued = Object.entries(state.bindings || {})
@@ -779,6 +824,7 @@ async function syncWalletSlots(wallet, depOverrides) {
 /** Full sync: scan Transfer logs since the watermark, reconcile touched bindings. */
 async function syncTransfers(depOverrides) {
   const deps = resolveDeps(depOverrides);
+  await resetStateOnContractChange(deps);
   const state = await deps.store.readNftState();
   const fromBlock = state.lastSyncedBlock + 1;
   const { toBlock, transfers } = await deps.chain.scanTransfers(fromBlock, {
@@ -1284,6 +1330,7 @@ module.exports = {
   drainRefreshQueue,
   scheduleFullRefresh,
   syncRevealState,
+  resetStateOnContractChange,
   getCapsuleTier,
   getWalletCapsuleBonus,
   isRevealed,
