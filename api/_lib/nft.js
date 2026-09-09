@@ -6,6 +6,7 @@ const { claimFarm, normalizeFarmState } = require("./farm");
 const { debitCurrency } = require("./currency");
 const { createChainClient, getNftEnv, isNftEnabled } = require("./nft-chain");
 const nftStore = require("./nft-store");
+const { TIER_LABELS, buildTierMap } = require("./nft-tiers");
 const {
   deleteStoredImage,
   getWalletProfile,
@@ -39,6 +40,40 @@ const SYNC_MAX_BLOCKS = Math.max(
   1000,
   Math.floor(Number(process.env.NFT_SYNC_MAX_BLOCKS) || 250000)
 );
+// Раскладка тиров считается один раз на процесс: она детерминирована и зависит
+// только от тиража и сида.
+let cachedTierMap = null;
+let cachedTierKey = "";
+
+function getTierMap() {
+  const seed = process.env.NFT_TIER_SEED || "petix-capsules";
+  const showcase = process.env.NFT_TIER_SHOWCASE === "1";
+  const key = `${MAX_SUPPLY}:${seed}:${showcase}`;
+  if (cachedTierKey !== key) {
+    cachedTierMap = buildTierMap(MAX_SUPPLY, seed, { showcase });
+    cachedTierKey = key;
+  }
+  return cachedTierMap;
+}
+
+/** Тир капсулы по её номеру. Не меняется никогда и не зависит от содержимого. */
+function getCapsuleTier(tokenId) {
+  const id = Math.floor(Number(tokenId));
+  if (!Number.isFinite(id) || id < 1 || id > MAX_SUPPLY) return null;
+  return getTierMap()[id - 1] || null;
+}
+
+/**
+ * До ревила все капсулы выглядят одинаково. Иначе покупатели видели бы, какие
+ * номера хорошие, и ждали бы нужный счётчик минта.
+ */
+function isRevealed(now = Date.now()) {
+  const raw = String(process.env.NFT_REVEAL_AT || "").trim();
+  if (!raw) return true;
+  const at = Date.parse(raw);
+  return !Number.isFinite(at) || now >= at;
+}
+
 const LOCAL_IMAGE_PREFIX = "local:";
 const LOCAL_IMAGES_DIR = path.join(
   process.cwd(),
@@ -202,6 +237,48 @@ async function drainRefreshQueue(depOverrides) {
   return { refreshed, pending: Math.max(0, queued.length - refreshed.length) };
 }
 
+/**
+ * Боевые бонусы за капсулы кошелька. Считаются только по занятым капсулам:
+ * пустая капсула ничего не даёт, поставленная на очистку — тоже (питомец уже
+ * приговорён, иначе получился бы час бесплатного буста перед сжиганием).
+ *
+ * Бонусы суммируются по всем капсулам кошелька: минт ограничен пятью на
+ * кошелёк, так что потолок известен заранее.
+ *
+ * ВАЖНО: зовётся из общего боевого кода, который работает и там, где капсул
+ * нет вовсе. Пока фича выключена — выходим первой строкой, не читая хранилище.
+ */
+async function getWalletCapsuleBonus(wallet, depOverrides) {
+  const empty = { extraBattles: 0, winBonusPct: 0 };
+  if (!isNftEnabled() || !wallet) return empty;
+
+  const deps = resolveDeps(depOverrides);
+  try {
+    const [state, config] = await Promise.all([
+      deps.store.readNftState(),
+      deps.getConfig(),
+    ]);
+    const owner = String(wallet).toLowerCase();
+    const extraByTier = config.NFT_TIER_EXTRA_BATTLES || {};
+    const bonusByTier = config.NFT_TIER_WIN_BONUS_PCT || {};
+
+    let extraBattles = 0;
+    let winBonusPct = 0;
+    for (const [key, binding] of Object.entries(state.bindings || {})) {
+      if (!binding || binding.wallet !== owner || binding.pendingUnbind) continue;
+      const tier = getCapsuleTier(Number(key));
+      if (!tier) continue;
+      extraBattles += Math.max(0, Math.floor(Number(extraByTier[tier]) || 0));
+      winBonusPct += Math.max(0, Number(bonusByTier[tier]) || 0);
+    }
+    return { extraBattles, winBonusPct };
+  } catch (error) {
+    // Витрина не должна ронять бой: без бонуса игрок сыграет как обычно.
+    console.warn(`[nft] capsule bonus lookup failed: ${error.message}`);
+    return empty;
+  }
+}
+
 function fail(status, message, code, extra) {
   const error = new Error(message);
   error.httpStatus = status;
@@ -347,12 +424,27 @@ function resolveImageUrl(binding, origin) {
   return uri || null;
 }
 
+function buildSealedMetadata(tokenId, origin) {
+  return {
+    name: `Capsule #${tokenId}`,
+    description: "A sealed capsule. What it is made of is revealed once the drop closes.",
+    image: `${origin}/assets/nft/sealed.gif`,
+    attributes: [{ trait_type: "Status", value: "Sealed" }],
+  };
+}
+
 function buildPlaceholderMetadata(tokenId, origin) {
+  const tier = getCapsuleTier(tokenId);
   return {
     name: `Capsule #${tokenId}`,
     description: "An empty capsule. Put a companion inside to turn it into a collectible.",
-    image: `${origin}/assets/nft/placeholder.png`,
-    attributes: [{ trait_type: "Status", value: "Empty" }],
+    image: tier
+      ? `${origin}/assets/nft/capsules/${tier}.png`
+      : `${origin}/assets/nft/placeholder.png`,
+    attributes: [
+      { trait_type: "Status", value: "Empty" },
+      ...(tier ? [{ trait_type: "Tier", value: TIER_LABELS[tier] }] : []),
+    ],
   };
 }
 
@@ -362,13 +454,15 @@ function buildCollectionMetadata(origin) {
     description:
       `A fixed collection of ${MAX_SUPPLY.toLocaleString("en-US")} capsules. ` +
       "Each capsule starts empty and can be turned into a unique companion collectible.",
-    image: `${origin}/assets/nft/placeholder.png`,
+    image: `${origin}/assets/nft/capsules/prismatic.png`,
   };
 }
 
 function buildBoundMetadata(tokenId, binding, character, origin) {
+  const tier = getCapsuleTier(tokenId);
   const attributes = [
     { trait_type: "Status", value: "Occupied" },
+    ...(tier ? [{ trait_type: "Tier", value: TIER_LABELS[tier] }] : []),
     { trait_type: "Rarity", value: character.rarity || "Common" },
   ];
 
@@ -418,6 +512,11 @@ async function getTokenMetadata(rawTokenId, origin, depOverrides) {
   const owner = await deps.chain.ownerOf(tokenId);
   if (!owner) return null; // not minted
 
+  // До ревила тир не показываем никому — даже владельцу капсулы с питомцем.
+  if (!isRevealed(deps.now())) {
+    return buildSealedMetadata(tokenId, origin);
+  }
+
   const binding = await deps.store.getBinding(tokenId);
   if (!binding) {
     return buildPlaceholderMetadata(tokenId, origin);
@@ -430,8 +529,18 @@ async function getTokenMetadata(rawTokenId, origin, depOverrides) {
       name: `Capsule #${tokenId}`,
       description:
         "The companion inside is scheduled to be released. This capsule will be empty soon.",
-      image: `${origin}/assets/nft/placeholder.png`,
-      attributes: [{ trait_type: "Status", value: "Clearing" }],
+      image: (() => {
+        const tier = getCapsuleTier(tokenId);
+        return tier
+          ? `${origin}/assets/nft/capsules/${tier}.png`
+          : `${origin}/assets/nft/placeholder.png`;
+      })(),
+      attributes: [
+        { trait_type: "Status", value: "Clearing" },
+        ...(getCapsuleTier(tokenId)
+          ? [{ trait_type: "Tier", value: TIER_LABELS[getCapsuleTier(tokenId)] }]
+          : []),
+      ],
     };
   }
 
@@ -1101,6 +1210,9 @@ module.exports = {
   processPendingUnbinds,
   refreshBoundCharacterMetadata,
   drainRefreshQueue,
+  getCapsuleTier,
+  getWalletCapsuleBonus,
+  isRevealed,
   requestUnbindSlot,
   requestMarketplaceRefresh,
   snapshotCharacterImage,

@@ -17,8 +17,13 @@ test("metadata: minted empty slot serves the neutral placeholder", async () => {
     const metadata = await nft.getTokenMetadata(12, ORIGIN, deps);
 
     assert.equal(metadata.name, "Capsule #12");
-    assert.equal(metadata.image, `${ORIGIN}/assets/nft/placeholder.png`);
-    assert.deepEqual(metadata.attributes, [{ trait_type: "Status", value: "Empty" }]);
+    // Пустая капсула показывает сундук своего тира — это её единственное
+    // отличие от соседних до того, как внутрь посадят питомца.
+    const tier = nft.getCapsuleTier(12);
+    assert.ok(tier, "у каждого номера в тираже есть тир");
+    assert.equal(metadata.image, `${ORIGIN}/assets/nft/capsules/${tier}.png`);
+    assert.deepEqual(metadata.attributes.map((a) => a.trait_type), ["Status", "Tier"]);
+    assert.equal(metadata.attributes[0].value, "Empty");
     assert.ok(!JSON.stringify(metadata).toLowerCase().includes("petix"));
   });
 });
@@ -57,7 +62,7 @@ test("metadata: an occupied capsule serves the trimmed trait set and no prompts"
     assert.equal(byTrait.Obsession, "Origami paper");
     assert.equal(byTrait.Level, 3);
     // Top Item в этой фикстуре пуст — пустые variables в трейты не идут.
-    assert.deepEqual(Object.keys(byTrait).sort(), ["Level", "Obsession", "Rarity", "Status"]);
+    assert.deepEqual(Object.keys(byTrait).sort(), ["Level", "Obsession", "Rarity", "Status", "Tier"]);
 
     // Всё остальное намеренно вне метаданных: внешность видна на картинке,
     // способность уникальна у каждого питомца, атрибуты растут от игры.
@@ -121,12 +126,12 @@ test("metadata: Clearing во время заявки, затем снова п�
 
     await nft.requestUnbindSlot(wallet, 6, deps);
     const pending = await nft.getTokenMetadata(6, ORIGIN, deps);
-    assert.deepEqual(pending.attributes, [{ trait_type: "Status", value: "Clearing" }]);
-    assert.equal(pending.image, `${ORIGIN}/assets/nft/placeholder.png`);
+    assert.deepEqual(pending.attributes.map((a) => a.trait_type), ["Status", "Tier"]);
+    assert.equal(pending.attributes[0].value, "Clearing");
 
     await nft.processPendingUnbinds({ ...deps, now: () => Date.parse("2026-09-02T14:00:00.000Z") });
     const cleared = await nft.getTokenMetadata(6, ORIGIN, deps);
-    assert.deepEqual(cleared.attributes, [{ trait_type: "Status", value: "Empty" }]);
+    assert.equal(cleared.attributes[0].value, "Empty");
   });
 });
 
@@ -135,7 +140,7 @@ test("metadata: collection-level document is neutral", async () => {
     const metadata = nft.buildCollectionMetadata(ORIGIN);
     assert.equal(metadata.name, "Slot Box");
     assert.match(metadata.description, /10,000 capsules/, "supply берётся из конфига");
-    assert.equal(metadata.image, `${ORIGIN}/assets/nft/placeholder.png`);
+    assert.match(metadata.image, /\/assets\/nft\/capsules\/[a-z]+\.png$/);
     assert.ok(!JSON.stringify(metadata).toLowerCase().includes("petix"));
   });
 });

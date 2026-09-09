@@ -6,7 +6,7 @@ const {
   parseJsonBody,
 } = require("../_lib/auth");
 const { generateBattleNarration } = require("../_lib/battle-narration");
-const { refreshBoundCharacterMetadata } = require("../_lib/nft");
+const { refreshBoundCharacterMetadata, getWalletCapsuleBonus } = require("../_lib/nft");
 const {
   applyProgressionToCharacterRecord,
   buildBattleRevealBundle,
@@ -97,6 +97,7 @@ async function applyAttackerBattleMutation({
   petId,
   progressionState,
   coinReward = 0,
+  bonusEnergy = 0,
 }) {
   let previousProfile = null;
   let updatedCurrency = null;
@@ -104,7 +105,7 @@ async function applyAttackerBattleMutation({
 
   await updateWalletProfile(wallet, async (current) => {
     previousProfile = current;
-    const nextBattleState = consumeBattleEnergy(current.battleState, { wallet });
+    const nextBattleState = consumeBattleEnergy(current.battleState, { wallet, bonusEnergy });
     let characterFound = false;
 
     const characters = current.characters.map((character) => {
@@ -186,7 +187,7 @@ async function applyDefenderBattleMutation({
   return previousProfile;
 }
 
-function resolveWinnerCoinReward({ simulation, attacker, defender, config }) {
+function resolveWinnerCoinReward({ simulation, attacker, defender, config, winBonusPct = {} }) {
   const winnerPetId = simulation?.battle?.result?.winnerPetId || null;
   if (!winnerPetId) {
     return { amount: 0, winnerRole: null };
@@ -197,14 +198,23 @@ function resolveWinnerCoinReward({ simulation, attacker, defender, config }) {
     ? { base: config.BATTLE_REWARD_BASE, levelMultiplier: config.BATTLE_LEVEL_K }
     : {};
 
+  // Надбавка за редкость капсулы достаётся тому, кто выиграл (018). Без капсул
+  // множитель равен единице и сумма не меняется.
+  const withCapsuleBonus = (amount, role) => {
+    const pct = Math.max(0, Number(winBonusPct[role]) || 0);
+    return pct ? Math.round(amount * (1 + pct / 100)) : amount;
+  };
+
   if (winnerPetId === attacker?.character?.id) {
     const level = Number(attacker.character?.level) || 1;
-    return { amount: computeCoinReward(level, rewardOptions), winnerRole: "attacker" };
+    const base = computeCoinReward(level, rewardOptions);
+    return { amount: withCapsuleBonus(base, "attacker"), winnerRole: "attacker" };
   }
 
   if (winnerPetId === defender?.character?.id) {
     const level = Number(defender.character?.level) || 1;
-    return { amount: computeCoinReward(level, rewardOptions), winnerRole: "defender" };
+    const base = computeCoinReward(level, rewardOptions);
+    return { amount: withCapsuleBonus(base, "defender"), winnerRole: "defender" };
   }
 
   return { amount: 0, winnerRole: null };
@@ -244,6 +254,7 @@ module.exports = async (req, res) => {
   let attackerPreviousProfile = null;
   let defenderPreviousProfile = null;
   let attacker = null;
+  let attackerCapsuleBonus = { extraBattles: 0, winBonusPct: 0 };
   let defender = null;
 
   try {
@@ -259,7 +270,13 @@ module.exports = async (req, res) => {
       attackerWallet: session.wallet,
     });
     const attackerProfile = await getWalletProfile(attacker.wallet);
-    assertBattleEnergyAvailable(attackerProfile.battleState, { wallet: attacker.wallet });
+    // Редкие капсулы поднимают дневной лимит боёв (018). Без капсул — ноль, и
+    // проверка остаётся ровно прежней.
+    attackerCapsuleBonus = await getWalletCapsuleBonus(attacker.wallet);
+    assertBattleEnergyAvailable(attackerProfile.battleState, {
+      wallet: attacker.wallet,
+      bonusEnergy: attackerCapsuleBonus.extraBattles,
+    });
 
     // Farm and Fight are independent (feature 013): farming no longer blocks battles.
     const economyConfig = await getEconomyConfig();
@@ -294,14 +311,20 @@ module.exports = async (req, res) => {
       defenderParticipant: defender,
       matchmaking,
     });
+    const defenderCapsuleBonus = await getWalletCapsuleBonus(defender.wallet);
     const { amount: coinReward, winnerRole } = resolveWinnerCoinReward({
       simulation,
       attacker,
       defender,
       config: economyConfig,
+      winBonusPct: {
+        attacker: attackerCapsuleBonus.winBonusPct,
+        defender: defenderCapsuleBonus.winBonusPct,
+      },
     });
 
     const attackerMutation = await applyAttackerBattleMutation({
+      bonusEnergy: attackerCapsuleBonus.extraBattles,
       wallet: attacker.wallet,
       petId: attacker.character.id,
       progressionState: simulation.progression.attacker,

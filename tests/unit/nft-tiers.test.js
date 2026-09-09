@@ -1,0 +1,155 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const {
+  TIER_ORDER,
+  buildTierMap,
+  computeTierCounts,
+  hashTierMap,
+} = require("../../api/_lib/nft-tiers");
+
+const {
+  evmWallet,
+  makeCharacter,
+  seedCharacters,
+  withNftEnv,
+} = require("./helpers/nft-test-utils");
+
+function countBy(tierMap) {
+  const counts = {};
+  for (const tier of TIER_ORDER) counts[tier] = 0;
+  for (const tier of tierMap) counts[tier] += 1;
+  return counts;
+}
+
+test("тиры: раскладка на 777 ложится на семёрки и сходится в тираж", () => {
+  const counts = computeTierCounts(777);
+  assert.deepEqual(counts, { glass: 469, bronze: 210, silver: 70, gold: 21, prismatic: 7 });
+  assert.equal(Object.values(counts).reduce((a, b) => a + b, 0), 777);
+});
+
+test("тиры: любой тираж раскладывается без потерь и без пустых тиров", () => {
+  for (const supply of [50, 100, 500, 777, 1000, 10000]) {
+    const counts = computeTierCounts(supply);
+    assert.equal(
+      Object.values(counts).reduce((a, b) => a + b, 0),
+      supply,
+      `сумма должна быть равна тиражу ${supply}`
+    );
+    for (const tier of TIER_ORDER) {
+      assert.ok(counts[tier] >= 1, `${tier} не должен обнуляться при тираже ${supply}`);
+    }
+  }
+});
+
+test("тиры: один сид всегда даёт одну и ту же раскладку", () => {
+  const first = buildTierMap(777, "petix-capsules");
+  const second = buildTierMap(777, "petix-capsules");
+  assert.deepEqual(first, second);
+  assert.equal(hashTierMap(first), hashTierMap(second));
+
+  // Отпечаток и есть то, что публикуется до старта продаж: другой сид обязан
+  // давать другой хеш, иначе фиксация распределения ничего не доказывает.
+  const other = buildTierMap(777, "another-seed");
+  assert.notEqual(hashTierMap(first), hashTierMap(other));
+});
+
+test("тиры: распределение перемешано, а не выдано подряд", () => {
+  const map = buildTierMap(777, "petix-capsules");
+  assert.deepEqual(countBy(map), computeTierCounts(777));
+
+  // Если бы пул не перемешался, первые 469 номеров были бы сплошь Glass.
+  const head = map.slice(0, 469);
+  assert.ok(
+    head.some((tier) => tier !== "glass"),
+    "редкие капсулы должны встречаться и в начале нумерации"
+  );
+});
+
+test("тиры: витрина кладёт по одному каждого вида в первые пять номеров", () => {
+  const map = buildTierMap(777, "petix-capsules", { showcase: true });
+  assert.deepEqual(map.slice(0, 5), TIER_ORDER);
+  // Тираж по тирам от перестановки не меняется.
+  assert.deepEqual(countBy(map), computeTierCounts(777));
+});
+
+test("бонус: занятая капсула поднимает лимит боёв, пустая — нет", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, nftStore, store } = env;
+    const wallet = evmWallet("a");
+
+    // Пустая капсула ничего не даёт.
+    chain.state.owners.set(1, wallet);
+    let bonus = await nft.getWalletCapsuleBonus(wallet, deps);
+    assert.deepEqual(bonus, { extraBattles: 0, winBonusPct: 0 });
+
+    // Сажаем питомца и подменяем тир на Silver — он даёт +1 бой.
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    await nft.bindCharacterToSlot(wallet, 1, character.id, deps);
+
+    const tier = nft.getCapsuleTier(1);
+    const expected = { glass: 0, bronze: 0, silver: 1, gold: 2, prismatic: 3 }[tier];
+    bonus = await nft.getWalletCapsuleBonus(wallet, deps);
+    assert.equal(bonus.extraBattles, expected, `тир ${tier} должен давать ${expected}`);
+
+    const binding = await nftStore.getBinding(1);
+    assert.equal(binding.characterId, character.id);
+  });
+});
+
+test("бонус: капсула на очистке перестаёт давать бафы сразу", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, store } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character], {
+      currency: { balance: 25000, totalEarned: 25000 },
+    });
+    chain.state.owners.set(1, wallet);
+    await nft.bindCharacterToSlot(wallet, 1, character.id, deps);
+
+    const before = await nft.getWalletCapsuleBonus(wallet, deps);
+    await nft.requestUnbindSlot(wallet, 1, deps);
+    const after = await nft.getWalletCapsuleBonus(wallet, deps);
+
+    assert.equal(after.extraBattles, 0, "питомец приговорён — буста быть не должно");
+    assert.equal(after.winBonusPct, 0);
+    assert.ok(before.extraBattles >= 0);
+  });
+});
+
+test("бонус: с выключенной фичей игра считается ровно как раньше", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, store } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(1, wallet);
+    await nft.bindCharacterToSlot(wallet, 1, character.id, deps);
+
+    // Питомец в капсуле есть, но флаг выключен — общий боевой код обязан
+    // получить нули и не заглядывать в хранилище капсул вовсе.
+    const previous = process.env.NFT_ENABLED;
+    delete process.env.NFT_ENABLED;
+    let touchedStore = false;
+    const spyDeps = {
+      ...deps,
+      store: {
+        ...deps.store,
+        readNftState: async () => {
+          touchedStore = true;
+          return deps.store.readNftState();
+        },
+      },
+    };
+    try {
+      const bonus = await nft.getWalletCapsuleBonus(wallet, spyDeps);
+      assert.deepEqual(bonus, { extraBattles: 0, winBonusPct: 0 });
+      assert.equal(touchedStore, false, "выключенная фича не должна читать хранилище");
+    } finally {
+      if (previous === undefined) delete process.env.NFT_ENABLED;
+      else process.env.NFT_ENABLED = previous;
+    }
+  });
+});

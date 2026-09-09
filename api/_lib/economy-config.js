@@ -30,6 +30,22 @@ const DEFAULTS = Object.freeze({
   NFT_MINT_LIMIT: 5, // лимит бесплатного минта слотов на кошелёк (инфо для фронта; on-chain лимит задаётся в контракте)
   NFT_UNBIND_COST: 10000, // цена очистки капсулы (сжигание привязанного персонажа)
   NFT_UNBIND_DELAY_MS: 3600000, // отсрочка сжигания: час на то, чтобы статус разошёлся по маркетплейсам
+  // Бонусы за редкость капсулы (018). Действуют, только пока в капсуле сидит
+  // питомец, и суммируются по всем капсулам кошелька.
+  NFT_TIER_EXTRA_BATTLES: Object.freeze({
+    glass: 0,
+    bronze: 0,
+    silver: 1,
+    gold: 2,
+    prismatic: 3,
+  }),
+  NFT_TIER_WIN_BONUS_PCT: Object.freeze({
+    glass: 0,
+    bronze: 0,
+    silver: 0,
+    gold: 0,
+    prismatic: 30,
+  }),
 });
 
 const CACHE_TTL_MS = Number(process.env.ECONOMY_CONFIG_CACHE_TTL_MS) || 15000;
@@ -41,6 +57,8 @@ function deepCloneDefaults() {
     ...DEFAULTS,
     rarityMult: { ...DEFAULTS.rarityMult },
     SLOT_PRICES: [...DEFAULTS.SLOT_PRICES],
+    NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
+    NFT_TIER_WIN_BONUS_PCT: { ...DEFAULTS.NFT_TIER_WIN_BONUS_PCT },
   };
 }
 

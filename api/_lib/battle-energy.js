@@ -125,9 +125,11 @@ function hasUnlimitedBattleEnergy(wallet) {
   return Boolean(wallet) && isAdminWallet(wallet);
 }
 
-function normalizeBattleState(rawBattleState, { now = new Date() } = {}) {
+// bonusEnergy — надбавка за редкость NFT-капсул кошелька (018). По умолчанию 0,
+// то есть у игрока без капсул всё считается ровно как раньше.
+function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 0 } = {}) {
   const currentDateKey = getBattleDateKey(now);
-  const energyMax = BATTLE_ENERGY_MAX;
+  const energyMax = BATTLE_ENERGY_MAX + Math.max(0, Math.floor(Number(bonusEnergy) || 0));
   let energyCurrent = clamp(
     normalizeInteger(rawBattleState?.energyCurrent, energyMax),
     0,
@@ -150,8 +152,8 @@ function normalizeBattleState(rawBattleState, { now = new Date() } = {}) {
   };
 }
 
-function buildBattleStateView(rawBattleState, { now = new Date(), wallet = "" } = {}) {
-  const normalized = normalizeBattleState(rawBattleState, { now });
+function buildBattleStateView(rawBattleState, { now = new Date(), wallet = "", bonusEnergy = 0 } = {}) {
+  const normalized = normalizeBattleState(rawBattleState, { now, bonusEnergy });
   const isUnlimited = hasUnlimitedBattleEnergy(wallet);
   const energyCurrent = isUnlimited ? normalized.energyMax : normalized.energyCurrent;
 
@@ -170,8 +172,8 @@ function createNoEnergyError() {
   return error;
 }
 
-function assertBattleEnergyAvailable(rawBattleState, { now = new Date(), wallet = "" } = {}) {
-  const normalized = normalizeBattleState(rawBattleState, { now });
+function assertBattleEnergyAvailable(rawBattleState, { now = new Date(), wallet = "", bonusEnergy = 0 } = {}) {
+  const normalized = normalizeBattleState(rawBattleState, { now, bonusEnergy });
   if (hasUnlimitedBattleEnergy(wallet)) {
     return {
       ...normalized,
@@ -186,8 +188,8 @@ function assertBattleEnergyAvailable(rawBattleState, { now = new Date(), wallet 
   return normalized;
 }
 
-function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "" } = {}) {
-  const normalized = assertBattleEnergyAvailable(rawBattleState, { now, wallet });
+function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "", bonusEnergy = 0 } = {}) {
+  const normalized = assertBattleEnergyAvailable(rawBattleState, { now, wallet, bonusEnergy });
   if (hasUnlimitedBattleEnergy(wallet)) {
     return {
       ...normalized,

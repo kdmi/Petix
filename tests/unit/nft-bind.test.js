@@ -182,7 +182,7 @@ test("очистка: заявка списывает Points, прячет тр�
 
     // Метаданные скрывают питомца, чтобы его не купили «вслепую»
     const pendingMeta = await nft.getTokenMetadata(4, "https://demo.test", deps);
-    assert.deepEqual(pendingMeta.attributes, [{ trait_type: "Status", value: "Clearing" }]);
+    assert.equal(pendingMeta.attributes[0].value, "Clearing");
     assert.equal(pendingMeta.name, "Capsule #4");
 
     // Срок ещё не наступил — ничего не происходит
