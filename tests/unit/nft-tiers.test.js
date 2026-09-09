@@ -211,3 +211,28 @@ test("обновление: витрину не берём на слово — �
     }
   });
 });
+
+test("тир едет с питомцем: метка при посадке и список капсул несут tier", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, store } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(3, wallet);
+    chain.state.owners.set(4, wallet);
+
+    await nft.bindCharacterToSlot(wallet, 3, character.id, deps);
+
+    const profile = await store.getWalletProfile(wallet);
+    const bound = profile.characters.find((record) => record.id === character.id);
+    assert.equal(bound.nft.tokenId, 3);
+    assert.equal(bound.nft.tier, nft.getCapsuleTier(3), "фронт красит рамку по этому полю");
+
+    const { slots } = await nft.listWalletSlots(wallet, deps);
+    const byToken = Object.fromEntries(slots.map((slot) => [slot.tokenId, slot]));
+    assert.equal(byToken[3].state, "bound");
+    assert.equal(byToken[3].tier, nft.getCapsuleTier(3));
+    assert.equal(byToken[4].state, "empty");
+    assert.equal(byToken[4].tier, nft.getCapsuleTier(4), "пустая капсула тоже знает свой тир");
+  });
+});

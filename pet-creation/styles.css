@@ -8131,41 +8131,6 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   white-space: nowrap;
 }
 
-.success-card-nft-badge {
-  background: #f4ebff;
-  border-radius: 6px;
-  color: #6941c6;
-  flex: 0 0 auto;
-  font-family: "Figtree", Arial, sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 16px;
-  padding: 1px 6px;
-}
-
-/* Капсула на очистке: вместо NFT — огонёк с обратным отсчётом. */
-.success-card-nft-badge--burning {
-  align-items: center;
-  background: #fef3f2;
-  color: #b42318;
-  display: inline-flex;
-  font-variant-numeric: tabular-nums;
-  gap: 3px;
-  letter-spacing: 0;
-}
-
-.success-card-nft-badge--burning img {
-  display: block;
-}
-
-/* Карточка на сжигании — красная рамка вместо фиолетовой.
-   Составной селектор нужен, чтобы перебить .cabinet-character--nft ниже по файлу:
-   специфичность там та же, и без этого выигрывал бы фиолетовый. */
-.cabinet-character--nft.cabinet-character--nft-burning .success-card {
-  box-shadow: 0 0 0 2px #f04438, 0 6px 24px rgba(240, 68, 56, 0.32);
-}
-
 /* Выбор капсулы: живёт внутри .burn-modal, поэтому фон, скругления и кнопки
    наследуются от неё — здесь только сетка капсул. (feature 016) */
 
@@ -8296,12 +8261,70 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
    Составной селектор нужен, чтобы перебить .cabinet-character--nft ниже по файлу:
    специфичность там та же, и без этого выигрывал бы фиолетовый. */
 .cabinet-character--nft.cabinet-character--nft-burning .success-card {
-  box-shadow: 0 0 0 2px #f04438, 0 6px 24px rgba(240, 68, 56, 0.32);
+  box-shadow: 0 0 0 4px #f04438, 0 0 24px rgba(240, 68, 56, 0.32),
+    0 32px 64px -12px rgba(16, 24, 40, 0.14);
 }
 
-/* Фиолетовая рамка с подсветкой — NFT-питомец читается в списке мгновенно */
+/* На очистке градиентное кольцо Prismatic гасим — рамка должна быть красной. */
+.cabinet-character--nft.cabinet-character--nft-burning .success-card::before {
+  content: none;
+}
+
+/* Фиолетовая рамка с подсветкой — NFT-питомец читается в списке мгновенно.
+   Остаётся для привязок, сделанных до появления тиров капсул. */
 .cabinet-character--nft .success-card {
   box-shadow: 0 0 0 2px #7a5af8, 0 6px 24px rgba(122, 90, 248, 0.35);
 }
+
+/* Тир капсулы (018): рамка и бейдж по макету. Кольцо 4px, свечение 24px и
+   штатная тень карточки — три слоя одной box-shadow. Горящая рамка ниже
+   перебивает их составным селектором, как и фиолетовую. */
+.cabinet-character--nft-glass .success-card {
+  box-shadow: 0 0 0 4px #0ba5ec, 0 0 24px rgba(90, 201, 248, 0.25),
+    0 32px 64px -12px rgba(16, 24, 40, 0.14);
+}
+
+.cabinet-character--nft-bronze .success-card {
+  box-shadow: 0 0 0 4px #b47745, 0 0 24px rgba(197, 131, 55, 0.25),
+    0 32px 64px -12px rgba(16, 24, 40, 0.14);
+}
+
+.cabinet-character--nft-silver .success-card {
+  box-shadow: 0 0 0 4px #afafaf, 0 0 24px rgba(145, 145, 145, 0.25),
+    0 32px 64px -12px rgba(16, 24, 40, 0.14);
+}
+
+.cabinet-character--nft-gold .success-card {
+  box-shadow: 0 0 0 4px #ffca42, 0 0 24px rgba(248, 195, 90, 0.25),
+    0 32px 64px -12px rgba(16, 24, 40, 0.14);
+}
+
+/* Prismatic — градиентное кольцо. box-shadow градиент не умеет, поэтому кольцо
+   рисует псевдоэлемент: заливка градиентом, а маска оставляет от него только
+   4px по периметру. Само свечение и тень — обычной box-shadow. */
+.cabinet-character--nft-prismatic .success-card {
+  box-shadow: 0 0 24px rgba(151, 151, 151, 0.25), 0 32px 64px -12px rgba(16, 24, 40, 0.14);
+}
+
+.cabinet-character--nft-prismatic .success-card::before {
+  border-radius: 28px;
+  background: linear-gradient(135deg, #ffb6d7 0%, #ff3cff 45%, #44e3ff 100%);
+  content: "";
+  inset: -4px;
+  padding: 4px;
+  pointer-events: none;
+  position: absolute;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+/* Бейдж NFT в цвет тира */
+.success-card-nft-badge--glass { background: #e0f2fe; color: #026aa2; }
+.success-card-nft-badge--bronze { background: #fff4eb; color: #a86935; }
+.success-card-nft-badge--silver { background: #e9e9e9; color: #6a6a6a; }
+.success-card-nft-badge--gold { background: #fff4d2; color: #b39500; }
+.success-card-nft-badge--prismatic { background: #ffe1f7; color: #fa49dd; }
 
 

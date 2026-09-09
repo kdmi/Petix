@@ -831,7 +831,11 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
       await deps.profiles.updateWalletProfile(target, (current) => {
         const characters = current.characters || (current.characters = []);
         if (!characters.some((record) => record.id === movedCharacter.id)) {
-          movedCharacter.nft = { tokenId: binding.tokenId, boundAt: binding.boundAt };
+          movedCharacter.nft = {
+            tokenId: binding.tokenId,
+            boundAt: binding.boundAt,
+            tier: getCapsuleTier(binding.tokenId),
+          };
           characters.push(movedCharacter);
         }
         return current;
@@ -1082,7 +1086,7 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
     await deps.profiles.updateWalletProfile(wallet, (current) => {
       const record = (current.characters || []).find((item) => item.id === characterId);
       if (!record) throw fail(404, "Character not found.", "CHARACTER_NOT_FOUND");
-      record.nft = { tokenId, boundAt };
+      record.nft = { tokenId, boundAt, tier: getCapsuleTier(tokenId) };
       return current;
     });
   } catch (error) {
@@ -1394,13 +1398,14 @@ async function listWalletSlots(wallet, depOverrides) {
   for (const tokenId of tokenIds) {
     const binding = await deps.store.getBinding(tokenId);
     if (!binding) {
-      slots.push({ tokenId, state: "empty" });
+      slots.push({ tokenId, state: "empty", tier: getCapsuleTier(tokenId) });
       continue;
     }
     const character = characterById.get(binding.characterId) || null;
     slots.push({
       tokenId,
       state: "bound",
+      tier: getCapsuleTier(tokenId),
       character: character
         ? {
             id: character.id,

@@ -32,9 +32,11 @@ test("bind: level-1 character binds under the default (disabled) threshold", asy
     assert.equal(binding.boundAt, "2026-09-02T12:00:00.000Z");
 
     const profile = await store.getWalletProfile(wallet);
+    // Тир капсулы едет вместе с меткой — по нему фронт красит рамку (018).
     assert.deepEqual(profile.characters[0].nft, {
       tokenId: 7,
       boundAt: "2026-09-02T12:00:00.000Z",
+      tier: nft.getCapsuleTier(7),
     });
   });
 });

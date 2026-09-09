@@ -7493,6 +7493,9 @@ function renderCabinet() {
       const isMenuOpen = String(state.openCardMenuId) === String(record.id);
       const nftEnabled = isNftEnabled();
       const nftBoundTokenId = record.nft?.tokenId || null;
+      // Тир капсулы красит рамку и бейдж. У привязок до появления тиров его нет —
+      // такие остаются в прежнем фиолетовом.
+      const nftTier = nftBoundTokenId && record.nft?.tier ? String(record.nft.tier) : null;
       const nftBurningAt = getBurnDeadline(record);
       const nftMenuItemMarkup = !nftEnabled
         ? ""
@@ -7588,7 +7591,7 @@ function renderCabinet() {
           `
           : "";
       return `
-        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}${nftBurningAt ? " cabinet-character--nft cabinet-character--nft-burning" : nftBoundTokenId ? " cabinet-character--nft" : ""}" data-character-id="${record.id}">
+        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}${nftBurningAt ? " cabinet-character--nft cabinet-character--nft-burning" : nftBoundTokenId ? " cabinet-character--nft" : ""}${nftTier ? ` cabinet-character--nft-${nftTier}` : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">
               <span class="success-card-title__name">${record.name || record.displayName || record.creatureType}</span>
@@ -7596,7 +7599,7 @@ function renderCabinet() {
                 nftBurningAt
                   ? `<span class="success-card-nft-badge success-card-nft-badge--burning" data-nft-burn-at="${nftBurningAt}" title="Capsule #${nftBoundTokenId} is being emptied — this pet will burn"><img src="/assets/dashboard/burn-fire.svg" alt="" width="12" height="12" /><span data-nft-burn-left>${formatBurnCountdown(nftBurningAt)}</span></span>`
                   : nftBoundTokenId
-                    ? `<span class="success-card-nft-badge" title="Bound to NFT capsule #${nftBoundTokenId}">NFT</span>`
+                    ? `<span class="success-card-nft-badge${nftTier ? ` success-card-nft-badge--${nftTier}` : ""}" title="Bound to NFT capsule #${nftBoundTokenId}">NFT</span>`
                     : ""
               }
             </div>
