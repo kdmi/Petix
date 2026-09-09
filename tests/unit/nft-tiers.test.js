@@ -236,3 +236,27 @@ test("тир едет с питомцем: метка при посадке и �
     assert.equal(byToken[4].tier, nft.getCapsuleTier(4), "пустая капсула тоже знает свой тир");
   });
 });
+
+test("тир дозаполняется у привязок, сделанных до появления тиров", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, store } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(2, wallet);
+    await nft.bindCharacterToSlot(wallet, 2, character.id, deps);
+
+    // Имитируем старую метку без тира.
+    await store.updateWalletProfile(wallet, (current) => {
+      const record = current.characters.find((item) => item.id === character.id);
+      delete record.nft.tier;
+      return current;
+    });
+
+    await nft.listWalletSlots(wallet, deps);
+
+    const profile = await store.getWalletProfile(wallet);
+    const record = profile.characters.find((item) => item.id === character.id);
+    assert.equal(record.nft.tier, nft.getCapsuleTier(2), "тир восстановлен при загрузке списка");
+  });
+});

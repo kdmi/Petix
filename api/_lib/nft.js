@@ -1394,6 +1394,30 @@ async function listWalletSlots(wallet, depOverrides) {
   const profile = await deps.profiles.getWalletProfile(wallet);
   const characterById = new Map((profile.characters || []).map((record) => [record.id, record]));
 
+  // Метки, поставленные до появления тиров, поля tier не имеют — дозаполняем
+  // одной записью, пока список всё равно строится. На проде таких меток нет,
+  // на демо есть; вреда от проверки никакого.
+  const missingTier = [];
+  for (const tokenId of tokenIds) {
+    const binding = await deps.store.getBinding(tokenId);
+    const record = binding ? characterById.get(binding.characterId) : null;
+    const tier = getCapsuleTier(tokenId);
+    if (record?.nft && tier && record.nft.tier !== tier) missingTier.push({ id: record.id, tier });
+  }
+  if (missingTier.length) {
+    await deps.profiles.updateWalletProfile(wallet, (current) => {
+      for (const { id, tier } of missingTier) {
+        const record = (current.characters || []).find((item) => item.id === id);
+        if (record?.nft) record.nft.tier = tier;
+      }
+      return current;
+    });
+    for (const { id, tier } of missingTier) {
+      const record = characterById.get(id);
+      if (record?.nft) record.nft.tier = tier;
+    }
+  }
+
   const slots = [];
   for (const tokenId of tokenIds) {
     const binding = await deps.store.getBinding(tokenId);
