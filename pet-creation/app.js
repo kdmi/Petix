@@ -7078,15 +7078,21 @@ document.addEventListener("pointerout", (event) => {
   const badge = event.target.closest?.(nftBadgeSelector);
   if (badge && !badge.contains(event.relatedTarget)) scheduleNftBadgeTooltipHide();
 });
-document.addEventListener("click", (event) => {
-  const badge = event.target.closest?.(nftBadgeSelector);
-  if (badge) {
-    if (nftTooltip.pinned && nftTooltip.badge === badge) hideNftBadgeTooltipNow();
-    else showNftBadgeTooltip(badge, { pin: true });
-    return;
-  }
-  if (nftTooltip.el && !nftTooltip.el.hidden) hideNftBadgeTooltipNow();
-});
+// capture-фаза: обработчики карточек и меню останавливают всплытие, а закрытие
+// по клику «в другом месте» должно срабатывать где угодно.
+document.addEventListener(
+  "click",
+  (event) => {
+    const badge = event.target.closest?.(nftBadgeSelector);
+    if (badge) {
+      if (nftTooltip.pinned && nftTooltip.badge === badge) hideNftBadgeTooltipNow();
+      else showNftBadgeTooltip(badge, { pin: true });
+      return;
+    }
+    if (nftTooltip.el && !nftTooltip.el.hidden) hideNftBadgeTooltipNow();
+  },
+  { capture: true }
+);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") hideNftBadgeTooltipNow();
 });

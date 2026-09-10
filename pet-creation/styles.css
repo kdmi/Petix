@@ -8363,6 +8363,12 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   z-index: 1000;
 }
 
+/* display: flex выше перебивает браузерный [hidden] — возвращаем скрытие явно,
+   иначе el.hidden = true ничего не делает и тултип висит навсегда. */
+.nft-badge-tooltip[hidden] {
+  display: none;
+}
+
 .nft-badge-tooltip::after {
   border-bottom: 6px solid #101828;
   border-left: 6px solid transparent;
