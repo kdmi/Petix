@@ -1,4 +1,5 @@
 const { creditCurrency } = require("./currency");
+const { getCapsuleTier } = require("./nft-tiers");
 
 // Pure farm logic (Farm-экономика, feature 013). No network/FS — config is passed in.
 // Accrual is lazy: earnings derive from timestamps, capped at FARM_CAP_HOURS, credited
@@ -40,11 +41,27 @@ function rarityMultiplierFor(rarity, cfg) {
 }
 
 /** Points/hour for a character at a given level + rarity. */
-function computeFarmRate(level, rarity, cfg) {
+/**
+ * Процент к ферме от NFT-капсулы, в которой сидит питомец (018). Считается из
+ * метки на самом персонаже — без хранилища и без сети, поэтому годится и в
+ * чистом расчёте, и в сериализации. Ноль, если фича выключена, капсулы нет или
+ * она на очистке: питомец уже приговорён, бонуса ему не положено.
+ */
+function farmBonusPctFor(character, cfg) {
+  if (process.env.NFT_ENABLED !== "1") return 0;
+  const mark = character && character.nft;
+  if (!mark || !mark.tokenId || mark.pendingUnbindAt) return 0;
+  const tier = mark.tier || getCapsuleTier(mark.tokenId);
+  const table = (cfg && cfg.NFT_TIER_FARM_BONUS_PCT) || {};
+  return Math.max(0, Number(table[tier]) || 0);
+}
+
+function computeFarmRate(level, rarity, cfg, { bonusPct = 0 } = {}) {
   const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
   const base = Number(cfg.FARM_BASE) || 0;
   const k = Number(cfg.FARM_LEVEL_K) || 0;
-  return base * rarityMultiplierFor(rarity, cfg) * (1 + k * (safeLevel - 1));
+  const bonus = 1 + Math.max(0, Number(bonusPct) || 0) / 100;
+  return base * rarityMultiplierFor(rarity, cfg) * (1 + k * (safeLevel - 1)) * bonus;
 }
 
 /**
@@ -52,9 +69,9 @@ function computeFarmRate(level, rarity, cfg) {
  * Returns { active, completedHours, ratePerHour, earned, elapsedMs, forfeitedMinutes, capped, secondsRemaining }.
  * `earned` is an integer (floor of completedHours × rate). Inactive cycle → all zeros.
  */
-function computeFarmEarned(farmState, now, level, rarity, cfg) {
+function computeFarmEarned(farmState, now, level, rarity, cfg, { bonusPct = 0 } = {}) {
   const state = normalizeFarmState(farmState);
-  const ratePerHour = computeFarmRate(level, rarity, cfg);
+  const ratePerHour = computeFarmRate(level, rarity, cfg, { bonusPct });
   const capHours = Math.max(0, Math.floor(Number(cfg.FARM_CAP_HOURS) || 0));
 
   if (!state.active || !state.startedAt) {
@@ -113,7 +130,8 @@ function startFarm(character, now) {
 
 // Internal: credit completed hours to the wallet profile and reset the cycle.
 function settle(profile, character, now, cfg) {
-  const result = computeFarmEarned(character.farmState, now, character.level, character.rarity, cfg);
+  const bonusPct = farmBonusPctFor(character, cfg);
+  const result = computeFarmEarned(character.farmState, now, character.level, character.rarity, cfg, { bonusPct });
   if (result.earned > 0) {
     creditCurrency(profile, result.earned);
   }
@@ -127,7 +145,9 @@ function settle(profile, character, now, cfg) {
 
 /** Claim a (typically completed) cycle: credit completed hours, reset. */
 function claimFarm(profile, character, now, cfg) {
-  const before = computeFarmEarned(character.farmState, now, character.level, character.rarity, cfg);
+  const before = computeFarmEarned(character.farmState, now, character.level, character.rarity, cfg, {
+    bonusPct: farmBonusPctFor(character, cfg),
+  });
   const result = settle(profile, character, now, cfg);
   return {
     claimed: result.earned,
@@ -141,6 +161,7 @@ module.exports = {
   normalizeFarmState,
   computeFarmRate,
   computeFarmEarned,
+  farmBonusPctFor,
   startFarm,
   claimFarm,
 };

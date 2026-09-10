@@ -7,7 +7,7 @@ const {
   getExperienceForNextLevel,
   normalizeProgression,
 } = require("./battle-progression");
-const { computeFarmEarned, normalizeFarmState } = require("./farm");
+const { computeFarmEarned, farmBonusPctFor, normalizeFarmState } = require("./farm");
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const TOTAL_ATTRIBUTE_POINTS = 15;
@@ -1055,7 +1055,9 @@ function buildFarmView(record, rarityLabel, level, { economyConfig, now } = {}) 
     return base;
   }
   const nowMs = now == null ? Date.now() : now;
-  const earned = computeFarmEarned(farmState, nowMs, level, rarityLabel, economyConfig);
+  const earned = computeFarmEarned(farmState, nowMs, level, rarityLabel, economyConfig, {
+    bonusPct: farmBonusPctFor(record, economyConfig),
+  });
   return {
     ...base,
     farmRatePerHour: earned.ratePerHour,

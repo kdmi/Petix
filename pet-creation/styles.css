@@ -8320,6 +8320,77 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   mask-composite: exclude;
 }
 
+/* Тултип на бейдже NFT: капсула, тир, бонусы. Тот же язык, что у подсказки
+   энергии в шапке — тёмная плашка, стрелка, появляется по наведению и фокусу. */
+.success-card-nft-badge-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.success-card-nft-badge-wrap .success-card-nft-badge {
+  cursor: help;
+}
+
+.nft-badge-tooltip {
+  background: #101828;
+  border-radius: 10px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 2px;
+  left: 50%;
+  line-height: 16px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: left;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+  z-index: 20;
+}
+
+.nft-badge-tooltip::after {
+  border-bottom: 6px solid #101828;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  bottom: 100%;
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.nft-badge-tooltip img {
+  display: inline-block;
+  vertical-align: -2px;
+}
+
+.nft-badge-tooltip__title {
+  font-weight: 700;
+}
+
+.nft-badge-tooltip__tier {
+  font-weight: 700;
+}
+
+.nft-badge-tooltip__tier--glass { color: #7cd4fd; }
+.nft-badge-tooltip__tier--bronze { color: #e0a370; }
+.nft-badge-tooltip__tier--silver { color: #d0d5dd; }
+.nft-badge-tooltip__tier--gold { color: #ffd66b; }
+.nft-badge-tooltip__tier--prismatic { color: #fda4e8; }
+
+.success-card-nft-badge-wrap:hover .nft-badge-tooltip,
+.success-card-nft-badge-wrap:focus-within .nft-badge-tooltip {
+  opacity: 1;
+}
+
 /* Бейдж NFT в цвет тира */
 .success-card-nft-badge--glass { background: #e0f2fe; color: #026aa2; }
 .success-card-nft-badge--bronze { background: #fff4eb; color: #a86935; }

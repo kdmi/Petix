@@ -2,6 +2,7 @@ const { handleCors, json } = require("../../api/_lib/auth");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { createChainClient, getNftEnv } = require("../../api/_lib/nft-chain");
 const { requireEvmSession } = require("./_shared");
+const { TIER_ORDER, TIER_LABELS } = require("../../api/_lib/nft-tiers");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -39,6 +40,17 @@ module.exports = async (req, res) => {
     totalSupply,
     // Slots are bought on the marketplace, not minted from here.
     marketplaceUrl: env.marketplaceUrl,
+    // Бонусы по тирам — для тултипа на бейдже NFT (018).
+    tierBonuses: Object.fromEntries(
+      TIER_ORDER.map((tier) => [
+        tier,
+        {
+          label: TIER_LABELS[tier],
+          farmPct: Math.max(0, Number(cfg.NFT_TIER_FARM_BONUS_PCT?.[tier]) || 0),
+          extraBattles: Math.max(0, Math.floor(Number(cfg.NFT_TIER_EXTRA_BATTLES?.[tier]) || 0)),
+        },
+      ])
+    ),
     ...(rpcDegraded ? { rpcDegraded: true } : {}),
   });
 };

@@ -6992,6 +6992,24 @@ function writeCachedNftConfig(config) {
   } catch {}
 }
 
+// Тултип на бейдже NFT: номер капсулы, тир и что он даёт. Значения бонусов
+// приходят из /api/nft/config; пока конфига нет — показываем только капсулу и тир.
+function buildNftBadgeTooltip(tokenId, tier) {
+  const bonuses = state.nft.config?.tierBonuses || null;
+  const info = tier && bonuses ? bonuses[tier] : null;
+  const label = info?.label || (tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : null);
+
+  const lines = [`<span class="nft-badge-tooltip__title">Capsule #${tokenId}</span>`];
+  if (label) lines.push(`<span class="nft-badge-tooltip__tier nft-badge-tooltip__tier--${tier}">${label}</span>`);
+  if (info && info.farmPct > 0) lines.push(`<span>+${info.farmPct}% farm</span>`);
+  if (info && info.extraBattles > 0) {
+    lines.push(
+      `<span>+${info.extraBattles} <img src="/assets/dashboard/energy-bolt.svg" alt="energy" width="12" height="12" /> per day</span>`
+    );
+  }
+  return `<span class="nft-badge-tooltip" id="nft-tip-${tokenId}" role="tooltip">${lines.join("")}</span>`;
+}
+
 function ensureNftLoaded() {
   if (!state.isAuthenticated || state.nft.hydrated || nftLoadPromise) return;
 
@@ -7496,6 +7514,7 @@ function renderCabinet() {
       // Тир капсулы красит рамку и бейдж. У привязок до появления тиров его нет —
       // такие остаются в прежнем фиолетовом.
       const nftTier = nftBoundTokenId && record.nft?.tier ? String(record.nft.tier) : null;
+      const nftBadgeTooltip = nftBoundTokenId ? buildNftBadgeTooltip(nftBoundTokenId, nftTier) : "";
       const nftBurningAt = getBurnDeadline(record);
       const nftMenuItemMarkup = !nftEnabled
         ? ""
@@ -7599,7 +7618,7 @@ function renderCabinet() {
                 nftBurningAt
                   ? `<span class="success-card-nft-badge success-card-nft-badge--burning" data-nft-burn-at="${nftBurningAt}" title="Capsule #${nftBoundTokenId} is being emptied — this pet will burn"><img src="/assets/dashboard/burn-fire.svg" alt="" width="12" height="12" /><span data-nft-burn-left>${formatBurnCountdown(nftBurningAt)}</span></span>`
                   : nftBoundTokenId
-                    ? `<span class="success-card-nft-badge${nftTier ? ` success-card-nft-badge--${nftTier}` : ""}" title="Bound to NFT capsule #${nftBoundTokenId}">NFT</span>`
+                    ? `<span class="success-card-nft-badge-wrap"><span class="success-card-nft-badge${nftTier ? ` success-card-nft-badge--${nftTier}` : ""}" tabindex="0" aria-describedby="nft-tip-${nftBoundTokenId}">NFT</span>${nftBadgeTooltip}</span>`
                     : ""
               }
             </div>

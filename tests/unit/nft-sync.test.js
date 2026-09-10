@@ -63,7 +63,8 @@ test("sync: an active farm settles in favour of the seller before the move", asy
   await withNftEnv(async (env) => {
     const seller = evmWallet("a");
     const buyer = evmWallet("b");
-    // 5 полных часов фарма Common L1 при FARM_BASE=10 → 50 Points продавцу.
+    // 5 полных часов фарма Common L1 при FARM_BASE=10 → 50 Points продавцу
+    // (плюс процент тира капсулы, см. ниже).
     const character = makeCharacter({
       rarity: "Common",
       level: 1,
@@ -82,8 +83,14 @@ test("sync: an active farm settles in favour of the seller before the move", asy
     env.chain.transfer(2, buyer);
     await env.nft.syncTransfers(env.deps);
 
+    // Ферма продавца закрывается с бонусом его же капсулы (018): пока питомец
+    // сидел внутри, ставка была выше базовой на процент тира.
+    const { getCapsuleTier } = require("../../api/_lib/nft-tiers");
+    const cfg = await env.deps.getConfig();
+    const pct = cfg.NFT_TIER_FARM_BONUS_PCT[getCapsuleTier(2)] || 0;
+    const expected = Math.floor(5 * 10 * (1 + pct / 100));
     const sellerProfile = await env.store.getWalletProfile(seller);
-    assert.equal(sellerProfile.currency.balance, 50);
+    assert.equal(sellerProfile.currency.balance, expected);
 
     const buyerProfile = await env.store.getWalletProfile(buyer);
     assert.equal(buyerProfile.currency.balance, 0);

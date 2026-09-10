@@ -97,3 +97,43 @@ test("claimFarm credits the full 24h cap when the cycle has completed", () => {
   assert.equal(profile.currency.balance, 384);
   assert.equal(c.farmState.active, false);
 });
+
+test("бонус капсулы поднимает ставку фермы на процент тира", () => {
+  const { farmBonusPctFor } = require("../../api/_lib/farm");
+  const { getCapsuleTier } = require("../../api/_lib/nft-tiers");
+  const cfg = getDefaults();
+  const prev = process.env.NFT_ENABLED;
+  process.env.NFT_ENABLED = "1";
+  try {
+    const tokenId = 3;
+    const tier = getCapsuleTier(tokenId);
+    const character = makeCharacter({ nft: { tokenId, tier } });
+    const pct = farmBonusPctFor(character, cfg);
+    assert.equal(pct, cfg.NFT_TIER_FARM_BONUS_PCT[tier]);
+
+    const plain = computeFarmRate(1, "Common", cfg);
+    const boosted = computeFarmRate(1, "Common", cfg, { bonusPct: pct });
+    assert.equal(boosted, plain * (1 + pct / 100));
+  } finally {
+    if (prev === undefined) delete process.env.NFT_ENABLED; else process.env.NFT_ENABLED = prev;
+  }
+});
+
+test("бонуса фермы нет на очистке, без капсулы и при выключенной фиче", () => {
+  const { farmBonusPctFor } = require("../../api/_lib/farm");
+  const cfg = getDefaults();
+  const prev = process.env.NFT_ENABLED;
+  try {
+    process.env.NFT_ENABLED = "1";
+    assert.equal(farmBonusPctFor(makeCharacter(), cfg), 0, "без капсулы");
+    assert.equal(
+      farmBonusPctFor(makeCharacter({ nft: { tokenId: 3, tier: "silver", pendingUnbindAt: "2026-09-10T20:00:00.000Z" } }), cfg),
+      0,
+      "капсула на очистке — питомец приговорён"
+    );
+    delete process.env.NFT_ENABLED;
+    assert.equal(farmBonusPctFor(makeCharacter({ nft: { tokenId: 3, tier: "silver" } }), cfg), 0, "фича выключена");
+  } finally {
+    if (prev === undefined) delete process.env.NFT_ENABLED; else process.env.NFT_ENABLED = prev;
+  }
+});

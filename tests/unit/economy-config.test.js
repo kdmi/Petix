@@ -96,3 +96,15 @@ test("BURN_COST: default is 500, override merges, negative rejected", () => {
   assert.equal(nonNumeric.ok, false);
   assert.ok(validateConfigPatch({ BURN_COST: 0 }).ok);
 });
+
+test("карты тиров капсул мержатся частично и валидируются", () => {
+  const { mergeConfig, validateConfigPatch, getDefaults } = require("../../api/_lib/economy-config");
+  const merged = mergeConfig({ NFT_TIER_FARM_BONUS_PCT: { gold: 25 } });
+  assert.equal(merged.NFT_TIER_FARM_BONUS_PCT.gold, 25, "оверрайд применился");
+  assert.equal(merged.NFT_TIER_FARM_BONUS_PCT.glass, getDefaults().NFT_TIER_FARM_BONUS_PCT.glass, "остальное — из дефолтов");
+
+  assert.equal(validateConfigPatch({ NFT_TIER_EXTRA_BATTLES: { silver: 2 } }).ok, true);
+  const bad = validateConfigPatch({ NFT_TIER_EXTRA_BATTLES: { diamond: 1, silver: -1 } });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.errors.length, 2, "чужой тир и отрицательное число");
+});

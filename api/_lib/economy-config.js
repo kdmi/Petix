@@ -11,6 +11,9 @@ const {
 // async helpers (getEconomyConfig / setEconomyConfig) hit the store and cache with a short TTL.
 
 const RARITY_KEYS = ["Common", "Rare", "Epic", "Legendary"];
+const TIER_KEYS = ["glass", "bronze", "silver", "gold", "prismatic"];
+// Карты «тир капсулы → число» (018). Мержатся и валидируются одинаково.
+const TIER_MAP_KEYS = ["NFT_TIER_EXTRA_BATTLES", "NFT_TIER_FARM_BONUS_PCT", "NFT_TIER_WIN_BONUS_PCT"];
 
 const DEFAULTS = Object.freeze({
   FARM_BASE: 10, // Points/hour for Common L1 (×10 scale)
@@ -39,12 +42,22 @@ const DEFAULTS = Object.freeze({
     gold: 2,
     prismatic: 3,
   }),
+  // Процент к ферме питомца, сидящего в капсуле (решение 2026-09-10).
+  NFT_TIER_FARM_BONUS_PCT: Object.freeze({
+    glass: 5,
+    bronze: 10,
+    silver: 15,
+    gold: 20,
+    prismatic: 30,
+  }),
+  // Процент к Points за победу. Из правил убран (2026-09-10), рычаг оставлен
+  // нулевым — включается из админки, если передумаем.
   NFT_TIER_WIN_BONUS_PCT: Object.freeze({
     glass: 0,
     bronze: 0,
     silver: 0,
     gold: 0,
-    prismatic: 30,
+    prismatic: 0,
   }),
 });
 
@@ -58,6 +71,7 @@ function deepCloneDefaults() {
     rarityMult: { ...DEFAULTS.rarityMult },
     SLOT_PRICES: [...DEFAULTS.SLOT_PRICES],
     NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
+    NFT_TIER_FARM_BONUS_PCT: { ...DEFAULTS.NFT_TIER_FARM_BONUS_PCT },
     NFT_TIER_WIN_BONUS_PCT: { ...DEFAULTS.NFT_TIER_WIN_BONUS_PCT },
   };
 }
@@ -75,6 +89,9 @@ function mergeConfig(overrides) {
     if (!(key in overrides)) continue;
     if (key === "rarityMult" && overrides.rarityMult && typeof overrides.rarityMult === "object") {
       base.rarityMult = { ...base.rarityMult, ...overrides.rarityMult };
+    } else if (TIER_MAP_KEYS.includes(key) && overrides[key] && typeof overrides[key] === "object") {
+      // Карты по тирам капсул: частичный патч дополняет дефолты, а не заменяет их.
+      base[key] = { ...base[key], ...overrides[key] };
     } else if (key === "SLOT_PRICES" && Array.isArray(overrides.SLOT_PRICES)) {
       base.SLOT_PRICES = [...overrides.SLOT_PRICES];
     } else if (typeof overrides[key] === "number" && Number.isFinite(overrides[key])) {
@@ -131,6 +148,22 @@ function validateConfigPatch(patch) {
         } else if (typeof rm[key] !== "number" || !Number.isFinite(rm[key]) || rm[key] < 0) {
           errors.push({ field: "rarityMult", message: `rarityMult.${key} must be a number ≥ 0` });
         }
+      }
+    }
+  }
+
+  for (const mapKey of TIER_MAP_KEYS) {
+    if (!(mapKey in patch)) continue;
+    const table = patch[mapKey];
+    if (!table || typeof table !== "object" || Array.isArray(table)) {
+      errors.push({ field: mapKey, message: `${mapKey} must be an object` });
+      continue;
+    }
+    for (const [tier, value] of Object.entries(table)) {
+      if (!TIER_KEYS.includes(tier)) {
+        errors.push({ field: mapKey, message: `${mapKey}.${tier} is not a capsule tier` });
+      } else if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        errors.push({ field: mapKey, message: `${mapKey}.${tier} must be a number ≥ 0` });
       }
     }
   }
