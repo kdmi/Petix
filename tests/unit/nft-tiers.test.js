@@ -288,3 +288,59 @@ test("тир доезжает до клиента через сериализа�
     assert.equal(serialized.nft.tier, nft.getCapsuleTier(5), "без этого поля фронт красит всё фиолетовым");
   });
 });
+
+test("посадка ставит токен на проверку, и крон переспрашивает витрину, пока не сойдётся", async () => {
+  await withNftEnv(async (env) => {
+    const { chain, deps, nft, nftStore, store } = env;
+    const wallet = evmWallet("a");
+    const character = makeCharacter();
+    await seedCharacters(store, wallet, [character]);
+    chain.state.owners.set(4, wallet);
+
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
+    process.env.NFT_CONTRACT = "0xcontract";
+    const originalFetch = global.fetch;
+    let marketplaceStale = true;
+    const refreshCalls = [];
+    global.fetch = async (url) => {
+      const raw = String(url);
+      if (raw.endsWith("/refresh")) {
+        refreshCalls.push(Number(raw.match(/nfts\/(\d+)\/refresh/)[1]));
+        return { ok: true, status: 200, text: async () => "" };
+      }
+      const traits = marketplaceStale
+        ? [{ trait_type: "Status", value: "Empty" }]
+        : [{ trait_type: "Status", value: "Occupied" }, { trait_type: "Capsule Tier", value: TIER_LABELS[nft.getCapsuleTier(4)] },
+           { trait_type: "Rarity", value: "Epic" }, { trait_type: "Obsession", value: "Origami paper" }, { trait_type: "Level", value: "1" }];
+      return { ok: true, status: 200, json: async () => ({ nft: { traits } }) };
+    };
+
+    try {
+      await nft.bindCharacterToSlot(wallet, 4, character.id, deps);
+      let binding = await nftStore.getBinding(4);
+      assert.ok(binding.verifyAfter, "после посадки токен ждёт проверки");
+      assert.deepEqual(refreshCalls, [4], "посадка сама попросила перечитать");
+
+      // Срок подошёл, витрина всё ещё показывает пустую капсулу.
+      await nftStore.withNftState((s) => { s.bindings["4"].verifyAfter = 1; return s; });
+      refreshCalls.length = 0;
+      let result = await nft.drainRefreshQueue(deps);
+      assert.deepEqual(result.reverified, [4], "расхождение — переспросили");
+      binding = await nftStore.getBinding(4);
+      assert.equal(binding.verifyAttempts, 1);
+      assert.ok(binding.verifyAfter > 1, "назначен следующий заход");
+
+      // Витрина догнала.
+      marketplaceStale = false;
+      await nftStore.withNftState((s) => { s.bindings["4"].verifyAfter = 1; return s; });
+      result = await nft.drainRefreshQueue(deps);
+      assert.deepEqual(result.verified, [4]);
+      binding = await nftStore.getBinding(4);
+      assert.equal(binding.verifyAfter, null, "сошлось — проверка снята");
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.NFT_OPENSEA_API_KEY;
+      delete process.env.NFT_CONTRACT;
+    }
+  });
+});

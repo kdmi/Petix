@@ -101,6 +101,10 @@ function normalizeBinding(tokenId, raw) {
     // Обновление витрины не доехало (маркетплейс лёг или сработал дебаунс) —
     // токен ждёт, пока его дошлёт крон.
     refreshPendingSince: raw.refreshPendingSince || null,
+    // Точечная проверка витрины после посадки/очистки/прокачки: когда сверить и
+    // сколько раз уже переспрашивали.
+    verifyAfter: Number.isFinite(Number(raw.verifyAfter)) && Number(raw.verifyAfter) > 0 ? Number(raw.verifyAfter) : null,
+    verifyAttempts: Math.max(0, Math.floor(Number(raw.verifyAttempts) || 0)),
     // Отложенное сжигание: заявка живёт здесь до момента исполнения.
     pendingUnbind:
       raw.pendingUnbind && raw.pendingUnbind.executeAt

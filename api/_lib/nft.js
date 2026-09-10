@@ -143,6 +143,7 @@ async function refreshBoundCharacterMetadata(characterId, depOverrides) {
     });
 
     const delivered = await requestMarketplaceRefresh(binding.tokenId);
+    await markForVerification(binding.tokenId, deps);
     if (!delivered) {
       // Маркетплейс не принял (таймаут, 5xx, лимит) — отдадим крону.
       await markRefreshPending(binding.tokenId, now, deps);
@@ -161,6 +162,23 @@ async function markRefreshPending(tokenId, now, deps) {
     const stored = state.bindings[String(tokenId)];
     if (stored && !stored.refreshPendingSince) {
       stored.refreshPendingSince = new Date(now).toISOString();
+    }
+    return state;
+  });
+}
+
+/**
+ * Ставит токен на проверку: через паузу крон сверит трейты у витрины с нашими и
+ * переспросит, если не сошлись. Нужно после любого точечного изменения — на
+ * Robinhood Chain OpenSea принимает запрос молча и обновляет через раз.
+ */
+async function markForVerification(tokenId, deps) {
+  const now = deps.now();
+  await deps.store.withNftState((state) => {
+    const stored = state.bindings[String(tokenId)];
+    if (stored) {
+      stored.verifyAfter = now + AUDIT_DELAY_MS;
+      stored.verifyAttempts = 0;
     }
     return state;
   });
@@ -409,6 +427,40 @@ async function drainRefreshQueue(depOverrides) {
     return { refreshed: rechecked, pending: finished ? 0 : until - last, auditing: true, attempt };
   }
 
+  // Точечные проверки: токены, у которых недавно менялись метаданные.
+  const verified = [];
+  const reverified = [];
+  const dueForVerify = Object.entries(state.bindings || {})
+    .filter(([, binding]) => binding?.verifyAfter && binding.verifyAfter <= now)
+    .sort((a, b) => a[1].verifyAfter - b[1].verifyAfter)
+    .slice(0, batchSize);
+  for (const [key, binding] of dueForVerify) {
+    const tokenId = Number(key);
+    const inSync = await isMarketplaceInSync(tokenId, AUDIT_ORIGIN, deps);
+    const attempts = (binding.verifyAttempts || 0) + 1;
+    if (inSync === true) {
+      verified.push(tokenId);
+    } else {
+      await requestMarketplaceRefresh(tokenId);
+      reverified.push(tokenId);
+    }
+    await deps.store.withNftState((current) => {
+      const stored = current.bindings[key];
+      if (!stored) return current;
+      if (inSync === true || attempts >= AUDIT_MAX_ATTEMPTS) {
+        if (inSync !== true) {
+          console.warn(`[nft] token ${tokenId} still stale on the marketplace after ${attempts} checks`);
+        }
+        stored.verifyAfter = null;
+        stored.verifyAttempts = 0;
+      } else {
+        stored.verifyAfter = now + AUDIT_DELAY_MS;
+        stored.verifyAttempts = attempts;
+      }
+      return current;
+    });
+  }
+
   const queued = Object.entries(state.bindings || {})
     .filter(([, binding]) => binding?.refreshPendingSince)
     .filter(([, binding]) => {
@@ -435,7 +487,7 @@ async function drainRefreshQueue(depOverrides) {
     }
   }
 
-  return { refreshed, pending: Math.max(0, queued.length - refreshed.length) };
+  return { refreshed, pending: Math.max(0, queued.length - refreshed.length), verified, reverified };
 }
 
 /**
@@ -1081,6 +1133,7 @@ async function bindCharacterToSlot(wallet, rawTokenId, characterId, depOverrides
   // и доносил новость до OpenSea за ~30 мин, тогда как их API — за ~3 мин и
   // бесплатно. Вернуть событие можно, если появится площадка без нашего ключа.
   const marketplaceRefreshed = await requestMarketplaceRefresh(tokenId);
+  await markForVerification(tokenId, deps);
 
   return {
     tokenId,
@@ -1217,6 +1270,7 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
   // Просим маркетплейс перечитать СРАЗУ: статус Clearing должен разойтись за
   // час ожидания, иначе покупатель увидит питомца, которого уже нет.
   const marketplaceRefreshed = await requestMarketplaceRefresh(tokenId);
+  await markForVerification(tokenId, deps);
 
   return { tokenId, executeAt, pricePaid, marketplaceRefreshed, status: "pending" };
 }
@@ -1250,6 +1304,7 @@ async function cancelUnbindRequest(wallet, rawTokenId, depOverrides) {
     .catch(() => null);
 
   const marketplaceRefreshed = await requestMarketplaceRefresh(tokenId);
+  await markForVerification(tokenId, deps);
   return { tokenId, refunded: pricePaid, marketplaceRefreshed };
 }
 
@@ -1353,6 +1408,7 @@ async function executeUnbind(binding, owner, deps) {
   }
 
   const marketplaceRefreshed = await requestMarketplaceRefresh(binding.tokenId);
+  await markForVerification(binding.tokenId, deps);
   return {
     tokenId: binding.tokenId,
     burnedCharacterId: removed ? removed.characterId : binding.characterId,
