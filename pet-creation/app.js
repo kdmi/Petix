@@ -7012,45 +7012,86 @@ function buildNftBadgeTooltipHtml(tokenId, tier) {
   return lines.join("");
 }
 
-let nftBadgeTooltipEl = null;
+// Поведение тултипа: на десктопе появляется по наведению и гаснет через секунду
+// после ухода курсора (успеть дочитать, не мигать на границе). На тачах
+// наведения нет — тап по бейджу показывает и «прикалывает», тап в любом другом
+// месте закрывает. pointerType отличает мышь от пальца, чтобы тап не открывал
+// и сразу не закрывал тултип двумя событиями подряд.
+const NFT_TOOLTIP_HIDE_DELAY_MS = 1000;
+const nftTooltip = { el: null, badge: null, pinned: false, hideTimer: null };
 
 function getNftBadgeTooltipEl() {
-  if (nftBadgeTooltipEl) return nftBadgeTooltipEl;
+  if (nftTooltip.el) return nftTooltip.el;
   const el = document.createElement("div");
   el.className = "nft-badge-tooltip";
   el.id = "nftBadgeTooltip";
   el.setAttribute("role", "tooltip");
   el.hidden = true;
   document.body.appendChild(el);
-  nftBadgeTooltipEl = el;
+  nftTooltip.el = el;
   return el;
 }
 
-function showNftBadgeTooltip(badge) {
+function clearNftTooltipTimer() {
+  if (nftTooltip.hideTimer) {
+    clearTimeout(nftTooltip.hideTimer);
+    nftTooltip.hideTimer = null;
+  }
+}
+
+function showNftBadgeTooltip(badge, { pin = false } = {}) {
   const tokenId = badge.getAttribute("data-nft-token");
   if (!tokenId) return;
+  clearNftTooltipTimer();
   const el = getNftBadgeTooltipEl();
   el.innerHTML = buildNftBadgeTooltipHtml(tokenId, badge.getAttribute("data-nft-tier") || null);
   const rect = badge.getBoundingClientRect();
   el.style.left = `${rect.left + rect.width / 2}px`;
   el.style.top = `${rect.bottom + 8}px`;
   el.hidden = false;
+  nftTooltip.badge = badge;
+  nftTooltip.pinned = pin || (nftTooltip.pinned && nftTooltip.badge === badge);
 }
 
-function hideNftBadgeTooltip() {
-  if (nftBadgeTooltipEl) nftBadgeTooltipEl.hidden = true;
+function hideNftBadgeTooltipNow() {
+  clearNftTooltipTimer();
+  if (nftTooltip.el) nftTooltip.el.hidden = true;
+  nftTooltip.badge = null;
+  nftTooltip.pinned = false;
 }
 
-document.addEventListener("mouseover", (event) => {
-  const badge = event.target.closest?.(".success-card-nft-badge[data-nft-token]");
+function scheduleNftBadgeTooltipHide() {
+  if (nftTooltip.pinned) return; // прикололи тапом — ждём тап в другом месте
+  clearNftTooltipTimer();
+  nftTooltip.hideTimer = setTimeout(hideNftBadgeTooltipNow, NFT_TOOLTIP_HIDE_DELAY_MS);
+}
+
+const nftBadgeSelector = ".success-card-nft-badge[data-nft-token]";
+
+document.addEventListener("pointerover", (event) => {
+  if (event.pointerType !== "mouse") return;
+  const badge = event.target.closest?.(nftBadgeSelector);
   if (badge) showNftBadgeTooltip(badge);
 });
-document.addEventListener("mouseout", (event) => {
-  const badge = event.target.closest?.(".success-card-nft-badge[data-nft-token]");
-  if (badge && !badge.contains(event.relatedTarget)) hideNftBadgeTooltip();
+document.addEventListener("pointerout", (event) => {
+  if (event.pointerType !== "mouse") return;
+  const badge = event.target.closest?.(nftBadgeSelector);
+  if (badge && !badge.contains(event.relatedTarget)) scheduleNftBadgeTooltipHide();
 });
-// При прокрутке бейдж уезжает, а фиксированный тултип — нет: прячем.
-window.addEventListener("scroll", hideNftBadgeTooltip, { passive: true, capture: true });
+document.addEventListener("click", (event) => {
+  const badge = event.target.closest?.(nftBadgeSelector);
+  if (badge) {
+    if (nftTooltip.pinned && nftTooltip.badge === badge) hideNftBadgeTooltipNow();
+    else showNftBadgeTooltip(badge, { pin: true });
+    return;
+  }
+  if (nftTooltip.el && !nftTooltip.el.hidden) hideNftBadgeTooltipNow();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideNftBadgeTooltipNow();
+});
+// При прокрутке бейдж уезжает, а фиксированный тултип — нет: прячем сразу.
+window.addEventListener("scroll", hideNftBadgeTooltipNow, { passive: true, capture: true });
 
 function ensureNftLoaded() {
   if (!state.isAuthenticated || state.nft.hydrated || nftLoadPromise) return;
