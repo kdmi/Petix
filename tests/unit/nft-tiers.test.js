@@ -237,27 +237,37 @@ test("тир едет с питомцем: метка при посадке и �
   });
 });
 
-test("тир дозаполняется у привязок, сделанных до появления тиров", async () => {
+test("сериализатор выводит тир из номера, даже если метка его не хранит", async () => {
   await withNftEnv(async (env) => {
     const { chain, deps, nft, store } = env;
+    const character = require("../../api/_lib/character");
     const wallet = evmWallet("a");
-    const character = makeCharacter();
-    await seedCharacters(store, wallet, [character]);
+    const record = makeCharacter();
+    await seedCharacters(store, wallet, [record]);
     chain.state.owners.set(2, wallet);
-    await nft.bindCharacterToSlot(wallet, 2, character.id, deps);
+    await nft.bindCharacterToSlot(wallet, 2, record.id, deps);
 
-    // Имитируем старую метку без тира.
+    // Метка старше тиров — поля tier нет.
     await store.updateWalletProfile(wallet, (current) => {
-      const record = current.characters.find((item) => item.id === character.id);
-      delete record.nft.tier;
+      const stored = current.characters.find((item) => item.id === record.id);
+      delete stored.nft.tier;
       return current;
     });
 
-    await nft.listWalletSlots(wallet, deps);
-
     const profile = await store.getWalletProfile(wallet);
-    const record = profile.characters.find((item) => item.id === character.id);
-    assert.equal(record.nft.tier, nft.getCapsuleTier(2), "тир восстановлен при загрузке списка");
+    const stored = profile.characters.find((item) => item.id === record.id);
+    const serialized = character.serializeCharacterRecord(stored);
+    assert.equal(serialized.nft.tier, nft.getCapsuleTier(2), "тир не зависит от того, что записано в метке");
+  });
+});
+
+test("лимит боёв в ответе учитывает бонус капсул", async () => {
+  await withNftEnv(async () => {
+    const character = require("../../api/_lib/character");
+    const plain = character.serializeBattleState(null, { wallet: evmWallet("a") });
+    const boosted = character.serializeBattleState(null, { wallet: evmWallet("a"), bonusEnergy: 1 });
+    assert.equal(plain.energyMax, 3);
+    assert.equal(boosted.energyMax, 4, "иначе игрок видит 3, хотя бой пустит четвёртый");
   });
 });
 

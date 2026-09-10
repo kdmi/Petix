@@ -146,7 +146,34 @@ function hashTierMap(tierMap) {
   return crypto.createHash("sha256").update(tierMap.join(",")).digest("hex");
 }
 
+// Раскладка считается один раз на процесс: она детерминирована и зависит только
+// от тиража, сида и режима витрины. Живёт здесь, а не в nft.js, чтобы её мог
+// спросить сериализатор персонажа, не таща за собой цепочку и хранилище.
+let cachedTierMap = null;
+let cachedTierKey = "";
+
+function getTierMap() {
+  const maxSupply = Math.max(1, Math.floor(Number(process.env.NFT_MAX_SUPPLY) || 10000));
+  const seed = process.env.NFT_TIER_SEED || "petix-capsules";
+  const showcase = process.env.NFT_TIER_SHOWCASE === "1";
+  const key = `${maxSupply}:${seed}:${showcase}`;
+  if (cachedTierKey !== key) {
+    cachedTierMap = buildTierMap(maxSupply, seed, { showcase });
+    cachedTierKey = key;
+  }
+  return cachedTierMap;
+}
+
+/** Тир капсулы по её номеру. Не меняется никогда и не зависит от содержимого. */
+function getCapsuleTier(tokenId) {
+  const id = Math.floor(Number(tokenId));
+  const map = getTierMap();
+  if (!Number.isFinite(id) || id < 1 || id > map.length) return null;
+  return map[id - 1] || null;
+}
+
 module.exports = {
+  getCapsuleTier,
   TIER_ORDER,
   TIER_LABELS,
   TIER_SHARES,

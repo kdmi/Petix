@@ -6,7 +6,7 @@ const { claimFarm, normalizeFarmState } = require("./farm");
 const { debitCurrency } = require("./currency");
 const { createChainClient, getNftEnv, isNftEnabled } = require("./nft-chain");
 const nftStore = require("./nft-store");
-const { TIER_LABELS, buildTierMap } = require("./nft-tiers");
+const { TIER_LABELS, getCapsuleTier } = require("./nft-tiers");
 const {
   deleteStoredImage,
   getWalletProfile,
@@ -47,29 +47,6 @@ const SYNC_MAX_BLOCKS = Math.max(
   1000,
   Math.floor(Number(process.env.NFT_SYNC_MAX_BLOCKS) || 250000)
 );
-// Раскладка тиров считается один раз на процесс: она детерминирована и зависит
-// только от тиража и сида.
-let cachedTierMap = null;
-let cachedTierKey = "";
-
-function getTierMap() {
-  const seed = process.env.NFT_TIER_SEED || "petix-capsules";
-  const showcase = process.env.NFT_TIER_SHOWCASE === "1";
-  const key = `${MAX_SUPPLY}:${seed}:${showcase}`;
-  if (cachedTierKey !== key) {
-    cachedTierMap = buildTierMap(MAX_SUPPLY, seed, { showcase });
-    cachedTierKey = key;
-  }
-  return cachedTierMap;
-}
-
-/** Тир капсулы по её номеру. Не меняется никогда и не зависит от содержимого. */
-function getCapsuleTier(tokenId) {
-  const id = Math.floor(Number(tokenId));
-  if (!Number.isFinite(id) || id < 1 || id > MAX_SUPPLY) return null;
-  return getTierMap()[id - 1] || null;
-}
-
 /**
  * До ревила все капсулы выглядят одинаково. Иначе покупатели видели бы, какие
  * номера хорошие, и ждали бы нужный счётчик минта.
@@ -1393,30 +1370,6 @@ async function listWalletSlots(wallet, depOverrides) {
 
   const profile = await deps.profiles.getWalletProfile(wallet);
   const characterById = new Map((profile.characters || []).map((record) => [record.id, record]));
-
-  // Метки, поставленные до появления тиров, поля tier не имеют — дозаполняем
-  // одной записью, пока список всё равно строится. На проде таких меток нет,
-  // на демо есть; вреда от проверки никакого.
-  const missingTier = [];
-  for (const tokenId of tokenIds) {
-    const binding = await deps.store.getBinding(tokenId);
-    const record = binding ? characterById.get(binding.characterId) : null;
-    const tier = getCapsuleTier(tokenId);
-    if (record?.nft && tier && record.nft.tier !== tier) missingTier.push({ id: record.id, tier });
-  }
-  if (missingTier.length) {
-    await deps.profiles.updateWalletProfile(wallet, (current) => {
-      for (const { id, tier } of missingTier) {
-        const record = (current.characters || []).find((item) => item.id === id);
-        if (record?.nft) record.nft.tier = tier;
-      }
-      return current;
-    });
-    for (const { id, tier } of missingTier) {
-      const record = characterById.get(id);
-      if (record?.nft) record.nft.tier = tier;
-    }
-  }
 
   const slots = [];
   for (const tokenId of tokenIds) {

@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { getCapsuleTier } = require("./nft-tiers");
 const fs = require("fs/promises");
 const path = require("path");
 const { buildBattleStateView } = require("./battle-energy");
@@ -1104,8 +1105,10 @@ function serializeCharacterRecord(record, options = {}) {
           tokenId: record.nft.tokenId,
           boundAt: record.nft.boundAt || null,
           pendingUnbindAt: record.nft.pendingUnbindAt || null,
-          // Тир капсулы — по нему дашборд красит рамку и бейдж (018).
-          tier: record.nft.tier || null,
+          // Тир капсулы — по нему дашборд красит рамку и бейдж (018). Выводится
+          // из номера токена, а не читается из метки: метки старше тиров его не
+          // хранят, а раскладка всё равно детерминирована.
+          tier: record.nft.tier || getCapsuleTier(record.nft.tokenId) || null,
         }
       : null,
     createdAt: record.createdAt,
@@ -1115,8 +1118,10 @@ function serializeCharacterRecord(record, options = {}) {
   };
 }
 
-function serializeBattleState(record, { wallet = "" } = {}) {
-  return buildBattleStateView(record, { wallet });
+// bonusEnergy — надбавка за тиры NFT-капсул кошелька (018). Без неё игрок видел
+// бы лимит 3, хотя бой пропустил бы четвёртый.
+function serializeBattleState(record, { wallet = "", bonusEnergy = 0 } = {}) {
+  return buildBattleStateView(record, { wallet, bonusEnergy });
 }
 
 module.exports = {
