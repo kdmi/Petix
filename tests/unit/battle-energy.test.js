@@ -85,3 +85,40 @@ test("consumeBattleEnergy does not spend energy for admin wallets", () => {
   assert.equal(nextState.energyCurrent, 3);
   assert.equal(nextState.energyMax, 3);
 });
+
+test("бонус капсул даёт лишний бой в тот же день, а не после полуночи", () => {
+  const { normalizeBattleState, getBattleDateKey } = require("../../api/_lib/battle-energy");
+  const now = new Date("2026-09-10T15:00:00.000Z");
+  // Состояние сохранено сегодня при лимите 3, боёв ещё не было.
+  const stored = { energyCurrent: 3, energyMax: 3, lastResetDate: getBattleDateKey(now) };
+  const view = normalizeBattleState(stored, { now, bonusEnergy: 1 });
+  assert.equal(view.energyMax, 4);
+  assert.equal(view.energyCurrent, 4, "иначе шапка показывает 3 при лимите 4");
+});
+
+test("потраченный бой не воскресает, если состояние перечитали без бонуса", () => {
+  const { normalizeBattleState, consumeBattleEnergy, getBattleDateKey } = require("../../api/_lib/battle-energy");
+  const now = new Date("2026-09-10T15:00:00.000Z");
+  const fresh = { energyCurrent: 3, energyMax: 3, lastResetDate: getBattleDateKey(now) };
+
+  const afterFight = consumeBattleEnergy(fresh, { now, bonusEnergy: 1 });
+  assert.equal(afterFight.energyCurrent, 3);
+
+  // store.js нормализует профиль без бонуса — так оно и лежит в базе.
+  const persisted = normalizeBattleState(afterFight, { now });
+  assert.equal(persisted.energyCurrent, 2);
+
+  // /me читает с бонусом: должно быть 3, а не 4 — бой уже потрачен.
+  const viewed = normalizeBattleState(persisted, { now, bonusEnergy: 1 });
+  assert.equal(viewed.energyCurrent, 3);
+  assert.equal(viewed.energyUsed, 1);
+});
+
+test("пропавший бонус обрезает остаток, а не уходит в минус", () => {
+  const { normalizeBattleState, getBattleDateKey } = require("../../api/_lib/battle-energy");
+  const now = new Date("2026-09-10T15:00:00.000Z");
+  const stored = { energyUsed: 4, energyMax: 4, lastResetDate: getBattleDateKey(now) };
+  const view = normalizeBattleState(stored, { now, bonusEnergy: 0 });
+  assert.equal(view.energyMax, 3);
+  assert.equal(view.energyCurrent, 0);
+});

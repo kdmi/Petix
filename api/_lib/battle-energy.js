@@ -127,26 +127,39 @@ function hasUnlimitedBattleEnergy(wallet) {
 
 // bonusEnergy — надбавка за редкость NFT-капсул кошелька (018). По умолчанию 0,
 // то есть у игрока без капсул всё считается ровно как раньше.
+//
+// Хранится не «сколько осталось», а «сколько потрачено сегодня»: остаток =
+// лимит − потрачено. Так бонус, полученный посреди дня, даёт бой сразу, а не
+// после полуночи, и не важно, с каким лимитом состояние читали в прошлый раз
+// (store.js нормализует без бонуса — с моделью остатка это ломало счёт).
+// Старые записи без energyUsed переводятся из пары current/max один раз.
+function resolveEnergyUsed(rawBattleState) {
+  const rawUsed = Number(rawBattleState?.energyUsed);
+  if (Number.isFinite(rawUsed)) return Math.max(0, Math.floor(rawUsed));
+
+  const legacyMax = normalizeInteger(rawBattleState?.energyMax, BATTLE_ENERGY_MAX);
+  const legacyCurrent = rawBattleState?.energyCurrent;
+  if (legacyCurrent === undefined || legacyCurrent === null) return 0;
+  return Math.max(0, legacyMax - normalizeInteger(legacyCurrent, legacyMax));
+}
+
 function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 0 } = {}) {
   const currentDateKey = getBattleDateKey(now);
   const energyMax = BATTLE_ENERGY_MAX + Math.max(0, Math.floor(Number(bonusEnergy) || 0));
-  let energyCurrent = clamp(
-    normalizeInteger(rawBattleState?.energyCurrent, energyMax),
-    0,
-    energyMax
-  );
+  let energyUsed = resolveEnergyUsed(rawBattleState);
   let lastResetDate = String(rawBattleState?.lastResetDate || "").trim();
   let updatedAt = String(rawBattleState?.updatedAt || "").trim();
 
   if (!lastResetDate || lastResetDate !== currentDateKey) {
-    energyCurrent = energyMax;
+    energyUsed = 0;
     lastResetDate = currentDateKey;
     updatedAt = now.toISOString();
   }
 
   return {
-    energyCurrent,
+    energyCurrent: clamp(energyMax - energyUsed, 0, energyMax),
     energyMax,
+    energyUsed,
     lastResetDate,
     updatedAt: updatedAt || now.toISOString(),
   };
@@ -204,15 +217,17 @@ function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wal
     throw createNoEnergyError();
   }
 
+  const energyUsed = normalized.energyUsed + spendAmount;
   return {
     ...normalized,
-    energyCurrent: normalized.energyCurrent - spendAmount,
+    energyUsed,
+    energyCurrent: clamp(normalized.energyMax - energyUsed, 0, normalized.energyMax),
     updatedAt: now.toISOString(),
   };
 }
 
-function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "" } = {}) {
-  const normalized = normalizeBattleState(rawBattleState, { now });
+function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "", bonusEnergy = 0 } = {}) {
+  const normalized = normalizeBattleState(rawBattleState, { now, bonusEnergy });
   if (hasUnlimitedBattleEnergy(wallet)) {
     return {
       ...normalized,
@@ -222,10 +237,12 @@ function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wall
   }
 
   const refundAmount = clamp(normalizeInteger(amount, 1), 1, normalized.energyMax);
+  const energyUsed = Math.max(0, normalized.energyUsed - refundAmount);
 
   return {
     ...normalized,
-    energyCurrent: clamp(normalized.energyCurrent + refundAmount, 0, normalized.energyMax),
+    energyUsed,
+    energyCurrent: clamp(normalized.energyMax - energyUsed, 0, normalized.energyMax),
     updatedAt: now.toISOString(),
   };
 }
