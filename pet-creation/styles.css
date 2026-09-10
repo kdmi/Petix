@@ -8179,6 +8179,22 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   display: block;
 }
 
+/* Тир капсулы в пикере: подпись и цвет рамки при наведении в тон тира (018) */
+.nft-picker__tier {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-top: -4px;
+  text-transform: uppercase;
+}
+
+.nft-picker__slot--glass:hover, .nft-picker__slot--glass:focus-visible { border-color: #0ba5ec; box-shadow: 0 4px 12px rgba(90, 201, 248, 0.3); }
+.nft-picker__slot--bronze:hover, .nft-picker__slot--bronze:focus-visible { border-color: #b47745; box-shadow: 0 4px 12px rgba(197, 131, 55, 0.3); }
+.nft-picker__slot--silver:hover, .nft-picker__slot--silver:focus-visible { border-color: #afafaf; box-shadow: 0 4px 12px rgba(145, 145, 145, 0.3); }
+.nft-picker__slot--gold:hover, .nft-picker__slot--gold:focus-visible { border-color: #ffca42; box-shadow: 0 4px 12px rgba(248, 195, 90, 0.3); }
+.nft-picker__slot--prismatic:hover, .nft-picker__slot--prismatic:focus-visible { border-color: #ff3cff; box-shadow: 0 4px 12px rgba(255, 60, 255, 0.28); }
+
 /* Нет капсул: показываем предмет, за которым нужно идти в коллекцию */
 .nft-picker__empty {
   display: flex;

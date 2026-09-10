@@ -7181,9 +7181,10 @@ function pickNftSlot(emptySlots, petName, marketplaceUrl) {
                 ${emptySlots
                   .map(
                     (slot) => `
-                  <button class="nft-picker__slot" type="button" data-pick="${slot.tokenId}">
-                    <img src="/assets/nft/placeholder.png" alt="" width="64" height="64" />
+                  <button class="nft-picker__slot${slot.tier ? ` nft-picker__slot--${slot.tier}` : ""}" type="button" data-pick="${slot.tokenId}">
+                    <img src="${slot.tier ? `/assets/nft/capsules/${slot.tier}.png` : "/assets/nft/placeholder.png"}" alt="" width="64" height="64" />
                     <span>Capsule #${slot.tokenId}</span>
+                    ${slot.tier ? `<span class="nft-picker__tier">${slot.tier.charAt(0).toUpperCase() + slot.tier.slice(1)}</span>` : ""}
                   </button>
                 `
                   )
