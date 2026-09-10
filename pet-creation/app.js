@@ -6992,9 +6992,11 @@ function writeCachedNftConfig(config) {
   } catch {}
 }
 
-// Тултип на бейдже NFT: номер капсулы, тир и что он даёт. Значения бонусов
-// приходят из /api/nft/config; пока конфига нет — показываем только капсулу и тир.
-function buildNftBadgeTooltip(tokenId, tier) {
+// Тултип на бейдже NFT: номер капсулы, тир и что он даёт. Один общий элемент
+// у body: заголовок карточки обрезает всё, что выходит за его края (так
+// делается троеточие у длинных имён), поэтому тултип внутри бейджа не виден.
+// Позиция считается от координат бейджа при наведении.
+function buildNftBadgeTooltipHtml(tokenId, tier) {
   const bonuses = state.nft.config?.tierBonuses || null;
   const info = tier && bonuses ? bonuses[tier] : null;
   const label = info?.label || (tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : null);
@@ -7007,8 +7009,48 @@ function buildNftBadgeTooltip(tokenId, tier) {
       `<span>+${info.extraBattles} <img src="/assets/dashboard/energy-bolt.svg" alt="energy" width="12" height="12" /> per day</span>`
     );
   }
-  return `<span class="nft-badge-tooltip" id="nft-tip-${tokenId}" role="tooltip">${lines.join("")}</span>`;
+  return lines.join("");
 }
+
+let nftBadgeTooltipEl = null;
+
+function getNftBadgeTooltipEl() {
+  if (nftBadgeTooltipEl) return nftBadgeTooltipEl;
+  const el = document.createElement("div");
+  el.className = "nft-badge-tooltip";
+  el.id = "nftBadgeTooltip";
+  el.setAttribute("role", "tooltip");
+  el.hidden = true;
+  document.body.appendChild(el);
+  nftBadgeTooltipEl = el;
+  return el;
+}
+
+function showNftBadgeTooltip(badge) {
+  const tokenId = badge.getAttribute("data-nft-token");
+  if (!tokenId) return;
+  const el = getNftBadgeTooltipEl();
+  el.innerHTML = buildNftBadgeTooltipHtml(tokenId, badge.getAttribute("data-nft-tier") || null);
+  const rect = badge.getBoundingClientRect();
+  el.style.left = `${rect.left + rect.width / 2}px`;
+  el.style.top = `${rect.bottom + 8}px`;
+  el.hidden = false;
+}
+
+function hideNftBadgeTooltip() {
+  if (nftBadgeTooltipEl) nftBadgeTooltipEl.hidden = true;
+}
+
+document.addEventListener("mouseover", (event) => {
+  const badge = event.target.closest?.(".success-card-nft-badge[data-nft-token]");
+  if (badge) showNftBadgeTooltip(badge);
+});
+document.addEventListener("mouseout", (event) => {
+  const badge = event.target.closest?.(".success-card-nft-badge[data-nft-token]");
+  if (badge && !badge.contains(event.relatedTarget)) hideNftBadgeTooltip();
+});
+// При прокрутке бейдж уезжает, а фиксированный тултип — нет: прячем.
+window.addEventListener("scroll", hideNftBadgeTooltip, { passive: true, capture: true });
 
 function ensureNftLoaded() {
   if (!state.isAuthenticated || state.nft.hydrated || nftLoadPromise) return;
@@ -7514,7 +7556,6 @@ function renderCabinet() {
       // Тир капсулы красит рамку и бейдж. У привязок до появления тиров его нет —
       // такие остаются в прежнем фиолетовом.
       const nftTier = nftBoundTokenId && record.nft?.tier ? String(record.nft.tier) : null;
-      const nftBadgeTooltip = nftBoundTokenId ? buildNftBadgeTooltip(nftBoundTokenId, nftTier) : "";
       const nftBurningAt = getBurnDeadline(record);
       const nftMenuItemMarkup = !nftEnabled
         ? ""
@@ -7618,7 +7659,7 @@ function renderCabinet() {
                 nftBurningAt
                   ? `<span class="success-card-nft-badge success-card-nft-badge--burning" data-nft-burn-at="${nftBurningAt}" title="Capsule #${nftBoundTokenId} is being emptied — this pet will burn"><img src="/assets/dashboard/burn-fire.svg" alt="" width="12" height="12" /><span data-nft-burn-left>${formatBurnCountdown(nftBurningAt)}</span></span>`
                   : nftBoundTokenId
-                    ? `<span class="success-card-nft-badge-wrap"><span class="success-card-nft-badge${nftTier ? ` success-card-nft-badge--${nftTier}` : ""}" tabindex="0" aria-describedby="nft-tip-${nftBoundTokenId}">NFT</span>${nftBadgeTooltip}</span>`
+                    ? `<span class="success-card-nft-badge${nftTier ? ` success-card-nft-badge--${nftTier}` : ""}" data-nft-token="${nftBoundTokenId}" data-nft-tier="${nftTier || ""}">NFT</span>`
                     : ""
               }
             </div>

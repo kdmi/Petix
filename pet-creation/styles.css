@@ -8320,15 +8320,10 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   mask-composite: exclude;
 }
 
-/* Тултип на бейдже NFT: капсула, тир, бонусы. Тот же язык, что у подсказки
-   энергии в шапке — тёмная плашка, стрелка, появляется по наведению и фокусу. */
-.success-card-nft-badge-wrap {
-  display: inline-flex;
-  flex: 0 0 auto;
-  position: relative;
-}
-
-.success-card-nft-badge-wrap .success-card-nft-badge {
+/* Тултип на бейдже NFT: капсула, тир, бонусы. Один элемент у body с
+   position: fixed — заголовок карточки обрезает потомков (троеточие у длинных
+   имён), поэтому тултип живёт снаружи и встаёт по координатам бейджа. */
+.success-card-nft-badge[data-nft-token] {
   cursor: help;
 }
 
@@ -8342,18 +8337,14 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   font-size: 12px;
   font-weight: 500;
   gap: 2px;
-  left: 50%;
   line-height: 16px;
-  opacity: 0;
   padding: 8px 10px;
   pointer-events: none;
-  position: absolute;
+  position: fixed;
   text-align: left;
-  top: calc(100% + 8px);
   transform: translateX(-50%);
-  transition: opacity 0.15s ease;
   white-space: nowrap;
-  z-index: 20;
+  z-index: 1000;
 }
 
 .nft-badge-tooltip::after {
@@ -8372,10 +8363,7 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   vertical-align: -2px;
 }
 
-.nft-badge-tooltip__title {
-  font-weight: 700;
-}
-
+.nft-badge-tooltip__title,
 .nft-badge-tooltip__tier {
   font-weight: 700;
 }
@@ -8385,11 +8373,6 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
 .nft-badge-tooltip__tier--silver { color: #d0d5dd; }
 .nft-badge-tooltip__tier--gold { color: #ffd66b; }
 .nft-badge-tooltip__tier--prismatic { color: #fda4e8; }
-
-.success-card-nft-badge-wrap:hover .nft-badge-tooltip,
-.success-card-nft-badge-wrap:focus-within .nft-badge-tooltip {
-  opacity: 1;
-}
 
 /* Бейдж NFT в цвет тира */
 .success-card-nft-badge--glass { background: #e0f2fe; color: #026aa2; }
