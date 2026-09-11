@@ -8324,7 +8324,20 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
 
 .cabinet-character--nft-prismatic .success-card::before {
   border-radius: 28px;
-  background: linear-gradient(135deg, #ffb6d7 0%, #ff3cff 45%, #44e3ff 100%);
+  /* Радуга по кругу, как в макете: персиковый в левом верхнем углу → розовый →
+     сине-фиолетовый справа → циан внизу → зелёный → жёлтый слева → обратно.
+     Экспорт Figma сплющивает градиентную обводку в один цвет, стопы сняты с
+     макета на глаз. */
+  background: conic-gradient(
+    from 225deg,
+    #ffa07a 0%,
+    #ff6fd8 18%,
+    #8a7bff 38%,
+    #4fd8ff 55%,
+    #8fe07a 72%,
+    #ffd45a 88%,
+    #ffa07a 100%
+  );
   content: "";
   inset: -4px;
   padding: 4px;
