@@ -295,12 +295,38 @@ async function writeBlobState(state, { ifMatch = null } = {}) {
   });
 }
 
+// Метаданные читает краулер маркетплейса — на ревиле это тысячи запросов за
+// минуты, и каждый ходил в Blob за состоянием по три-четыре обращения. Blob
+// отвечает на такой поток лимитом (403), и часть ответов краулеру уходила
+// ошибкой — а он на ошибку оставляет старые данные. Состояние меняется редко,
+// поэтому держим его в памяти инстанса несколько секунд, а если Blob отбил —
+// отдаём последнюю удачную копию, лишь бы не пятисотить витрине.
+const STATE_CACHE_MS = Math.max(0, Number(process.env.NFT_STATE_CACHE_MS) || 15000);
+const stateCache = { state: null, at: 0 };
+
+function rememberState(state) {
+  stateCache.state = state;
+  stateCache.at = Date.now();
+  return state;
+}
+
 async function readNftState() {
-  if (isBlobDbEnabled()) {
-    const { state } = await loadBlobStateConsistent();
-    return state;
+  if (!isBlobDbEnabled()) {
+    return loadLocalState();
   }
-  return loadLocalState();
+  if (stateCache.state && Date.now() - stateCache.at < STATE_CACHE_MS) {
+    return stateCache.state;
+  }
+  try {
+    const { state } = await loadBlobStateConsistent();
+    return rememberState(state);
+  } catch (error) {
+    if (stateCache.state) {
+      console.warn(`[nft-store] state read failed (${error.message}), serving last good copy`);
+      return stateCache.state;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -324,7 +350,7 @@ async function withNftState(mutate) {
       next = normalizeState((await mutate(current)) || current);
       try {
         await writeBlobState(next, { ifMatch: etag });
-        return next;
+        return rememberState(next);
       } catch (error) {
         if (!isEtagConflictError(error)) throw error;
       }

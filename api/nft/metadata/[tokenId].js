@@ -55,7 +55,10 @@ module.exports = async (req, res) => {
       json(res, 503, { error: "Chain RPC is unavailable — try again." });
       return;
     }
+    // 500 краулер трактует как «метаданных нет» и оставляет прежние. 503 с
+    // Retry-After — «приди позже», и он приходит.
     console.error("[nft:metadata]", error);
-    json(res, 500, { error: "Metadata is unavailable." });
+    res.setHeader("Retry-After", "5");
+    json(res, 503, { error: "Metadata is temporarily unavailable — retry shortly." });
   }
 };
