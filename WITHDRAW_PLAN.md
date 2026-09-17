@@ -1,3 +1,5 @@
+> **LEGACY (2026-09-12).** Этот план описывал Solana-вывод (SPL, Helius, Token-2022). Проект переехал на Robinhood Chain; вывод и ввод $PETIX теперь описаны в [specs/019-petix-token-evm/](specs/019-petix-token-evm/) (custodial-схема на EVM, `/api/token/*`, cron `/api/token/sync`). Код Solana-вывода удалён из репозитория; текст ниже сохранён только как история решений.
+
 # WITHDRAW_PLAN.md — Вывод Points → $PETIX (on-chain выплата)
 
 > Готовим вывод так, чтобы **в день запуска токена** всё переключилось максимально быстро.

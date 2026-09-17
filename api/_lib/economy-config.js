@@ -25,9 +25,12 @@ const DEFAULTS = Object.freeze({
   SLOT_PRICES: Object.freeze([5000, 10000, 20000, 35000, 60000, 100000, 160000]),
   MAX_CHARACTER_SLOTS: 10,
   BURN_COST: 1000, // цена сжигания персонажа (feature 014)
-  MIN_WITHDRAW: 200,
+  MIN_WITHDRAW: 1000, // порог вывода (решение владельца 2026-09-17; было 200)
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
   WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
+  WITHDRAW_MAX_PER_TX: 0, // разовый лимит вывода в Points (019); 0 = без лимита. Защита от багов начисления, не от кражи ключа.
+  WITHDRAW_REQUIRE_NFT: 1, // вывод только держателям капсулы коллекции (019/US7); админы освобождены
+  WITHDRAW_NFT_HOLD_HOURS: 48, // сколько часов капсула должна непрерывно лежать на кошельке
   POINTS_PER_PETIX: 1,
   NFT_BIND_LEVEL: 1, // мин. уровень персонажа для заливки в NFT-слот (016; 1 = порог отключён)
   NFT_MINT_LIMIT: 5, // лимит бесплатного минта слотов на кошелёк (инфо для фронта; on-chain лимит задаётся в контракте)
@@ -122,6 +125,9 @@ function validateConfigPatch(patch) {
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
     "WITHDRAW_ENABLED",
+    "WITHDRAW_MAX_PER_TX",
+    "WITHDRAW_REQUIRE_NFT",
+    "WITHDRAW_NFT_HOLD_HOURS",
     "POINTS_PER_PETIX",
     "NFT_BIND_LEVEL",
     "NFT_MINT_LIMIT",

@@ -13,6 +13,7 @@ const NFT_CHAIN_PATH = path.resolve(__dirname, "../../../api/_lib/nft-chain.js")
 const ECONOMY_CONFIG_PATH = path.resolve(__dirname, "../../../api/_lib/economy-config.js");
 
 const BASE_NOW = Date.parse("2026-09-02T12:00:00.000Z");
+const BLOCK_T0 = Date.parse("2026-08-01T00:00:00.000Z");
 
 function clearModule(modulePath) {
   delete require.cache[require.resolve(modulePath)];
@@ -40,10 +41,24 @@ function createFakeChain({ owners = {}, blockNumber = 100, enumerable = true } =
     // tokensOfOwner returns null and callers use the Transfer-log index.
     enumerable,
     deploymentBlock: 1,
+    // Deterministic block clock for ownedSince: block N was mined at BLOCK_T0 + N·10s.
+    failBlockTimestamps: false,
   };
+
+  const blockTimestamp = (block) => BLOCK_T0 + Number(block) * 10000;
 
   return {
     state,
+    blockTimestamp,
+    async getBlockTimestamp(block) {
+      if (state.failBlockTimestamps) return null;
+      return blockTimestamp(block);
+    },
+    async scanTokenTransfers(tokenId, fromBlock) {
+      return state.transfers
+        .filter((entry) => entry.tokenId === Number(tokenId) && entry.blockNumber >= fromBlock)
+        .sort((a, b) => a.blockNumber - b.blockNumber);
+    },
     async getTotalSupply() {
       return state.owners.size ? Math.max(...state.owners.keys()) : 0;
     },

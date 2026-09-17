@@ -56,6 +56,7 @@ const EMPTY_WALLET_PROFILE = {
   currency: { balance: 0, totalEarned: 0 },
   paidSlots: 0,
   withdrawals: [],
+  deposits: [],
   profileUpdatedAt: null,
 };
 
@@ -101,6 +102,10 @@ function cloneWalletProfile(profile) {
     paidSlots: normalizePaidSlots(profile?.paidSlots),
     withdrawals: Array.isArray(profile?.withdrawals)
       ? profile.withdrawals.map((record) => cloneRecord(record))
+      : [],
+    // $PETIX deposits credited to this wallet (feature 019); keyed by txHash:logIndex.
+    deposits: Array.isArray(profile?.deposits)
+      ? profile.deposits.map((record) => cloneRecord(record))
       : [],
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };

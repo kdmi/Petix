@@ -3,6 +3,10 @@
     {
       "path": "/api/nft/sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/token/sync",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {
