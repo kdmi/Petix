@@ -7308,10 +7308,15 @@ async function bindNftSlotFlow(characterId) {
   );
   if (!tokenId) return;
 
+  const pickedSlot = emptySlots.find((slot) => String(slot.tokenId) === String(tokenId));
+  const pickedTier = pickedSlot?.tier || null;
+  let sealed = false;
+
   state.nft.busy = `bind:${characterId}`;
   renderCabinet();
   try {
     await apiRequest("/api/nft/bind", { tokenId, characterId });
+    sealed = true;
     // Метаданные на маркетплейсе — это их кэш: у нас данные уже новые, а там
     // появятся через несколько минут. Без этой оговорки выглядит как поломка.
     showToast(
@@ -7325,6 +7330,14 @@ async function bindNftSlotFlow(characterId) {
   } finally {
     state.nft.busy = "";
     renderCabinet();
+    // Празднуем после перерисовки: карточка уже в рамке своего тира, и
+    // конфетти вылетает из неё, а не из её прежнего места.
+    if (sealed) {
+      const card = document.querySelector(
+        `.cabinet-character[data-character-id="${characterId}"] .success-card`
+      );
+      fireNftBindConfetti(card, pickedTier);
+    }
   }
 }
 
@@ -9935,6 +9948,43 @@ function fireSuccessConfetti() {
     fire(0.35, { decay: 0.91, scalar: 0.8, spread: 100 });
     fire(0.1, { decay: 0.92, scalar: 1.2, spread: 120, startVelocity: 25 });
     fire(0.1, { spread: 120, startVelocity: 45 });
+  });
+}
+
+// Конфетти в цвет тира, когда питомец запечатан в капсулу. Та же библиотека,
+// что и на создании персонажа: момент такой же «разовый и приятный».
+const NFT_TIER_CONFETTI_COLORS = {
+  glass: ["#0ba5ec", "#5ac9f8", "#e0f2fe", "#ffffff"],
+  bronze: ["#b47745", "#e0a370", "#fff4eb", "#ffffff"],
+  silver: ["#afafaf", "#d0d5dd", "#f2f4f7", "#ffffff"],
+  gold: ["#ffca42", "#f8c35a", "#fff4d2", "#ffffff"],
+  prismatic: ["#ffa07a", "#ff6fd8", "#8a7bff", "#4fd8ff", "#8fe07a", "#ffd45a"],
+};
+const NFT_BIND_CONFETTI_COLORS = ["#7a5af8", "#b692f6", "#f4ebff", "#ffffff"];
+
+function fireNftBindConfetti(targetElement, tier) {
+  if (typeof window.confetti !== "function" || !targetElement) return;
+
+  const rect = targetElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const viewportWidth = Math.max(window.innerWidth || 0, 1);
+  const viewportHeight = Math.max(window.innerHeight || 0, 1);
+  const origin = {
+    x: clampNumber((rect.left + rect.width / 2) / viewportWidth, 0, 1),
+    y: clampNumber((rect.top + rect.height * 0.45) / viewportHeight, 0, 1),
+  };
+  const defaults = {
+    disableForReducedMotion: true,
+    origin,
+    zIndex: 1000,
+    colors: NFT_TIER_CONFETTI_COLORS[tier] || NFT_BIND_CONFETTI_COLORS,
+  };
+
+  window.requestAnimationFrame(() => {
+    window.confetti({ ...defaults, particleCount: 70, spread: 90, startVelocity: 38, scalar: 1, ticks: 170 });
+    window.confetti({ ...defaults, particleCount: 40, spread: 130, startVelocity: 26, scalar: 0.8, decay: 0.92, ticks: 170 });
+    window.confetti({ ...defaults, particleCount: 22, spread: 70, startVelocity: 52, scalar: 1.2, ticks: 190 });
   });
 }
 
