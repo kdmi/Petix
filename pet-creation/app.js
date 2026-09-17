@@ -2872,8 +2872,13 @@ function getMaxCharacterCapacity() {
   return Number.isFinite(max) && max > 0 ? Math.floor(max) : MAX_CHARACTERS_PER_WALLET;
 }
 
+// Питомец в капсуле слота не занимает: он живёт в NFT. Считаем только свободных.
+function countSlotCharacters() {
+  return state.characters.filter((record) => !record?.nft?.tokenId).length;
+}
+
 function hasCharacterCreationCapacity() {
-  return state.isAdmin || state.characters.length < getMaxCharacterCapacity();
+  return state.isAdmin || countSlotCharacters() < getMaxCharacterCapacity();
 }
 
 // Can the wallet unlock another slot for Points? (3 free + up to 7 paid → 10 total)
@@ -3316,7 +3321,7 @@ async function restoreCharacterState() {
 
     syncStateWithPayload(data);
 
-    if (pageMode === "creation" && !state.isAdmin && state.characters.length >= getMaxCharacterCapacity()) {
+    if (pageMode === "creation" && !hasCharacterCreationCapacity()) {
       moveTo("cabinet");
       return true;
     }

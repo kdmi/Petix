@@ -51,8 +51,20 @@ function canBuySlot(profile, cfg) {
   return { ok: true, price, slotIndex: getNextSlotIndex(profile) };
 }
 
+/**
+ * Персонажи, занимающие слоты кошелька. Питомец, запечатанный в капсулу, живёт
+ * в NFT, а не в слоте (решение владельца 2026-09-18): он не мешает создать
+ * следующего, а у покупателя капсулы не съедает лимит. Слот освобождается в
+ * момент посадки, а не продажи.
+ */
+function countSlotCharacters(profile) {
+  const characters = Array.isArray(profile && profile.characters) ? profile.characters : [];
+  return characters.filter((record) => !(record && record.nft && record.nft.tokenId)).length;
+}
+
 module.exports = {
   FREE_SLOTS,
+  countSlotCharacters,
   getPaidSlots,
   getMaxCharacters,
   getNextSlotPrice,

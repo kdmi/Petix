@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  countSlotCharacters,
   getMaxCharacters,
   getNextSlotPrice,
   getNextSlotIndex,
@@ -52,4 +53,17 @@ test("canBuySlot rejects at max slots", () => {
   const r = canBuySlot(profile, cfg);
   assert.equal(r.ok, false);
   assert.equal(r.reason, "MAX_SLOTS");
+});
+
+test("countSlotCharacters: a pet sealed in a capsule does not occupy a slot", () => {
+  const profile = makeProfile();
+  profile.characters = [
+    { id: "free-1" },
+    { id: "free-2", nft: null },
+    { id: "sealed-1", nft: { tokenId: 17, tier: "gold" } },
+    { id: "clearing-1", nft: { tokenId: 44, pendingUnbindAt: "2026-09-18T00:00:00.000Z" } },
+  ];
+  assert.equal(countSlotCharacters(profile), 2);
+  assert.equal(countSlotCharacters({}), 0);
+  assert.equal(countSlotCharacters(null), 0);
 });
