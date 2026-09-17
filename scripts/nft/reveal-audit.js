@@ -21,6 +21,9 @@ const ADMIN_WALLET =
     .filter((item) => /^0x[0-9a-fA-F]{40}$/.test(item))[0];
 
 const CHUNK = 50;
+// Пауза между пачками. Без неё OpenSea начинает отвечать «не знаю» примерно с
+// двухсотого токена — это их лимит на скорость чтения, а не состояние витрины.
+const PACE_MS = Math.max(0, Number(process.env.NFT_AUDIT_PACE_MS) || 2500);
 
 function readFlag(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -74,6 +77,7 @@ async function main() {
 
   for (let start = from; start <= to; start += CHUNK) {
     const end = Math.min(start + CHUNK - 1, to);
+    if (start > from && PACE_MS) await new Promise((resolve) => setTimeout(resolve, PACE_MS));
     const batch = await auditRange(start, end, refresh);
     for (const [key, value] of Object.entries(batch.summary)) totals[key] += value;
     stale.push(...batch.stale);
