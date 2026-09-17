@@ -215,10 +215,22 @@ async function readMarketplaceToken(tokenId) {
   const chain = process.env.NFT_OPENSEA_CHAIN || "robinhood";
   const url = `https://api.opensea.io/api/v2/chain/${chain}/contract/${contract}/nfts/${tokenId}`;
   try {
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       headers: { "x-api-key": apiKey, accept: "application/json" },
       signal: AbortSignal.timeout(8000),
     });
+    // Лимит чтения у OpenSea жёсткий: при обходе коллекции 429 прилетает уже на
+    // третьей сотне. Один повтор после паузы возвращает большую часть ответов,
+    // и «не ответила» перестаёт маскировать реальное состояние токена.
+    if (response.status === 429) {
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 1500;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      response = await fetch(url, {
+        headers: { "x-api-key": apiKey, accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+    }
     if (!response.ok) return null;
     const body = await response.json();
     const traits = {};
