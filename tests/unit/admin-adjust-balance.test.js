@@ -12,7 +12,7 @@ const ROUTE_PATH = path.resolve(__dirname, "../../server-routes/admin/adjust-bal
 
 const INTERNAL_SECRET = "petix-adjust-balance-test-internal-secret";
 const ADMIN = "0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1";
-const PLAYER = "0xD47047385092D755F98eDf8cf7012A93dEb9E3ee";
+const PLAYER = `0x${"d".repeat(38)}Ab`; // синтетический, не настоящий кошелёк
 const STRANGER = `0x${"c".repeat(40)}`;
 
 function freshRequire(modulePath) {
