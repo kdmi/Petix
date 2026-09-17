@@ -1092,6 +1092,31 @@ async function syncWalletSlots(wallet, depOverrides) {
   return { tokenIds, moved };
 }
 
+/**
+ * Привязки, у которых кошелёк расходится с индексом владельцев. Индекс — тот же
+ * источник, по которому работает и синк при логине, поэтому расхождение значит
+ * ровно одно: перенос персонажа когда-то не состоялся. Токены, уже обработанные
+ * в этом прогоне, пропускаем — по ним решение принято по свежему ownerOf.
+ */
+async function reconcileBindingsWithIndex(deps, skip = new Map()) {
+  const state = await deps.store.readNftState();
+  const moved = [];
+  const errors = [];
+  for (const [key, binding] of Object.entries(state.bindings || {})) {
+    const tokenId = Number(key);
+    if (skip.has(tokenId)) continue;
+    const owner = state.owners?.[key];
+    if (!owner || !binding?.wallet || binding.wallet === owner) continue;
+    try {
+      const entry = await moveBoundCharacter(binding, owner, { detectedBy: "reconcile" }, deps);
+      if (entry) moved.push(entry);
+    } catch (error) {
+      errors.push({ tokenId, error: error.message });
+    }
+  }
+  return { moved, errors };
+}
+
 /** Full sync: scan Transfer logs since the watermark, reconcile touched bindings. */
 async function syncTransfers(depOverrides) {
   const deps = resolveDeps(depOverrides);
@@ -1138,6 +1163,14 @@ async function syncTransfers(depOverrides) {
       errors.push({ tokenId, error: error.message });
     }
   }
+
+  // Страховка: перенос, не доехавший в прошлые прогоны (RPC моргнул, функцию
+  // убили по лимиту, профиль не записался), иначе висит до следующего трансфера
+  // этого токена или логина покупателя. Сверяем привязки с индексом владельцев —
+  // без RPC, только по состоянию — и доносим расхождения.
+  const reconciled = await reconcileBindingsWithIndex(deps, touched);
+  moved.push(...reconciled.moved);
+  errors.push(...reconciled.errors);
 
   if (toBlock >= fromBlock - 1) {
     await deps.store.withNftState((current) => {

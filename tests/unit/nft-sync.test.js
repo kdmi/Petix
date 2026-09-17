@@ -253,3 +253,36 @@ test("sync: a huge block backlog is walked down in bounded runs", async () => {
     assert.equal(buyerProfile.characters.length, 1);
   });
 });
+
+test("sync: a move the cron missed earlier is caught up from the owner index", async () => {
+  await withNftEnv(async (env) => {
+    const seller = evmWallet("a");
+    const buyer = evmWallet("b");
+    const character = makeCharacter({ level: 3 });
+    await bindTo(env, seller, 12, character);
+
+    // Индекс уже знает нового владельца (трансфер прошёл в прошлом прогоне),
+    // но персонаж остался у продавца — так выглядит пропущенный перенос.
+    env.chain.state.owners.set(12, buyer);
+    await env.nftStore.withNftState((state) => {
+      state.owners["12"] = buyer;
+      return state;
+    });
+
+    const result = await env.nft.syncTransfers(env.deps);
+
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.moved.length, 1);
+    assert.equal(result.moved[0].tokenId, 12);
+    assert.equal(result.moved[0].toWallet, buyer);
+    assert.equal(result.moved[0].detectedBy, "reconcile");
+
+    assert.equal((await env.store.getWalletProfile(seller)).characters.length, 0);
+    assert.equal((await env.store.getWalletProfile(buyer)).characters.length, 1);
+    assert.equal((await env.nftStore.getBinding(12)).wallet, buyer);
+
+    // Повторный прогон ничего не двигает — сверка идемпотентна.
+    const again = await env.nft.syncTransfers(env.deps);
+    assert.equal(again.moved.length, 0);
+  });
+});
