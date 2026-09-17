@@ -945,22 +945,34 @@ async function ensureOwnerIndex(depOverrides) {
  * is what the withdrawal gate ("held ≥ 48h") counts from; when the RPC cannot
  * serve the block we fall back to the sync time rather than stall the index.
  */
+// Сколько блоков опрашиваем одновременно. Окно минта — сотни уникальных
+// блоков; по одному в очередь это ~50 с на прогон крона, впритык к лимиту
+// функции. Восемь параллельных запросов публичный RPC держит спокойно.
+const BLOCK_TIME_CONCURRENCY = Math.max(1, Math.floor(Number(process.env.NFT_BLOCK_TIME_CONCURRENCY) || 8));
+
 async function resolveBlockTimes(transfers, deps) {
   const times = new Map();
   const fallback = new Date(deps.now()).toISOString();
   const blocks = [...new Set(transfers.map((transfer) => Number(transfer.blockNumber)))];
-  for (const block of blocks) {
-    let at = null;
-    if (typeof deps.chain.getBlockTimestamp === "function") {
-      try {
-        const ms = await deps.chain.getBlockTimestamp(block);
-        if (Number.isFinite(Number(ms)) && Number(ms) > 0) at = new Date(Number(ms)).toISOString();
-      } catch (error) {
-        at = null;
+  const canRead = typeof deps.chain.getBlockTimestamp === "function";
+
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < blocks.length) {
+      const block = blocks[cursor++];
+      let at = null;
+      if (canRead) {
+        try {
+          const ms = await deps.chain.getBlockTimestamp(block);
+          if (Number.isFinite(Number(ms)) && Number(ms) > 0) at = new Date(Number(ms)).toISOString();
+        } catch (error) {
+          at = null;
+        }
       }
+      times.set(block, at || fallback);
     }
-    times.set(block, at || fallback);
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(BLOCK_TIME_CONCURRENCY, blocks.length) }, worker));
   return times;
 }
 
