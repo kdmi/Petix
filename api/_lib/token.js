@@ -300,7 +300,7 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
   let rpcDegraded = false;
   try {
     const snapshot = await deps.chain.getTreasurySnapshot();
-    treasury = { available: fromBaseUnits(snapshot.tokensRaw, env.decimals) };
+    treasury = { available: fromBaseUnits(snapshot.availableRaw ?? snapshot.tokensRaw, env.decimals) };
   } catch (error) {
     rpcDegraded = true;
   }
@@ -308,7 +308,7 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
   return {
     ...base,
     deposit: {
-      address: env.treasuryAddress,
+      address: env.depositAddress,
       tokenContract: env.contract,
       confirmations: env.confirmations,
     },
@@ -389,7 +389,8 @@ async function requestWithdraw(wallet, amountPoints, depOverrides, { isAdmin = f
   } catch (error) {
     throw mapChainError(error);
   }
-  if (BigInt(treasury.tokensRaw) < BigInt(amountRaw)) {
+  // With a payout source this is min(source balance, allowance granted to the operator).
+  if (BigInt(treasury.availableRaw ?? treasury.tokensRaw) < BigInt(amountRaw)) {
     throw fail(503, "Withdrawal pool is temporarily empty. Try again later.", "INSUFFICIENT_TREASURY");
   }
   const minGasWei = BigInt(Math.round(Number(env.minGasEth) * 1e9)) * 10n ** 9n;
@@ -449,7 +450,12 @@ async function requestWithdraw(wallet, amountPoints, depOverrides, { isAdmin = f
 
   const sentAt = deps.now();
   await deps.profiles.updateWalletProfile(wallet, (profile) => {
-    attachTx(profile, recordId, { txHash: sent.txHash, nonce: sent.nonce, treasury: treasury.address, now: sentAt });
+    attachTx(profile, recordId, {
+      txHash: sent.txHash,
+      nonce: sent.nonce,
+      treasury: sent.from || treasury.sourceAddress || treasury.address,
+      now: sentAt,
+    });
     return profile;
   });
   await deps.tokenStore.withTokenState((state) => {
@@ -601,6 +607,16 @@ async function reconcileWalletUnsettled(wallet, depOverrides) {
 // Deposit (plain ERC-20 transfer to the treasury address)
 // ---------------------------------------------------------------------------
 
+/** Operator, payout source and TOKEN_INTERNAL_WALLETS: their transfers are never deposits. */
+function isProjectWallet(env, address) {
+  const value = String(address || "").toLowerCase();
+  return (
+    env.internalWallets.includes(value) ||
+    value === env.treasuryAddress ||
+    (env.payoutSource && value === env.payoutSource)
+  );
+}
+
 function assertDepositAccess(env, wallet, cfg, isAdmin) {
   if (!env.enabled) throw fail(404, "Token features are disabled.", "TOKEN_DISABLED");
   if (!isLikelyEvmAddress(wallet)) throw fail(403, "Deposits require an EVM wallet.", "EVM_ONLY");
@@ -623,12 +639,12 @@ async function prepareDeposit(wallet, amountTokens, depOverrides, { isAdmin = fa
   }
   const amountRaw = toBaseUnits(amount, env.decimals);
   return {
-    address: env.treasuryAddress,
+    address: env.depositAddress,
     tokenContract: env.contract,
     amount,
     amountRaw,
     confirmations: env.confirmations,
-    tx: deps.chain.encodeTransferTx(env.treasuryAddress, amountRaw),
+    tx: deps.chain.encodeTransferTx(env.depositAddress, amountRaw),
   };
 }
 
@@ -702,7 +718,7 @@ async function confirmDeposit(wallet, txHash, depOverrides) {
   const hash = String(txHash || "").trim().toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(hash)) throw fail(400, "txHash is invalid.", "BAD_REQUEST");
   const sender = String(wallet).toLowerCase();
-  if (env.internalWallets.includes(sender)) {
+  if (isProjectWallet(env, sender)) {
     throw fail(400, "Project wallets cannot deposit.", "BAD_REQUEST");
   }
 
@@ -718,7 +734,7 @@ async function confirmDeposit(wallet, txHash, depOverrides) {
   const matching = (receipt.logs || []).filter(
     (log) =>
       String(log.address || "").toLowerCase() === env.contract &&
-      String(log.to || "").toLowerCase() === env.treasuryAddress &&
+      String(log.to || "").toLowerCase() === env.depositAddress &&
       String(log.from || "").toLowerCase() === sender
   );
   if (!matching.length) {
@@ -775,7 +791,7 @@ async function syncDeposits(depOverrides) {
   // Cursor belongs to (treasury, token); a change resets it.
   const state = await deps.tokenStore.withTokenState((current) => {
     deps.tokenStore.resetIfChanged(current, {
-      treasury: env.treasuryAddress,
+      treasury: env.depositAddress,
       token: env.contract,
       startBlock: env.startBlock,
     });
@@ -817,7 +833,7 @@ async function syncDeposits(depOverrides) {
   for (const transfer of scan.transfers) {
     const from = String(transfer.from || "").toLowerCase();
     if (!isLikelyEvmAddress(from)) continue;
-    if (env.internalWallets.includes(from) || from === env.treasuryAddress) {
+    if (isProjectWallet(env, from)) {
       result.skippedInternal += 1;
       continue;
     }
@@ -967,22 +983,32 @@ async function adminStats(depOverrides) {
 
   let treasury = {
     address: env.treasuryAddress,
+    source: env.payoutSource,
+    depositAddress: env.depositAddress,
     tokens: null,
+    allowance: null,
     eth: null,
     lowGas: false,
     lowTokens: false,
+    lowAllowance: false,
   };
   let rpcDegraded = false;
   try {
     const snapshot = await deps.chain.getTreasurySnapshot();
     const tokens = fromBaseUnits(snapshot.tokensRaw, env.decimals);
+    const allowance = snapshot.allowanceRaw == null ? null : fromBaseUnits(snapshot.allowanceRaw, env.decimals);
     const eth = formatEthFromWei(snapshot.ethWei);
     treasury = {
       address: env.treasuryAddress,
+      source: env.payoutSource,
+      depositAddress: env.depositAddress,
       tokens,
+      allowance,
+      available: fromBaseUnits(snapshot.availableRaw ?? snapshot.tokensRaw, env.decimals),
       eth,
       lowGas: Number(eth) < LOW_GAS_ETH,
       lowTokens: Number(tokens) < paidLast7Days,
+      lowAllowance: allowance != null && Number(allowance) < paidLast7Days,
       nonceLatest: snapshot.nonceLatest,
       noncePending: snapshot.noncePending,
     };

@@ -10284,7 +10284,8 @@ function renderAdminTokenBlock(statCard) {
   const warnings = [];
   if (t.rpcDegraded) warnings.push("RPC unavailable — balances are stale or unknown.");
   if (t.treasury.lowGas) warnings.push("Treasury ETH is low — top up gas for payouts.");
-  if (t.treasury.lowTokens) warnings.push("Treasury tokens are below the last 7 days of payouts — top up from the cold wallet.");
+  if (t.treasury.lowTokens) warnings.push("Pool balance is below the last 7 days of payouts — top up the launch wallet.");
+  if (t.treasury.lowAllowance) warnings.push("Operator allowance is below the last 7 days of payouts — renew approve() from the launch wallet.");
   if (t.sync && t.sync.lastError) warnings.push(`Last sync error: ${t.sync.lastError}`);
   const journal = Array.isArray(t.recent) ? t.recent.slice(0, 30) : [];
   const rows = journal.length
@@ -10308,9 +10309,12 @@ function renderAdminTokenBlock(statCard) {
   return `
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">$PETIX treasury</h3>
-        <p style="margin:0 0 10px;font-family:monospace;font-size:12px;color:#475467;" title="${escapeHtml(t.treasury.address || "")}">Treasury: ${escapeHtml(t.treasury.address || "")}</p>
+        <p style="margin:0 0 4px;font-family:monospace;font-size:12px;color:#475467;">Operator (gas + signing): ${escapeHtml(t.treasury.address || "")}</p>
+        ${t.treasury.source ? `<p style="margin:0 0 10px;font-family:monospace;font-size:12px;color:#475467;">Pool &amp; deposits (launch wallet): ${escapeHtml(t.treasury.source)}</p>` : ""}
         <div class="admin-stats-grid">
-          ${statCard("Tokens on treasury", t.treasury.tokens == null ? "?" : formatPoints(Number(t.treasury.tokens)))}
+          ${statCard(t.treasury.source ? "Tokens on launch wallet" : "Tokens on operator", t.treasury.tokens == null ? "?" : formatPoints(Number(t.treasury.tokens)))}
+          ${t.treasury.source ? statCard("Allowance to operator", t.treasury.allowance == null ? "?" : formatPoints(Number(t.treasury.allowance))) : ""}
+          ${statCard("Available to pay", t.treasury.available == null ? "?" : formatPoints(Number(t.treasury.available)))}
           ${statCard("ETH for gas", t.treasury.eth == null ? "?" : t.treasury.eth)}
           ${statCard("Withdrawn today", formatPoints(t.today?.withdrawnPoints))}
           ${statCard("Deposited today", formatPoints(t.today?.depositedPoints))}
@@ -10320,7 +10324,7 @@ function renderAdminTokenBlock(statCard) {
           ${statCard("Last sync", t.sync?.lastRunAt ? new Date(t.sync.lastRunAt).toLocaleTimeString("en-GB", { hour12: false }) : "—")}
         </div>
         ${warnings.length ? `<ul style="margin:10px 0 0;padding-left:18px;color:#b54708;font-size:13px;">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>` : ""}
-        <p style="margin:10px 0 4px;font-size:12px;color:#6b7280;">Limits (max per withdraw, admin-only mode) are edited below; the treasury itself is topped up from the cold wallet.</p>
+        <p style="margin:10px 0 4px;font-size:12px;color:#6b7280;">Limits (max per withdraw, admin-only mode, capsule gate) are edited below. Tokens stay on the launch wallet; renew the operator's allowance with approve() when it runs low.</p>
         <ul style="list-style:none;margin:10px 0 0;padding:0;">
           <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Journal</li>
           ${rows}

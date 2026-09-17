@@ -96,13 +96,14 @@ Runtime-tunable via the admin `economy-config`: `NFT_BIND_LEVEL` (default `1` �
 
 #### $PETIX token: withdraw & deposit (feature 019)
 
-Off by default. Custodial model: the **treasury wallet** sends ERC-20 transfers to players and pays gas (players sign nothing); deposits are plain token transfers **to** the treasury address, credited as Points 1:1. Every address below lives **only in env — never in the repository** (a unit test greps for leaks). See [specs/019-petix-token-evm/quickstart.md](specs/019-petix-token-evm/quickstart.md).
+Off by default. Custodial model: the server-side **operator** pays gas and sends ERC-20 transfers to players from the **launch wallet** within an allowance it was granted (players sign nothing, the launch wallet's key is never on the server); deposits are plain token transfers **to** the launch wallet, credited as Points 1:1. Every address below lives **only in env — never in the repository** (a unit test greps for leaks). See [specs/019-petix-token-evm/quickstart.md](specs/019-petix-token-evm/quickstart.md).
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `TOKEN_ENABLED` | Yes | `1` turns withdraw/deposit on; unset/`0` hides everything (routes answer 404, cron answers `skipped`) |
 | `TOKEN_CONTRACT` | Yes | ERC-20 address of $PETIX (or the neutral test coin while rehearsing) |
-| `TOKEN_TREASURY_SECRET` | Yes | Private key of the hot treasury wallet (a fresh key; holds ~a week of payouts + ETH for gas; the cold pool stays offline) |
+| `TOKEN_TREASURY_SECRET` | Yes | Private key of the server-side **operator** wallet (a fresh key; holds ETH for gas only and signs payouts) |
+| `TOKEN_PAYOUT_SOURCE` | Recommended | The launch wallet that holds the pool and receives deposits. It grants the operator an ERC-20 `approve` (a week of payouts); payouts are `transferFrom` within that allowance, so tokens never leave this wallet except to players. Unset → the operator holds the pool itself |
 | `TOKEN_CHAIN_ID` | Yes | `4663` (Robinhood Chain mainnet) |
 | `TOKEN_RPC_URL` | Yes | Chain RPC (Alchemy recommended); falls back to `NFT_RPC_URL` |
 | `TOKEN_EXPLORER_URL` | Recommended | Blockscout base URL for tx links; falls back to `NFT_EXPLORER_URL` |

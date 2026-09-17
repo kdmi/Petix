@@ -60,6 +60,7 @@ function nonceConflictError() {
 function createFakeChain({
   treasuryAddress = evmWallet("f"),
   tokenContract = evmWallet("c"),
+  payoutSource = null,
   tokens = 1_000_000,
   eth = 1,
   blockNumber = 100,
@@ -73,6 +74,14 @@ function createFakeChain({
       nonceLatest: 7,
       noncePending: 7,
     },
+    // Launch wallet holding the pool + the allowance it granted the operator
+    // (only used when payoutSource is set).
+    source: {
+      address: payoutSource,
+      tokensRaw: BigInt(toRaw(tokens)),
+      allowanceRaw: BigInt(toRaw(tokens)),
+    },
+    depositAddress: payoutSource || treasuryAddress,
     tokenContract,
     chainId,
     blockNumber,
@@ -102,9 +111,16 @@ function createFakeChain({
 
     async getTreasurySnapshot() {
       assertRpc();
+      const usingSource = Boolean(state.source.address);
+      const balance = usingSource ? state.source.tokensRaw : state.treasury.tokensRaw;
+      const allowance = usingSource ? state.source.allowanceRaw : null;
+      const available = allowance == null ? balance : balance < allowance ? balance : allowance;
       return {
         address: state.treasury.address,
-        tokensRaw: state.treasury.tokensRaw.toString(),
+        sourceAddress: state.source.address,
+        tokensRaw: balance.toString(),
+        allowanceRaw: allowance == null ? null : allowance.toString(),
+        availableRaw: available.toString(),
         ethWei: state.treasury.ethWei.toString(),
         nonceLatest: state.treasury.nonceLatest,
         noncePending: state.treasury.noncePending,
@@ -140,9 +156,10 @@ function createFakeChain({
       }
       state.inFlightSends -= 1;
       state.treasury.noncePending += 1;
+      const from = state.source.address || state.treasury.address;
       const txHash = fakeTxHash(`send:${nonce}:${to}:${amountRaw}`);
-      state.sentTxs.push({ txHash, nonce: Number(nonce), to, amountRaw: String(amountRaw) });
-      return { txHash, nonce: Number(nonce) };
+      state.sentTxs.push({ txHash, nonce: Number(nonce), from, to, amountRaw: String(amountRaw) });
+      return { txHash, nonce: Number(nonce), from };
     },
 
     async getReceipt(txHash) {
@@ -193,7 +210,14 @@ function createFakeChain({
       state.receipts.set(txHash, { status, blockNumber: state.blockNumber, logs: [] });
       if (sent) {
         state.treasury.nonceLatest = Math.max(state.treasury.nonceLatest, sent.nonce + 1);
-        if (status === 1) state.treasury.tokensRaw -= BigInt(sent.amountRaw);
+        if (status === 1) {
+          if (state.source.address) {
+            state.source.tokensRaw -= BigInt(sent.amountRaw);
+            state.source.allowanceRaw -= BigInt(sent.amountRaw);
+          } else {
+            state.treasury.tokensRaw -= BigInt(sent.amountRaw);
+          }
+        }
       }
     },
 
@@ -204,26 +228,29 @@ function createFakeChain({
     },
 
     /** A player sends tokens to the treasury; returns the txHash of that transfer. */
-    mineIncoming(from, tokens, { logIndex = 0, txHash = null } = {}) {
+    mineIncoming(from, tokens, { logIndex = 0, txHash = null, to = null } = {}) {
       state.blockNumber += 1;
       const amountRaw = typeof tokens === "string" ? tokens : toRaw(tokens);
       const hash = txHash || fakeTxHash(`in:${from}:${amountRaw}:${state.blockNumber}`);
       const entry = {
         from: String(from).toLowerCase(),
-        to: state.treasury.address,
+        to: String(to || state.depositAddress).toLowerCase(),
         amountRaw,
         txHash: hash,
         logIndex,
         blockNumber: state.blockNumber,
       };
-      state.incoming.push(entry);
+      if (entry.to === state.depositAddress) state.incoming.push(entry);
       state.receipts.set(hash, {
         status: 1,
         blockNumber: state.blockNumber,
         to: state.tokenContract,
         logs: [{ address: state.tokenContract, from: entry.from, to: entry.to, amountRaw, logIndex }],
       });
-      state.treasury.tokensRaw += BigInt(amountRaw);
+      if (entry.to === state.depositAddress) {
+        if (state.source.address) state.source.tokensRaw += BigInt(amountRaw);
+        else state.treasury.tokensRaw += BigInt(amountRaw);
+      }
       return hash;
     },
 
@@ -304,6 +331,7 @@ async function withTokenEnv(run, { env: envOverrides = {}, chain: chainOptions =
     "TOKEN_START_BLOCK",
     "TOKEN_INTERNAL_WALLETS",
     "TOKEN_MIN_GAS_ETH",
+    "TOKEN_PAYOUT_SOURCE",
     "ECONOMY_CONFIG_CACHE_TTL_MS",
   ];
   const originalEnv = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -332,6 +360,7 @@ async function withTokenEnv(run, { env: envOverrides = {}, chain: chainOptions =
     process.env.TOKEN_START_BLOCK = "10";
     process.env.TOKEN_INTERNAL_WALLETS = evmWallet("e");
     process.env.TOKEN_MIN_GAS_ETH = "0.001";
+    delete process.env.TOKEN_PAYOUT_SOURCE;
     for (const [key, value] of Object.entries(envOverrides)) {
       if (value === undefined || value === null) delete process.env[key];
       else process.env[key] = String(value);
@@ -347,6 +376,7 @@ async function withTokenEnv(run, { env: envOverrides = {}, chain: chainOptions =
     const chain = createFakeChain({
       treasuryAddress: tokenChain.getTokenEnv().treasuryAddress || evmWallet("f"),
       tokenContract: process.env.TOKEN_CONTRACT,
+      payoutSource: tokenChain.getTokenEnv().payoutSource,
       ...chainOptions,
     });
     const configOverrides = {};
