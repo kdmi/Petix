@@ -241,7 +241,17 @@ async function loadBlobStateConsistent() {
     const isRecentWrite = Number.isFinite(uploadedMs) && Date.now() - uploadedMs < 60000;
     const attempts = isRecentWrite ? 3 : 1;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const state = await loadBlobStateFromPath(buildVersionPath(contentMd5), { fresh: false });
+      // Версии может не быть: канонический блоб мог быть записан кодом до
+      // content-addressed схемы. На отсутствующий путь Vercel Blob отвечает
+      // 403, а не «не найдено», и раньше эта ошибка вылетала наружу вместо
+      // отката к каноническому блобу — синк падал на ровном месте. Откат
+      // безопасен: запись всё равно защищена CAS по etag.
+      const state = await loadBlobStateFromPath(buildVersionPath(contentMd5), {
+        fresh: false,
+      }).catch((error) => {
+        console.warn(`[nft-store] version blob unavailable: ${error.message}`);
+        return null;
+      });
       if (state) return { state, etag: canonicalEtag };
       if (attempt < attempts - 1) {
         await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
