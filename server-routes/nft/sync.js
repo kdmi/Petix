@@ -14,6 +14,18 @@ const { sendDomainError } = require("./_shared");
 //   1. Vercel Cron — GET with `Authorization: Bearer $CRON_SECRET`
 //   2. our own tooling — the internal secret header
 //   3. the dashboard — a regular EVM session
+/** Крон или наша тулза — им можно показать причину падения. */
+function isTrustedCaller(req) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && String(req.headers.authorization || "") === `Bearer ${cronSecret}`) return true;
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  return Boolean(
+    internalSecret &&
+      internalSecret.length >= 24 &&
+      String(req.headers[INTERNAL_AUTH_HEADER] || "") === internalSecret
+  );
+}
+
 function isAuthorized(req) {
   const cronSecret = process.env.CRON_SECRET;
   if (
@@ -80,6 +92,11 @@ module.exports = async (req, res) => {
   } catch (error) {
     if (sendDomainError(res, error)) return;
     console.error("[nft:sync]", error);
-    json(res, 500, { error: "Sync failed." });
+    // Крон и наши скрипты ходят сюда с секретом — им отдаём причину. Логи
+    // Vercel читаются только вживую, а чинить синк приходится по факту.
+    json(res, 500, {
+      error: "Sync failed.",
+      ...(isTrustedCaller(req) ? { detail: error.message, stack: String(error.stack || "").split("\n").slice(0, 4) } : {}),
+    });
   }
 };
