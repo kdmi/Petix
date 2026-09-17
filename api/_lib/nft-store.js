@@ -213,9 +213,22 @@ async function loadLocalState() {
 }
 
 async function loadBlobStateFromPath(pathname, { fresh = true } = {}) {
-  const read = fresh
-    ? getFreshBlob(pathname, { access: "public" })
-    : get(pathname, { access: "public" });
+  // Обход edge-кеша дописывает к пути query-строку. Vercel Blob такой путь
+  // блобом не считает и отвечает 403 — не «не найдено», поэтому раньше
+  // ошибка вылетала наружу и роняла синк. Когда обход не сработал, читаем
+  // тот же блоб обычным get: прочитать устаревшую копию не страшно, запись
+  // всё равно идёт под CAS по etag, а вот падать здесь нельзя.
+  const readFresh = async () => {
+    try {
+      return await getFreshBlob(pathname, { access: "public" });
+    } catch (error) {
+      if (isBlobNotFoundError(error)) return null;
+      console.warn(`[nft-store] cache-busted read failed (${error.message}), reading directly`);
+      return get(pathname, { access: "public" });
+    }
+  };
+
+  const read = fresh ? readFresh() : get(pathname, { access: "public" });
   const blobResult = await read.catch((error) => {
     if (isBlobNotFoundError(error)) return null;
     throw error;
