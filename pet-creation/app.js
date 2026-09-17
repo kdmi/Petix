@@ -1956,7 +1956,9 @@ function ensureWithdrawModal() {
       '</div>' +
       '<div class="withdraw-view hidden" data-view="deposit">' +
         '<div class="withdraw-header">' +
-          '<button class="withdraw-back" type="button" aria-label="Back" data-role="to-form">←</button>' +
+          '<button class="withdraw-close withdraw-back" type="button" aria-label="Back" data-role="to-form">' +
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 4L4 8L8 12M12 8H4" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>' +
+          '</button>' +
           '<span class="withdraw-title">Deposit</span>' +
           '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
         '</div>' +
