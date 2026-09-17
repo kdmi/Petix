@@ -101,9 +101,12 @@ async function main() {
   if (stale.length) {
     console.log("\nотставшие капсулы:");
     for (const row of stale.slice(0, 40)) {
-      const expected = row.expected?.["Capsule Tier"] || "—";
-      const actual = row.actual?.["Capsule Tier"] || "(нет трейта)";
-      console.log(`  #${String(row.tokenId).padEnd(4)} ждём ${expected}, витрина показывает ${actual}`);
+      // Показываем именно те трейты, что расходятся: после ревила это обычно
+      // Capsule Tier, а после посадки питомца — Status (Empty → Occupied).
+      const diffs = Object.entries(row.expected || {})
+        .filter(([key, value]) => (row.actual || {})[key] !== value)
+        .map(([key, value]) => `${key}: ждём ${value}, витрина ${row.actual?.[key] ?? "(нет трейта)"}`);
+      console.log(`  #${String(row.tokenId).padEnd(4)} ${diffs.join("; ") || "трейты совпали, но сверка не сошлась"}`);
     }
     if (stale.length > 40) console.log(`  … и ещё ${stale.length - 40}`);
   }

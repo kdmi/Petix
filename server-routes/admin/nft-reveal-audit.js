@@ -21,7 +21,9 @@ const {
 //   refresh=1 — дополнительно пнуть отставшие токены на перечитывание.
 
 const MAX_RANGE = 50;
-const CONCURRENCY = 8;
+// OpenSea режет чтение при всплесках: с восемью параллельными запросами он
+// переставал отвечать примерно с двухсотого токена. Двумя — доходит до конца.
+const CONCURRENCY = Math.max(1, Math.floor(Number(process.env.NFT_AUDIT_CONCURRENCY) || 2));
 
 function traitsOf(metadata) {
   const out = {};
