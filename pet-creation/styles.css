@@ -8417,3 +8417,221 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
 .success-card-nft-badge--prismatic { background: #ffe1f7; color: #fa49dd; }
 
 
+
+/* === Withdraw modal: token (019) states === */
+.withdraw-explorer,
+.withdraw-solscan {
+  color: #475467;
+  display: block;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.withdraw-explorer:hover,
+.withdraw-solscan:hover {
+  color: #101828;
+  text-decoration: underline;
+}
+
+.withdraw-note {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.withdraw-limits {
+  color: #475467;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 6px 0 10px;
+  text-align: center;
+}
+
+.withdraw-success-badge.is-pending {
+  background: #f79009;
+}
+
+.withdraw-pending {
+  border-top: 1px solid #eaecf0;
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.withdraw-pending-title {
+  color: #344054;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.withdraw-pending-item {
+  align-items: center;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.withdraw-pending-amount {
+  color: #101828;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.withdraw-pending-status {
+  color: #667085;
+  flex: 1;
+  font-size: 12px;
+}
+
+.withdraw-pending-status a {
+  color: #475467;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.withdraw-pending-check {
+  background: #f2f4f7;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #344054;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+}
+
+.withdraw-pending-check:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* === Deposit view (019) === */
+.withdraw-switch {
+  background: none;
+  border: none;
+  color: #475467;
+  cursor: pointer;
+  display: block;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 14px auto 0;
+  text-decoration: underline;
+}
+
+.withdraw-switch:hover {
+  color: #101828;
+}
+
+.withdraw-back {
+  background: #f2f4f7;
+  border: none;
+  border-radius: 50%;
+  color: #344054;
+  cursor: pointer;
+  font-size: 16px;
+  height: 28px;
+  line-height: 28px;
+  width: 28px;
+}
+
+.deposit-lead {
+  color: #344054;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  margin: 4px 0 12px;
+  text-align: center;
+}
+
+.deposit-address {
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.deposit-address code {
+  color: #101828;
+  flex: 1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.deposit-copy {
+  background: #1a1a2e;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.deposit-copy:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.deposit-row {
+  margin-top: 12px;
+}
+
+.deposit-hash {
+  font-size: 12px !important;
+}
+
+.deposit-or {
+  color: #98a2b3;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.deposit-status {
+  color: #344054;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.deposit-warning {
+  border-top: 1px solid #eaecf0;
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  margin-top: 14px;
+  padding-top: 10px;
+  text-align: center;
+}
+
+.withdraw-note-link {
+  color: #b42318;
+  font-weight: 700;
+  text-decoration: underline;
+}

@@ -34,6 +34,10 @@ const EMPTY_STATE = {
   // tokenId → current owner, rebuilt from Transfer logs. Required because
   // OpenSea's ERC721SeaDrop is ERC721A and exposes no tokenOfOwnerByIndex.
   owners: {},
+  // tokenId → { blockNumber, at }: block (and its timestamp) in which the current
+  // owner received the token. Feeds the "held ≥ 48h" withdrawal gate (feature 019).
+  ownedSince: {},
+  ownedSinceBackfilledAt: null,
   startBlock: 0,
   lastSyncedBlock: 0,
   transfers: [],
@@ -133,10 +137,21 @@ function normalizeState(parsed) {
     if (/^0x[0-9a-f]{40}$/.test(normalized)) owners[String(Number(tokenId))] = normalized;
   }
 
+  const ownedSince = {};
+  for (const [tokenId, raw] of Object.entries(parsed.ownedSince || {})) {
+    const blockNumber = Math.floor(Number(raw?.blockNumber));
+    const at = raw?.at ? String(raw.at) : "";
+    if (Number.isFinite(blockNumber) && blockNumber >= 0 && at && Number.isFinite(Date.parse(at))) {
+      ownedSince[String(Number(tokenId))] = { blockNumber, at };
+    }
+  }
+
   return {
     version: EMPTY_STATE.version,
     bindings,
     owners,
+    ownedSince,
+    ownedSinceBackfilledAt: parsed.ownedSinceBackfilledAt ? String(parsed.ownedSinceBackfilledAt) : null,
     startBlock: Math.max(0, Math.floor(Number(parsed.startBlock) || 0)),
     lastSyncedBlock: Math.max(0, Math.floor(Number(parsed.lastSyncedBlock) || 0)),
     transfers: Array.isArray(parsed.transfers)
@@ -343,9 +358,53 @@ async function listTokensOfOwnerFromIndex(wallet) {
     .sort((a, b) => a - b);
 }
 
+const ZERO_ADDRESS = `0x${"0".repeat(40)}`;
+
+/**
+ * Applies one Transfer to the ownership index: owner + the moment the current
+ * owner received the token (`at` = block timestamp ISO; callers fall back to
+ * the sync time when the block cannot be read). Burns clear both.
+ */
+function applyTransferToIndex(state, transfer, at) {
+  const key = String(Number(transfer.tokenId));
+  const to = String(transfer.to || "").toLowerCase();
+  if (!to || to === ZERO_ADDRESS || !/^0x[0-9a-f]{40}$/.test(to)) {
+    delete state.owners[key];
+    delete state.ownedSince[key];
+    return state;
+  }
+  state.owners[key] = to;
+  state.ownedSince[key] = {
+    blockNumber: Math.max(0, Math.floor(Number(transfer.blockNumber) || 0)),
+    at: at ? new Date(at).toISOString() : new Date().toISOString(),
+  };
+  return state;
+}
+
+/** Tokens the wallet holds according to the index, each with its `since` (ISO or null). */
+function holdingsOf(state, wallet) {
+  const target = String(wallet || "").toLowerCase();
+  const tokens = Object.entries(state.owners)
+    .filter(([, owner]) => owner === target)
+    .map(([tokenId]) => ({
+      tokenId: Number(tokenId),
+      since: state.ownedSince[tokenId] ? state.ownedSince[tokenId].at : null,
+    }))
+    .sort((a, b) => a.tokenId - b.tokenId);
+  const known = tokens.map((entry) => entry.since).filter(Boolean).sort();
+  return { tokens, oldestSince: known.length ? known[0] : null };
+}
+
+async function listHoldingsFromIndex(wallet) {
+  return holdingsOf(await readNftState(), wallet);
+}
+
 module.exports = {
   EMPTY_STATE,
   appendTransferEntry,
+  applyTransferToIndex,
+  holdingsOf,
+  listHoldingsFromIndex,
   listTokensOfOwnerFromIndex,
   getBinding,
   getBindingByCharacterId,

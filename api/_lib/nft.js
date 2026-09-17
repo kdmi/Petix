@@ -930,15 +930,107 @@ async function ensureOwnerIndex(depOverrides) {
     return state;
   }
 
+  const blockTimes = await resolveBlockTimes(transfers, deps);
   return deps.store.withNftState((current) => {
     for (const transfer of transfers) {
-      const key = String(transfer.tokenId);
-      if (!transfer.to || /^0x0{40}$/.test(transfer.to)) delete current.owners[key];
-      else current.owners[key] = transfer.to;
+      deps.store.applyTransferToIndex(current, transfer, blockTimes.get(transfer.blockNumber));
     }
     current.lastSyncedBlock = Math.max(current.lastSyncedBlock, toBlock);
     return current;
   });
+}
+
+/**
+ * Block → ISO timestamp for every distinct block in `transfers`. The block time
+ * is what the withdrawal gate ("held ≥ 48h") counts from; when the RPC cannot
+ * serve the block we fall back to the sync time rather than stall the index.
+ */
+async function resolveBlockTimes(transfers, deps) {
+  const times = new Map();
+  const fallback = new Date(deps.now()).toISOString();
+  const blocks = [...new Set(transfers.map((transfer) => Number(transfer.blockNumber)))];
+  for (const block of blocks) {
+    let at = null;
+    if (typeof deps.chain.getBlockTimestamp === "function") {
+      try {
+        const ms = await deps.chain.getBlockTimestamp(block);
+        if (Number.isFinite(Number(ms)) && Number(ms) > 0) at = new Date(Number(ms)).toISOString();
+      } catch (error) {
+        at = null;
+      }
+    }
+    times.set(block, at || fallback);
+  }
+  return times;
+}
+
+/**
+ * Tokens indexed before `ownedSince` existed have an owner but no acquisition
+ * moment. Fill them in from each token's own Transfer history (one indexed
+ * getLogs per token) — at most OWNED_SINCE_BACKFILL_BATCH tokens per run so a
+ * large collection never stretches a cron invocation. The marker is set once
+ * nothing is missing any more.
+ */
+const OWNED_SINCE_BACKFILL_BATCH = Math.max(1, Math.floor(Number(process.env.NFT_OWNED_SINCE_BATCH) || 50));
+
+async function backfillOwnedSince(depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const state = await deps.store.readNftState();
+  if (state.ownedSinceBackfilledAt) return { backfilled: 0, remaining: 0, skipped: true };
+  const missing = Object.keys(state.owners).filter((tokenId) => !state.ownedSince[tokenId]);
+  if (!missing.length) {
+    await deps.store.withNftState((current) => {
+      current.ownedSinceBackfilledAt = new Date(deps.now()).toISOString();
+      return current;
+    });
+    return { backfilled: 0, remaining: 0, skipped: false };
+  }
+
+  const fromBlock = state.startBlock || (await deps.chain.findDeploymentBlock());
+  const batch = missing.slice(0, OWNED_SINCE_BACKFILL_BATCH);
+  const resolved = new Map(); // tokenId → last transfer to the current owner
+  for (const key of batch) {
+    const transfers = await deps.chain.scanTokenTransfers(Number(key), fromBlock);
+    const owner = state.owners[key];
+    const last = [...transfers].reverse().find((transfer) => String(transfer.to || "").toLowerCase() === owner);
+    if (last) resolved.set(key, last);
+  }
+  const blockTimes = await resolveBlockTimes([...resolved.values()], deps);
+  const next = await deps.store.withNftState((current) => {
+    for (const [key, transfer] of resolved) {
+      if (current.owners[key] !== String(transfer.to).toLowerCase()) continue; // moved meanwhile
+      current.ownedSince[key] = { blockNumber: transfer.blockNumber, at: blockTimes.get(transfer.blockNumber) };
+    }
+    // Tokens whose history could not be resolved get the sync time as a floor,
+    // so the marker can settle instead of retrying forever.
+    for (const key of batch) {
+      if (!current.ownedSince[key] && current.owners[key]) {
+        current.ownedSince[key] = { blockNumber: current.lastSyncedBlock, at: new Date(deps.now()).toISOString() };
+      }
+    }
+    const stillMissing = Object.keys(current.owners).filter((tokenId) => !current.ownedSince[tokenId]);
+    if (!stillMissing.length) current.ownedSinceBackfilledAt = new Date(deps.now()).toISOString();
+    return current;
+  });
+  const remaining = Object.keys(next.owners).filter((tokenId) => !next.ownedSince[tokenId]).length;
+  return { backfilled: batch.length, remaining, skipped: false };
+}
+
+/**
+ * Capsules the wallet holds with the moment each arrived — input for the
+ * withdrawal gate. Reads the index only: the per-minute cron keeps it warm, and
+ * a request-path scan of the chain would hang the modal. A never-synced index
+ * is reported as not ready rather than as "no capsules".
+ */
+async function getWalletHoldings(wallet, depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const state = await deps.store.readNftState();
+  if (!state.lastSyncedBlock) {
+    const error = new Error("Capsule index has not synced yet.");
+    error.code = "NFT_INDEX_NOT_READY";
+    throw error;
+  }
+  return deps.store.holdingsOf(state, wallet);
 }
 
 /** Token ids held by the wallet: enumerable contract when available, index otherwise. */
@@ -981,13 +1073,12 @@ async function syncTransfers(depOverrides) {
     touched.set(transfer.tokenId, transfer);
   }
 
-  // Keep the ownership index in step with the same scan.
+  // Keep the ownership index (owner + acquisition block time) in step with the same scan.
   if (transfers.length) {
+    const blockTimes = await resolveBlockTimes(transfers, deps);
     await deps.store.withNftState((current) => {
       for (const transfer of transfers) {
-        const key = String(transfer.tokenId);
-        if (!transfer.to || /^0x0{40}$/.test(transfer.to)) delete current.owners[key];
-        else current.owners[key] = transfer.to;
+        deps.store.applyTransferToIndex(current, transfer, blockTimes.get(transfer.blockNumber));
       }
       return current;
     });
@@ -1033,6 +1124,14 @@ async function syncTransfers(depOverrides) {
   // Досылаем обновления витрины, не доехавшие с первого раза.
   const refreshes = await drainRefreshQueue(deps);
 
+  // Разовый бэкфилл момента получения для капсул, проиндексированных до 019/US7.
+  let ownedSinceBackfill = { backfilled: 0, skipped: true };
+  try {
+    ownedSinceBackfill = await backfillOwnedSince(deps);
+  } catch (error) {
+    errors.push({ tokenId: null, error: `ownedSince backfill: ${error.message}` });
+  }
+
   return {
     scannedFromBlock: fromBlock,
     scannedToBlock: toBlock,
@@ -1041,6 +1140,7 @@ async function syncTransfers(depOverrides) {
     cancelledUnbinds: unbinds.cancelled,
     refreshed: refreshes.refreshed,
     refreshPending: refreshes.pending,
+    ownedSinceBackfilled: ownedSinceBackfill.backfilled,
     errors,
   };
 }
@@ -1491,4 +1591,7 @@ module.exports = {
   snapshotCharacterImage,
   syncTransfers,
   syncWalletSlots,
+  backfillOwnedSince,
+  getWalletHoldings,
+  resolveBlockTimes,
 };

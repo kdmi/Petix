@@ -978,6 +978,8 @@ const state = {
   isAuthenticated: false,
   isAdmin: false,
   withdrawPublic: false, // вывод открыт всем (WITHDRAW_ENABLED=1); иначе попап только у админа
+  withdrawEnabled: false, // /api/token/config.enabled — может ли ИМЕННО этот кошелёк выводить сейчас
+  withdrawReason: null, // почему нельзя: TOKEN_DISABLED | EVM_ONLY | TOKEN_NOT_CONFIGURED | ADMIN_ONLY
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
@@ -1000,6 +1002,7 @@ const state = {
   adminEconomyConfig: null,
   adminEconomyDefaults: null,
   adminEconomyStats: null,
+  adminTokenStats: null, // /api/admin/token-stats (019); null while the flag is off
   isAdminEconomyLoading: false,
   hasLoadedAdminEconomy: false,
   adminEconomyError: "",
@@ -1671,17 +1674,43 @@ function closeWalletModal() {
   walletOverlay.setAttribute("aria-hidden", "true");
 }
 
-// === Withdraw modal (admin-only entry point via the Points balance) ===
-// Visual + interaction parity with the Withdraw.dc.html design. Backend wiring
-// (real withdrawal request) is intentionally not implemented yet — the success
-// view is client-side only.
-// Withdraw limits/fee mirror the runtime economy-config (MIN_WITHDRAW, WITHDRAW_FEE_PCT),
-// fetched from /api/withdraw/config on open. These are only fallbacks until then.
-// The fee line is hidden entirely when the fee is 0.
+// === Withdraw modal ($PETIX on Robinhood Chain, feature 019) ===
+// Custodial model: one request — the server debits Points and the treasury
+// wallet sends the ERC-20 transfer and pays gas. The player signs nothing.
+// Config comes from /api/token/config (min/fee/maxPerTx/enabled/reason/pending);
+// the values below are only fallbacks until it loads.
 const WITHDRAW_MIN_DEFAULT = 200;
 const WITHDRAW_FEE_PCT_DEFAULT = 0;
 const WITHDRAW_TOKEN_SYMBOL = "$PETIX";
-const SOLSCAN_TX_BASE = "https://solscan.io/tx/";
+const WITHDRAW_STATUS_POLL_MS = 3000;
+const WITHDRAW_STATUS_POLL_MAX_MS = 60000;
+const DEPOSIT_CONFIRM_POLL_MS = 4000;
+const DEPOSIT_CONFIRM_MAX_MS = 120000;
+// Public RPCs for wallet_addEthereumChain (only used when the wallet lacks the network).
+const TOKEN_PUBLIC_RPC = {
+  4663: "https://rpc.mainnet.chain.robinhood.com",
+  46630: "https://rpc.testnet.chain.robinhood.com",
+};
+
+const WITHDRAW_ERROR_COPY = {
+  BELOW_MIN: "Minimum withdrawal is {min} Points.",
+  ABOVE_MAX_PER_TX: "Maximum per withdrawal is {maxPerTx} Points right now.",
+  INSUFFICIENT_BALANCE: "Not enough Points.",
+  INSUFFICIENT_TREASURY: "Withdrawal pool is temporarily empty. Try again later.",
+  TREASURY_LOW_GAS: "Withdrawals are paused for a moment (network fee top-up). Try again soon.",
+  BUSY: "Payouts are busy right now. Try again in a moment.",
+  SEND_FAILED: "We couldn't send the payout. Your Points were refunded.",
+  TX_FAILED: "The network rejected the transfer. Your Points were refunded.",
+  RPC_UNAVAILABLE: "The network is unavailable right now. Try again later.",
+  WITHDRAW_ADMIN_ONLY: "Withdrawals are not open yet.",
+  TOKEN_NOT_CONFIGURED: "Withdrawals are not available yet.",
+  TOKEN_DISABLED: "Withdrawals are not available yet.",
+  EVM_ONLY: "Withdrawals are available for EVM wallets only.",
+  NFT_REQUIRED: "Withdrawals are for capsule holders. Keep a Petix capsule on this wallet for {holdHours}h to unlock.",
+  NFT_HOLD_TOO_SHORT: "Your capsule needs to stay on this wallet for {holdHours}h. Withdrawals unlock {eligibleIn}.",
+  NFT_INDEX_UNAVAILABLE: "Capsule ownership can't be verified right now. Try again in a minute.",
+};
+const WITHDRAW_NFT_REASONS = ["NFT_REQUIRED", "NFT_HOLD_TOO_SHORT", "NFT_INDEX_UNAVAILABLE"];
 
 const withdrawState = {
   built: false,
@@ -1693,13 +1722,37 @@ const withdrawState = {
   balance: 0,
   min: WITHDRAW_MIN_DEFAULT,
   feePct: WITHDRAW_FEE_PCT_DEFAULT,
+  maxPerTx: 0,
+  treasuryAvailable: null, // whole tokens the treasury can pay out right now (string | null)
   tokenSymbol: WITHDRAW_TOKEN_SYMBOL,
+  explorerUrl: "",
   enabled: false,
   configured: false,
   configLoaded: false,
-  busy: false, // транзакция в процессе (подпись/отправка/подтверждение)
+  reason: null,
+  nft: null, // { required, holdHours, held, oldestSince, eligibleAt, eligible, marketplaceUrl }
+  pending: [], // unsettled withdrawals from /api/token/config
+  busy: false, // request in flight
   errorMessage: "",
-  lastSignature: "",
+  lastId: "",
+  lastTxHash: "",
+  lastStatus: "", // "confirmed" | "sent"
+  pollTimer: null,
+  pollStartedAt: 0,
+  // deposit view
+  depositAddress: "",
+  depositConfirmations: 12,
+  chainId: 0,
+  chainIdHex: "",
+  chainName: "Robinhood Chain",
+  currencySymbol: "ETH",
+  depositAmountText: "100",
+  depositBusy: false,
+  depositMessage: "",
+  depositError: "",
+  depositTxHash: "",
+  depositTimer: null,
+  depositStartedAt: 0,
   refs: null,
   pointerMove: null,
   pointerUp: null,
@@ -1717,35 +1770,90 @@ function withdrawFeePct() {
   return Math.max(0, Number(withdrawState.feePct) || 0);
 }
 
-// Pull live withdraw settings from /api/withdraw/config (доступно любому авторизованному):
-// { enabled, configured, min, feePct, tokenSymbol, decimals }.
+function withdrawExplorerTxUrl(txHash) {
+  if (!txHash || !withdrawState.explorerUrl) return "";
+  return withdrawState.explorerUrl.replace(/\/+$/, "") + "/tx/" + txHash;
+}
+
+function withdrawEligibleIn(eligibleAt) {
+  const target = Date.parse(eligibleAt || "");
+  if (!Number.isFinite(target)) return "later";
+  const diff = target - Date.now();
+  if (diff <= 0) return "now — refresh the page";
+  const totalMinutes = Math.ceil(diff / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const when = new Date(target).toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
+  return `in ${hours ? hours + "h " : ""}${minutes}m (${when})`;
+}
+
+function withdrawErrorText(error) {
+  const code = error && error.code;
+  const template = code && WITHDRAW_ERROR_COPY[code];
+  if (!template) return (error && error.message) || "Withdrawal failed.";
+  const nft = withdrawState.nft || {};
+  return template
+    .replace("{min}", formatWithdrawNumber(withdrawMin()))
+    .replace("{maxPerTx}", formatWithdrawNumber(withdrawState.maxPerTx))
+    .replace("{holdHours}", String((error && error.holdHours) || nft.holdHours || 48))
+    .replace("{eligibleIn}", withdrawEligibleIn((error && error.eligibleAt) || nft.eligibleAt));
+}
+
+// Apply /api/token/config: { enabled, public, configured, isAdmin, reason, min, feePct,
+// maxPerTx, tokenSymbol, chain:{explorerUrl}, treasury:{available}, pending:[], balance }.
 function applyWithdrawConfig(config) {
   if (!config || typeof config !== "object") return;
-  if (Number.isFinite(Number(config.min))) {
-    withdrawState.min = Math.max(0, Math.floor(Number(config.min)));
-  }
-  if (Number.isFinite(Number(config.feePct))) {
-    withdrawState.feePct = Math.max(0, Number(config.feePct));
-  }
+  if (Number.isFinite(Number(config.min))) withdrawState.min = Math.max(0, Math.floor(Number(config.min)));
+  if (Number.isFinite(Number(config.feePct))) withdrawState.feePct = Math.max(0, Number(config.feePct));
+  if (Number.isFinite(Number(config.maxPerTx))) withdrawState.maxPerTx = Math.max(0, Math.floor(Number(config.maxPerTx)));
   if (typeof config.enabled === "boolean") withdrawState.enabled = config.enabled;
   if (typeof config.configured === "boolean") withdrawState.configured = config.configured;
+  withdrawState.reason = config.reason || null;
+  withdrawState.nft = config.nft && typeof config.nft === "object" ? config.nft : null;
   if (config.tokenSymbol) withdrawState.tokenSymbol = String(config.tokenSymbol);
+  if (config.chain && config.chain.explorerUrl) withdrawState.explorerUrl = String(config.chain.explorerUrl);
+  if (config.chain) {
+    withdrawState.chainId = Number(config.chain.chainId) || withdrawState.chainId;
+    withdrawState.chainIdHex = config.chain.chainIdHex || withdrawState.chainIdHex;
+    withdrawState.chainName = config.chain.name || withdrawState.chainName;
+    withdrawState.currencySymbol = config.chain.currencySymbol || withdrawState.currencySymbol;
+  }
+  withdrawState.depositAddress = config.deposit && config.deposit.address ? String(config.deposit.address) : "";
+  if (config.deposit && Number.isFinite(Number(config.deposit.confirmations))) {
+    withdrawState.depositConfirmations = Number(config.deposit.confirmations);
+  }
+  withdrawState.treasuryAvailable =
+    config.treasury && config.treasury.available != null ? String(config.treasury.available) : null;
+  withdrawState.pending = Array.isArray(config.pending) ? config.pending : [];
+  if (typeof config.balance === "number") {
+    withdrawState.balance = Math.max(0, Math.floor(config.balance));
+    if (state.currency) state.currency.balance = config.balance;
+  }
 }
 
 async function refreshWithdrawConfig() {
+  if (!state.isAuthenticated) return;
   try {
-    const res = await apiRequest("/api/withdraw/config", {}, "GET");
+    const res = await apiRequest("/api/token/config", {}, "GET");
     applyWithdrawConfig(res);
     withdrawState.configLoaded = true;
     state.withdrawPublic = Boolean(res && res.public);
-    // Публичность могла измениться → обновить кликабельность баланса в шапке.
-    updateDashboardPointsUi();
-    if (withdrawState.open && withdrawState.view === "form") {
-      // Re-clamp the current amount into the (possibly new) min/max bounds.
-      setWithdrawAmount(withdrawState.amount);
-    }
-  } catch {
-    // Keep whatever min/fee we already have (cached or defaults) — non-fatal.
+    state.withdrawEnabled = Boolean(res && res.enabled);
+    state.withdrawReason = (res && res.reason) || null;
+  } catch (error) {
+    // 404 TOKEN_DISABLED (feature flag off) or any failure: hide the entry point.
+    withdrawState.enabled = false;
+    withdrawState.configured = false;
+    withdrawState.configLoaded = true;
+    withdrawState.reason = (error && error.code) || "TOKEN_DISABLED";
+    state.withdrawPublic = false;
+    state.withdrawEnabled = false;
+    state.withdrawReason = withdrawState.reason;
+  }
+  updateDashboardPointsUi();
+  if (withdrawState.open && withdrawState.view === "form") {
+    setWithdrawAmount(withdrawState.amount);
+    renderWithdrawPending();
   }
 }
 
@@ -1753,8 +1861,15 @@ function formatWithdrawNumber(value) {
   return Math.round(Math.max(0, Number(value) || 0)).toLocaleString("en-US");
 }
 
+// Max = balance, capped by the per-tx limit and by what the treasury can pay right now.
 function withdrawMax() {
-  return Math.max(0, Math.floor(withdrawState.balance || 0));
+  let max = Math.max(0, Math.floor(withdrawState.balance || 0));
+  if (withdrawState.maxPerTx > 0) max = Math.min(max, withdrawState.maxPerTx);
+  const available = Number(withdrawState.treasuryAvailable);
+  if (withdrawState.treasuryAvailable != null && Number.isFinite(available)) {
+    max = Math.min(max, Math.max(0, Math.floor(available)));
+  }
+  return max;
 }
 
 function clampWithdraw(value) {
@@ -1820,9 +1935,39 @@ function ensureWithdrawModal() {
             '<div class="withdraw-slider-handle" data-role="handle"></div>' +
           '</div>' +
         '</div>' +
+        '<div class="withdraw-limits hidden" data-role="limits"></div>' +
         '<button class="withdraw-submit" type="button" data-role="submit">Withdraw</button>' +
+        '<div class="withdraw-note" data-role="note">Network fee is on us — nothing to confirm in your wallet.</div>' +
         '<div class="withdraw-error hidden" data-role="error" role="alert"></div>' +
         '<div class="withdraw-fee hidden" data-role="fee-wrap"><span data-role="fee"></span></div>' +
+        '<div class="withdraw-pending hidden" data-role="pending"></div>' +
+        '<button class="withdraw-switch hidden" type="button" data-role="to-deposit">Deposit $PETIX → get Points</button>' +
+      '</div>' +
+      '<div class="withdraw-view hidden" data-view="deposit">' +
+        '<div class="withdraw-header">' +
+          '<button class="withdraw-back" type="button" aria-label="Back" data-role="to-form">←</button>' +
+          '<span class="withdraw-title">Deposit</span>' +
+          '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+        '</div>' +
+        '<p class="deposit-lead">Send <span data-role="deposit-symbol">$PETIX</span> to this address from <strong>the wallet you signed in with</strong>. Whole tokens become Points 1:1.</p>' +
+        '<div class="deposit-address">' +
+          '<code data-role="deposit-address">—</code>' +
+          '<button class="deposit-copy" type="button" data-role="deposit-copy">Copy</button>' +
+        '</div>' +
+        '<div class="withdraw-input deposit-row">' +
+          '<input class="withdraw-input-field" type="text" inputmode="numeric" placeholder="100" data-role="deposit-amount" aria-label="Deposit amount" />' +
+          '<span class="withdraw-input-symbol" data-role="deposit-symbol-2">$PETIX</span>' +
+        '</div>' +
+        '<button class="withdraw-submit" type="button" data-role="deposit-send">Send from wallet</button>' +
+        '<div class="deposit-or">or paste the transaction hash if you sent manually</div>' +
+        '<div class="withdraw-input deposit-row">' +
+          '<input class="withdraw-input-field deposit-hash" type="text" placeholder="0x…" data-role="deposit-hash" aria-label="Transaction hash" />' +
+          '<button class="deposit-copy" type="button" data-role="deposit-check">Check</button>' +
+        '</div>' +
+        '<div class="deposit-status hidden" data-role="deposit-status"></div>' +
+        '<div class="withdraw-error hidden" data-role="deposit-error" role="alert"></div>' +
+        '<a class="withdraw-explorer hidden" data-role="deposit-explorer" target="_blank" rel="noopener noreferrer">View on Blockscout ↗</a>' +
+        '<div class="deposit-warning">Only transfers from your signed-in wallet count. Transfers from exchanges or other wallets are credited to the sender, not to you. Fractions of a token are ignored.</div>' +
       '</div>' +
       '<div class="withdraw-view hidden" data-view="success">' +
         '<div class="withdraw-header">' +
@@ -1830,16 +1975,16 @@ function ensureWithdrawModal() {
           '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
         '</div>' +
         '<div class="withdraw-success">' +
-          '<div class="withdraw-success-badge">' +
+          '<div class="withdraw-success-badge" data-role="success-badge">' +
             '<svg width="38" height="38" viewBox="0 0 38 38" fill="none"><path d="M9 19.5 L16 26.5 L29 12" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>' +
           '</div>' +
-          '<span class="withdraw-success-title">Success!</span>' +
-          '<span class="withdraw-success-sub">You withdrew</span>' +
+          '<span class="withdraw-success-title" data-role="success-title">Success!</span>' +
+          '<span class="withdraw-success-sub" data-role="success-sub">You withdrew</span>' +
           '<span class="withdraw-success-amount" data-role="success-amount">0 $PETIX</span>' +
         '</div>' +
-        '<a class="withdraw-solscan hidden" data-role="solscan" target="_blank" rel="noopener noreferrer">View on Solscan ↗</a>' +
+        '<a class="withdraw-explorer hidden" data-role="explorer" target="_blank" rel="noopener noreferrer">View on Blockscout ↗</a>' +
         '<button class="withdraw-submit" type="button" data-role="done">Done</button>' +
-        '<div class="withdraw-fee"><span>Funds are on their way to your wallet</span></div>' +
+        '<div class="withdraw-fee"><span data-role="success-note">Funds are on their way to your wallet</span></div>' +
       '</div>' +
     '</section>';
   document.body.appendChild(overlay);
@@ -1856,12 +2001,31 @@ function ensureWithdrawModal() {
     slider: overlay.querySelector('[data-role="slider"]'),
     fill: overlay.querySelector('[data-role="fill"]'),
     handle: overlay.querySelector('[data-role="handle"]'),
+    limits: overlay.querySelector('[data-role="limits"]'),
     submit: overlay.querySelector('[data-role="submit"]'),
+    note: overlay.querySelector('[data-role="note"]'),
     fee: overlay.querySelector('[data-role="fee"]'),
     feeWrap: overlay.querySelector('[data-role="fee-wrap"]'),
     error: overlay.querySelector('[data-role="error"]'),
+    pending: overlay.querySelector('[data-role="pending"]'),
+    successBadge: overlay.querySelector('[data-role="success-badge"]'),
+    successTitle: overlay.querySelector('[data-role="success-title"]'),
+    successSub: overlay.querySelector('[data-role="success-sub"]'),
     successAmount: overlay.querySelector('[data-role="success-amount"]'),
-    solscan: overlay.querySelector('[data-role="solscan"]'),
+    successNote: overlay.querySelector('[data-role="success-note"]'),
+    explorer: overlay.querySelector('[data-role="explorer"]'),
+    toDeposit: overlay.querySelector('[data-role="to-deposit"]'),
+    depositView: overlay.querySelector('[data-view="deposit"]'),
+    depositAddress: overlay.querySelector('[data-role="deposit-address"]'),
+    depositCopy: overlay.querySelector('[data-role="deposit-copy"]'),
+    depositAmount: overlay.querySelector('[data-role="deposit-amount"]'),
+    depositSend: overlay.querySelector('[data-role="deposit-send"]'),
+    depositHash: overlay.querySelector('[data-role="deposit-hash"]'),
+    depositCheck: overlay.querySelector('[data-role="deposit-check"]'),
+    depositStatus: overlay.querySelector('[data-role="deposit-status"]'),
+    depositError: overlay.querySelector('[data-role="deposit-error"]'),
+    depositExplorer: overlay.querySelector('[data-role="deposit-explorer"]'),
+    depositSymbols: overlay.querySelectorAll('[data-role="deposit-symbol"], [data-role="deposit-symbol-2"]'),
   };
   withdrawState.refs = refs;
   withdrawState.built = true;
@@ -1889,6 +2053,25 @@ function ensureWithdrawModal() {
   });
   refs.slider.addEventListener("pointerdown", onWithdrawSliderDown);
   refs.slider.addEventListener("keydown", onWithdrawSliderKey);
+  refs.pending.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-withdraw-id]");
+    if (!button) return;
+    void checkPendingWithdrawal(button.getAttribute("data-withdraw-id"), button);
+  });
+  refs.toDeposit.addEventListener("click", openDepositView);
+  overlay.querySelector('[data-role="to-form"]').addEventListener("click", () => {
+    stopDepositPolling();
+    withdrawState.view = "form";
+    showWithdrawView();
+    renderWithdrawForm();
+  });
+  refs.depositCopy.addEventListener("click", onDepositCopy);
+  refs.depositSend.addEventListener("click", onDepositSend);
+  refs.depositCheck.addEventListener("click", onDepositCheck);
+  refs.depositAmount.addEventListener("input", (event) => {
+    withdrawState.depositAmountText = (event.target.value || "").replace(/[^0-9]/g, "");
+    event.target.value = withdrawState.depositAmountText;
+  });
 
   return refs;
 }
@@ -1946,7 +2129,7 @@ function renderWithdrawForm(options = {}) {
   const position = `calc(${ratio} * (100% - 20px) + 10px)`;
   const allowed = amount >= min && amount <= max && withdrawState.enabled && !withdrawState.busy;
 
-  refs.balance.textContent = formatWithdrawNumber(max);
+  refs.balance.textContent = formatWithdrawNumber(withdrawState.balance);
   refs.symbol.textContent = withdrawTokenSymbol();
   if (!options.skipInput) refs.input.value = withdrawState.inputText;
   refs.input.disabled = withdrawState.busy;
@@ -1957,24 +2140,54 @@ function renderWithdrawForm(options = {}) {
   refs.submit.style.opacity = allowed ? "1" : "0.4";
   refs.submit.style.cursor = allowed ? "pointer" : "not-allowed";
   refs.submit.disabled = !allowed;
-  refs.submit.textContent = withdrawState.busy ? "Processing…" : "Withdraw";
+  refs.submit.textContent = withdrawState.busy ? "Sending…" : "Withdraw";
   refs.slider.setAttribute("aria-valuemin", String(min));
   refs.slider.setAttribute("aria-valuemax", String(max));
   refs.slider.setAttribute("aria-valuenow", String(amount));
 
-  // Сообщение: ошибка (приоритет) или причина недоступности.
+  // Limits line: per-tx cap and treasury availability, shown before the request (US4).
+  const limitParts = [];
+  if (withdrawState.maxPerTx > 0) limitParts.push("Max per withdrawal: " + formatWithdrawNumber(withdrawState.maxPerTx));
+  if (withdrawState.treasuryAvailable != null) {
+    limitParts.push("Available today: " + formatWithdrawNumber(withdrawState.treasuryAvailable));
+  }
+  if (refs.limits) {
+    refs.limits.textContent = limitParts.join(" · ");
+    refs.limits.classList.toggle("hidden", limitParts.length === 0);
+  }
+
+  // Message: an error (priority) or the reason withdrawals are unavailable.
   let note = withdrawState.errorMessage;
-  if (!note && withdrawState.configLoaded && !withdrawState.busy) {
-    if (!withdrawState.configured) note = "Withdrawals are not available yet.";
-    else if (!withdrawState.enabled) note = "Withdrawals are temporarily disabled.";
+  let noteLink = null;
+  if (!note && withdrawState.configLoaded && !withdrawState.busy && !withdrawState.enabled) {
+    note = withdrawState.reason
+      ? withdrawErrorText({ code: withdrawState.reason })
+      : "Withdrawals are temporarily disabled.";
+    if (withdrawState.reason === "NFT_REQUIRED" && withdrawState.nft && withdrawState.nft.marketplaceUrl) {
+      noteLink = { href: withdrawState.nft.marketplaceUrl, label: "Get a capsule ↗" };
+    }
   }
   if (refs.error) {
     if (note) {
       refs.error.textContent = note;
+      if (noteLink) {
+        const anchor = document.createElement("a");
+        anchor.href = noteLink.href;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.className = "withdraw-note-link";
+        anchor.textContent = noteLink.label;
+        refs.error.appendChild(document.createTextNode(" "));
+        refs.error.appendChild(anchor);
+      }
       refs.error.classList.remove("hidden");
     } else {
       refs.error.classList.add("hidden");
     }
+  }
+
+  if (refs.toDeposit) {
+    refs.toDeposit.classList.toggle("hidden", !(withdrawState.enabled && withdrawState.depositAddress));
   }
 
   // Fee line follows WITHDRAW_FEE_PCT — when the fee is 0, the line hides.
@@ -1986,30 +2199,149 @@ function renderWithdrawForm(options = {}) {
       refs.feeWrap.classList.add("hidden");
     }
   }
+  renderWithdrawPending();
+}
+
+function withdrawStatusLabel(status) {
+  if (status === "sent") return "Sent — waiting for network confirmation";
+  if (status === "reserved") return "Preparing payout";
+  if (status === "confirmed") return "Confirmed";
+  if (status === "failed" || status === "dropped") return "Refunded";
+  return status || "";
+}
+
+// Unsettled withdrawals (tab closed mid-flight, RPC hiccup…): let the player re-check them.
+function renderWithdrawPending() {
+  const refs = withdrawState.refs;
+  if (!refs || !refs.pending) return;
+  const list = withdrawState.pending || [];
+  if (!list.length) {
+    refs.pending.innerHTML = "";
+    refs.pending.classList.add("hidden");
+    return;
+  }
+  refs.pending.innerHTML =
+    '<div class="withdraw-pending-title">In progress</div>' +
+    list
+      .map((item) => {
+        const link = item.txHash
+          ? '<a href="' + withdrawExplorerTxUrl(item.txHash) + '" target="_blank" rel="noopener noreferrer">tx ↗</a>'
+          : "";
+        return (
+          '<div class="withdraw-pending-item">' +
+            '<span class="withdraw-pending-amount">' + formatWithdrawNumber(item.petixSent || item.points) + " " + withdrawTokenSymbol() + "</span>" +
+            '<span class="withdraw-pending-status">' + withdrawStatusLabel(item.status) + " " + link + "</span>" +
+            '<button type="button" class="withdraw-pending-check" data-withdraw-id="' + item.id + '">Check</button>' +
+          "</div>"
+        );
+      })
+      .join("");
+  refs.pending.classList.remove("hidden");
+}
+
+async function checkPendingWithdrawal(id, button) {
+  if (!id) return;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Checking…";
+  }
+  try {
+    const res = await apiRequest("/api/token/withdraw-status", { id });
+    if (typeof res.balance === "number") {
+      withdrawState.balance = res.balance;
+      if (state.currency) state.currency.balance = res.balance;
+      updateDashboardPointsUi();
+    }
+    withdrawState.pending = (withdrawState.pending || [])
+      .map((item) => (item.id === id ? { ...item, status: res.status, txHash: res.txHash || item.txHash } : item))
+      .filter((item) => item.status === "sent" || item.status === "reserved");
+    withdrawState.errorMessage =
+      res.status === "failed" || res.status === "dropped"
+        ? "That payout didn't go through — your Points were refunded."
+        : "";
+    setWithdrawAmount(withdrawState.amount);
+  } catch (error) {
+    withdrawState.errorMessage = withdrawErrorText(error);
+    renderWithdrawForm();
+  }
 }
 
 function showWithdrawView() {
   const refs = withdrawState.refs;
   if (!refs) return;
-  const isSuccess = withdrawState.view === "success";
-  refs.formView.classList.toggle("hidden", isSuccess);
+  const view = withdrawState.view;
+  const isSuccess = view === "success";
+  refs.formView.classList.toggle("hidden", view !== "form");
+  refs.depositView.classList.toggle("hidden", view !== "deposit");
   refs.successView.classList.toggle("hidden", !isSuccess);
-  if (isSuccess) {
-    refs.successAmount.textContent =
-      formatWithdrawNumber(withdrawState.withdrawn) + " " + withdrawTokenSymbol();
-    if (refs.solscan) {
-      if (withdrawState.lastSignature) {
-        refs.solscan.href = SOLSCAN_TX_BASE + withdrawState.lastSignature;
-        refs.solscan.classList.remove("hidden");
-      } else {
-        refs.solscan.classList.add("hidden");
-      }
-    }
+  if (view === "deposit") {
+    renderDepositView();
+    return;
+  }
+  if (!isSuccess) return;
+
+  const settled = withdrawState.lastStatus === "confirmed";
+  refs.successTitle.textContent = settled ? "Success!" : "Sent!";
+  refs.successSub.textContent = settled ? "You withdrew" : "On its way";
+  refs.successAmount.textContent = formatWithdrawNumber(withdrawState.withdrawn) + " " + withdrawTokenSymbol();
+  refs.successNote.textContent = settled
+    ? "Funds are in your wallet"
+    : "Waiting for network confirmation — usually a few seconds";
+  refs.successBadge.classList.toggle("is-pending", !settled);
+  const href = withdrawExplorerTxUrl(withdrawState.lastTxHash);
+  if (href) {
+    refs.explorer.href = href;
+    refs.explorer.classList.remove("hidden");
+  } else {
+    refs.explorer.classList.add("hidden");
   }
 }
 
-// Custodial-вывод: один запрос — сервер сам списывает Points и отправляет токены.
-// Игрок ничего не подписывает в кошельке (нет промпта/предупреждения).
+function stopWithdrawPolling() {
+  if (withdrawState.pollTimer) {
+    clearTimeout(withdrawState.pollTimer);
+    withdrawState.pollTimer = null;
+  }
+}
+
+// After a `sent` response: ask the server every few seconds until the network settles it.
+function startWithdrawPolling(id) {
+  stopWithdrawPolling();
+  withdrawState.pollStartedAt = Date.now();
+  const tick = async () => {
+    if (!withdrawState.open || withdrawState.lastId !== id) return;
+    try {
+      const res = await apiRequest("/api/token/withdraw-status", { id });
+      if (typeof res.balance === "number") {
+        withdrawState.balance = res.balance;
+        if (state.currency) state.currency.balance = res.balance;
+        updateDashboardPointsUi();
+      }
+      if (res.status === "confirmed") {
+        withdrawState.lastStatus = "confirmed";
+        withdrawState.lastTxHash = res.txHash || withdrawState.lastTxHash;
+        showWithdrawView();
+        return;
+      }
+      if (res.status === "failed" || res.status === "dropped") {
+        withdrawState.view = "form";
+        withdrawState.errorMessage = "The network rejected the transfer. Your Points were refunded.";
+        showWithdrawView();
+        renderWithdrawForm();
+        return;
+      }
+    } catch (error) {
+      // transient — keep polling until the budget runs out
+    }
+    if (Date.now() - withdrawState.pollStartedAt < WITHDRAW_STATUS_POLL_MAX_MS) {
+      withdrawState.pollTimer = setTimeout(tick, WITHDRAW_STATUS_POLL_MS);
+    }
+  };
+  withdrawState.pollTimer = setTimeout(tick, WITHDRAW_STATUS_POLL_MS);
+}
+
+// Custodial withdrawal: one request — the server debits Points and the treasury
+// sends the tokens. No wallet prompt on the player's side.
 async function onWithdrawSubmit() {
   if (withdrawState.busy) return;
   if (!canWithdraw() || !withdrawState.enabled) return;
@@ -2019,9 +2351,11 @@ async function onWithdrawSubmit() {
   renderWithdrawForm();
 
   try {
-    const res = await apiRequest("/api/withdraw/request", { amount });
+    const res = await apiRequest("/api/token/withdraw-request", { amount });
     withdrawState.withdrawn = res.petixSent || amount;
-    withdrawState.lastSignature = res.signature || "";
+    withdrawState.lastId = res.id || "";
+    withdrawState.lastTxHash = res.txHash || "";
+    withdrawState.lastStatus = res.status === "confirmed" ? "confirmed" : "sent";
     if (typeof res.balance === "number") {
       withdrawState.balance = res.balance;
       if (state.currency) state.currency.balance = res.balance;
@@ -2032,23 +2366,254 @@ async function onWithdrawSubmit() {
     updateDashboardPointsUi();
     withdrawState.view = "success";
     showWithdrawView();
+    if (withdrawState.lastStatus === "sent" && withdrawState.lastId) startWithdrawPolling(withdrawState.lastId);
   } catch (error) {
-    withdrawState.errorMessage = (error && error.message) || "Withdrawal failed.";
+    withdrawState.errorMessage = withdrawErrorText(error);
+    // Refunded-on-failure codes: the balance is back, refresh what we show.
+    if (error && (error.code === "SEND_FAILED" || error.code === "TX_FAILED" || error.code === "BUSY")) {
+      void refreshWithdrawConfig();
+    }
   } finally {
     withdrawState.busy = false;
     if (withdrawState.view !== "success") renderWithdrawForm();
   }
 }
 
+// === Deposit view (plain ERC-20 transfer to the treasury address) ===
+
+function openDepositView() {
+  if (!withdrawState.enabled || !withdrawState.depositAddress) return;
+  stopWithdrawPolling();
+  withdrawState.view = "deposit";
+  withdrawState.depositError = "";
+  withdrawState.depositMessage = "";
+  withdrawState.depositTxHash = "";
+  showWithdrawView();
+}
+
+function renderDepositView() {
+  const refs = withdrawState.refs;
+  if (!refs || !refs.depositView) return;
+  refs.depositAddress.textContent = withdrawState.depositAddress || "—";
+  refs.depositSymbols.forEach((node) => {
+    node.textContent = withdrawTokenSymbol();
+  });
+  refs.depositAmount.value = withdrawState.depositAmountText;
+  refs.depositAmount.disabled = withdrawState.depositBusy;
+  refs.depositSend.disabled = withdrawState.depositBusy;
+  refs.depositSend.textContent = withdrawState.depositBusy ? "Waiting…" : "Send from wallet";
+  refs.depositSend.style.opacity = withdrawState.depositBusy ? "0.6" : "1";
+  refs.depositCheck.disabled = withdrawState.depositBusy;
+  if (withdrawState.depositMessage) {
+    refs.depositStatus.textContent = withdrawState.depositMessage;
+    refs.depositStatus.classList.remove("hidden");
+  } else {
+    refs.depositStatus.classList.add("hidden");
+  }
+  if (withdrawState.depositError) {
+    refs.depositError.textContent = withdrawState.depositError;
+    refs.depositError.classList.remove("hidden");
+  } else {
+    refs.depositError.classList.add("hidden");
+  }
+  const href = withdrawExplorerTxUrl(withdrawState.depositTxHash);
+  if (href) {
+    refs.depositExplorer.href = href;
+    refs.depositExplorer.classList.remove("hidden");
+  } else {
+    refs.depositExplorer.classList.add("hidden");
+  }
+}
+
+async function onDepositCopy() {
+  const address = withdrawState.depositAddress;
+  if (!address) return;
+  try {
+    await navigator.clipboard.writeText(address);
+    withdrawState.depositMessage = "Address copied. Send only from the wallet you signed in with.";
+    withdrawState.depositError = "";
+  } catch (error) {
+    withdrawState.depositError = "Couldn't copy — select the address manually.";
+  }
+  renderDepositView();
+}
+
+// The provider that holds the signed-in address: a live WalletConnect session
+// first, MetaMask otherwise. Refuses to send from any other account.
+async function getActiveEvmProvider() {
+  const wanted = String(state.walletAddress || "").toLowerCase();
+  const candidates = [];
+  if (walletConnectProvider && walletConnectProvider.session) candidates.push(walletConnectProvider);
+  const metamask = getMetaMaskProvider();
+  if (metamask) candidates.push(metamask);
+  for (const provider of candidates) {
+    try {
+      const accounts = await provider.request({ method: "eth_accounts" });
+      if ((accounts || []).some((account) => String(account).toLowerCase() === wanted)) return provider;
+    } catch (error) {
+      // try the next one
+    }
+  }
+  throw new Error("Open the wallet you signed in with and make sure the same account is selected.");
+}
+
+async function ensureWalletChain(provider) {
+  const chainIdHex = withdrawState.chainIdHex;
+  if (!chainIdHex) return;
+  const current = await provider.request({ method: "eth_chainId" }).catch(() => null);
+  if (current && String(current).toLowerCase() === chainIdHex.toLowerCase()) return;
+  try {
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
+  } catch (error) {
+    const code = error && (error.code || (error.data && error.data.originalError && error.data.originalError.code));
+    if (code !== 4902 && !/unrecognized|not added|4902/i.test(String(error && error.message))) throw error;
+    const rpcUrl = TOKEN_PUBLIC_RPC[withdrawState.chainId];
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: chainIdHex,
+          chainName: withdrawState.chainName,
+          nativeCurrency: { name: withdrawState.currencySymbol, symbol: withdrawState.currencySymbol, decimals: 18 },
+          rpcUrls: rpcUrl ? [rpcUrl] : [],
+          blockExplorerUrls: withdrawState.explorerUrl ? [withdrawState.explorerUrl] : [],
+        },
+      ],
+    });
+  }
+}
+
+function depositErrorText(error) {
+  if (!error) return "Deposit failed.";
+  if (error.code === 4001 || /user rejected|denied/i.test(String(error.message))) return "Cancelled in the wallet.";
+  if (/insufficient funds/i.test(String(error.message))) return "Not enough ETH for the network fee in your wallet.";
+  return withdrawErrorText(error);
+}
+
+// "Send from wallet": a plain ERC-20 transfer to the treasury, then confirm by tx hash.
+async function onDepositSend() {
+  if (withdrawState.depositBusy) return;
+  const amount = parseInt(withdrawState.depositAmountText || "0", 10);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    withdrawState.depositError = "Enter a whole number of tokens.";
+    renderDepositView();
+    return;
+  }
+  withdrawState.depositBusy = true;
+  withdrawState.depositError = "";
+  withdrawState.depositTxHash = "";
+  withdrawState.depositMessage = "Preparing the transfer…";
+  renderDepositView();
+  try {
+    const prepared = await apiRequest("/api/token/deposit-prepare", { amount });
+    const provider = await getActiveEvmProvider();
+    withdrawState.depositMessage = "Confirm the network and the transfer in your wallet…";
+    renderDepositView();
+    await ensureWalletChain(provider);
+    const txHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{ from: state.walletAddress, to: prepared.tx.to, data: prepared.tx.data, value: prepared.tx.value }],
+    });
+    withdrawState.depositTxHash = String(txHash || "");
+    withdrawState.depositMessage = "Sent. Waiting for the network to confirm…";
+    renderDepositView();
+    startDepositPolling(withdrawState.depositTxHash);
+  } catch (error) {
+    withdrawState.depositError = depositErrorText(error);
+    withdrawState.depositMessage = "";
+    withdrawState.depositBusy = false;
+    renderDepositView();
+  }
+}
+
+// Manual path: the player transferred by copying the address and pastes the hash.
+async function onDepositCheck() {
+  if (withdrawState.depositBusy) return;
+  const hash = String(withdrawState.refs.depositHash.value || "").trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+    withdrawState.depositError = "That doesn't look like a transaction hash.";
+    renderDepositView();
+    return;
+  }
+  withdrawState.depositBusy = true;
+  withdrawState.depositError = "";
+  withdrawState.depositTxHash = hash;
+  withdrawState.depositMessage = "Checking the transaction…";
+  renderDepositView();
+  startDepositPolling(hash, { immediate: true });
+}
+
+function stopDepositPolling() {
+  if (withdrawState.depositTimer) {
+    clearTimeout(withdrawState.depositTimer);
+    withdrawState.depositTimer = null;
+  }
+  withdrawState.depositBusy = false;
+}
+
+function startDepositPolling(txHash, { immediate = false } = {}) {
+  if (withdrawState.depositTimer) clearTimeout(withdrawState.depositTimer);
+  withdrawState.depositStartedAt = Date.now();
+  const tick = async () => {
+    if (!withdrawState.open || withdrawState.view !== "deposit" || withdrawState.depositTxHash !== txHash) return;
+    let finished = false;
+    try {
+      const res = await apiRequest("/api/token/deposit-confirm", { txHash });
+      if (res.status === "credited" || res.status === "already_credited") {
+        finished = true;
+        if (typeof res.balance === "number") {
+          withdrawState.balance = res.balance;
+          if (state.currency) state.currency.balance = res.balance;
+          updateDashboardPointsUi();
+        }
+        withdrawState.depositMessage =
+          res.status === "credited"
+            ? `Credited: +${formatWithdrawNumber(res.points)} Points. New balance ${formatWithdrawNumber(res.balance)}.`
+            : "This transfer was already credited.";
+      } else {
+        withdrawState.depositMessage = `Waiting for confirmations (${res.confirmations || 0}/${res.required || withdrawState.depositConfirmations})…`;
+      }
+    } catch (error) {
+      if (error && error.code === "NOT_FOUND") {
+        withdrawState.depositMessage = "Transaction not seen by the network yet…";
+      } else {
+        finished = true;
+        withdrawState.depositError = depositErrorText(error);
+        withdrawState.depositMessage = "";
+      }
+    }
+    if (finished) {
+      withdrawState.depositBusy = false;
+      withdrawState.depositTimer = null;
+      renderDepositView();
+      return;
+    }
+    if (Date.now() - withdrawState.depositStartedAt >= DEPOSIT_CONFIRM_MAX_MS) {
+      withdrawState.depositBusy = false;
+      withdrawState.depositTimer = null;
+      withdrawState.depositMessage =
+        "Still confirming. Points will be credited automatically within a few minutes — you can close this window.";
+      renderDepositView();
+      return;
+    }
+    renderDepositView();
+    withdrawState.depositTimer = setTimeout(tick, DEPOSIT_CONFIRM_POLL_MS);
+  };
+  withdrawState.depositTimer = setTimeout(tick, immediate ? 0 : DEPOSIT_CONFIRM_POLL_MS);
+}
+
 function openWithdrawModal() {
-  if (!state.isAdmin && !state.withdrawPublic) return;
+  if (!state.withdrawEnabled && !state.isAdmin && !WITHDRAW_NFT_REASONS.includes(state.withdrawReason)) return;
   ensureWithdrawModal();
   hideWalletMenu();
   withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
   withdrawState.view = "form";
   withdrawState.busy = false;
   withdrawState.errorMessage = "";
-  withdrawState.lastSignature = "";
+  withdrawState.lastId = "";
+  withdrawState.lastTxHash = "";
+  withdrawState.lastStatus = "";
+  stopWithdrawPolling();
   const max = withdrawMax();
   const min = withdrawMin();
   const init = max > min ? Math.round(min + (max - min) * 0.5) : max;
@@ -2065,6 +2630,8 @@ function openWithdrawModal() {
 
 function closeWithdrawModal() {
   if (!withdrawState.refs) return;
+  stopWithdrawPolling();
+  stopDepositPolling();
   withdrawState.open = false;
   withdrawState.view = "form";
   withdrawState.refs.overlay.classList.add("hidden");
@@ -2091,6 +2658,8 @@ function showWalletAuthState() {
   state.isAuthenticated = false;
   state.isAdmin = false;
   state.withdrawPublic = false;
+  state.withdrawEnabled = false;
+  state.withdrawReason = null;
   state.walletAddress = "";
   resetUpgradeSession();
   clearArenaOpponentCache();
@@ -4808,8 +5377,13 @@ function updateDashboardPointsUi() {
   if (valueEl) valueEl.textContent = formatCoins(balance);
   dashboardPoints.classList.toggle("hidden", !state.isAuthenticated);
 
-  // Кликабельный баланс (вход в вывод): админу всегда, остальным — когда вывод открыт всем.
-  const withdrawable = state.isAuthenticated && (state.isAdmin || state.withdrawPublic);
+  // Кликабельный баланс (вход в вывод): только когда /api/token/config говорит enabled
+  // для этого кошелька (флаг включён, EVM-сессия, настроено, админ или вывод открыт всем).
+  // До ответа конфига админ считается допущенным, чтобы не мигала кнопка.
+  const explainable = WITHDRAW_NFT_REASONS.includes(state.withdrawReason);
+  const withdrawable =
+    state.isAuthenticated &&
+    (state.withdrawEnabled || explainable || (state.isAdmin && state.withdrawReason === null));
   dashboardPoints.classList.toggle("is-withdrawable", withdrawable);
   if (withdrawable) {
     dashboardPoints.setAttribute("role", "button");
@@ -4818,7 +5392,11 @@ function updateDashboardPointsUi() {
   } else {
     dashboardPoints.removeAttribute("role");
     dashboardPoints.removeAttribute("tabindex");
-    dashboardPoints.removeAttribute("title");
+    if (state.isAuthenticated && state.withdrawReason === "EVM_ONLY") {
+      dashboardPoints.setAttribute("title", "Withdrawals are available for EVM wallets only");
+    } else {
+      dashboardPoints.removeAttribute("title");
+    }
   }
 }
 
@@ -9652,13 +10230,16 @@ async function loadAdminEconomy({ force = false } = {}) {
   state.adminEconomyError = "";
   renderAdminTable();
   try {
-    const [cfgRes, statsRes] = await Promise.all([
+    const [cfgRes, statsRes, tokenRes] = await Promise.all([
       apiRequest("/api/admin/economy-config", {}, "GET"),
       apiRequest("/api/admin/farm-stats", {}, "GET"),
+      // 404 while TOKEN_ENABLED is off — the block simply stays hidden.
+      apiRequest("/api/admin/token-stats", {}, "GET").catch(() => null),
     ]);
     state.adminEconomyConfig = cfgRes.config || null;
     state.adminEconomyDefaults = cfgRes.defaults || null;
     state.adminEconomyStats = statsRes || null;
+    state.adminTokenStats = tokenRes || null;
     state.hasLoadedAdminEconomy = true;
   } catch (error) {
     state.adminEconomyError = error.message || "Failed to load economy data.";
@@ -9689,6 +10270,62 @@ function ecoSelectRow(label, key, value, options) {
       <select data-eco-key="${key}"
         style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;background:#fff;">${opts}</select>
     </label>`;
+}
+
+// $PETIX treasury block for the admin Economy tab (feature 019, US4). Hidden
+// while /api/admin/token-stats answers 404 (TOKEN_ENABLED off).
+function renderAdminTokenBlock(statCard) {
+  const t = state.adminTokenStats;
+  if (!t || !t.treasury) return "";
+  const shortWallet = (value) => {
+    const text = String(value || "");
+    return text.length > 12 ? `${text.slice(0, 6)}…${text.slice(-4)}` : text;
+  };
+  const warnings = [];
+  if (t.rpcDegraded) warnings.push("RPC unavailable — balances are stale or unknown.");
+  if (t.treasury.lowGas) warnings.push("Treasury ETH is low — top up gas for payouts.");
+  if (t.treasury.lowTokens) warnings.push("Treasury tokens are below the last 7 days of payouts — top up from the cold wallet.");
+  if (t.sync && t.sync.lastError) warnings.push(`Last sync error: ${t.sync.lastError}`);
+  const journal = Array.isArray(t.recent) ? t.recent.slice(0, 30) : [];
+  const rows = journal.length
+    ? journal
+        .map((entry) => {
+          const link = entry.explorerUrl
+            ? `<a href="${escapeHtml(entry.explorerUrl)}" target="_blank" rel="noopener noreferrer" style="color:#475467;">tx ↗</a>`
+            : "";
+          const when = entry.at ? new Date(entry.at).toLocaleString("en-GB", { hour12: false }) : "";
+          return `<li style="display:grid;grid-template-columns:90px 1fr 90px 90px 40px;gap:8px;padding:4px 0;border-bottom:1px solid #eef0f4;font-size:12px;">
+              <span>${escapeHtml(entry.kind)}</span>
+              <span style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(entry.wallet || "")}">${escapeHtml(shortWallet(entry.wallet))}</span>
+              <span>${formatPoints(entry.points)} pts</span>
+              <span>${escapeHtml(entry.status || "")}${entry.reason ? ` (${escapeHtml(entry.reason)})` : ""}</span>
+              <span>${link}</span>
+              <span style="grid-column:1 / -1;color:#98a2b3;">${escapeHtml(when)}</span>
+            </li>`;
+        })
+        .join("")
+    : '<li style="font-size:13px;color:#6b7280;">No token operations yet.</li>';
+  return `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">$PETIX treasury</h3>
+        <p style="margin:0 0 10px;font-family:monospace;font-size:12px;color:#475467;" title="${escapeHtml(t.treasury.address || "")}">Treasury: ${escapeHtml(t.treasury.address || "")}</p>
+        <div class="admin-stats-grid">
+          ${statCard("Tokens on treasury", t.treasury.tokens == null ? "?" : formatPoints(Number(t.treasury.tokens)))}
+          ${statCard("ETH for gas", t.treasury.eth == null ? "?" : t.treasury.eth)}
+          ${statCard("Withdrawn today", formatPoints(t.today?.withdrawnPoints))}
+          ${statCard("Deposited today", formatPoints(t.today?.depositedPoints))}
+          ${statCard("Payouts in flight", `${t.pending?.count ?? 0} / ${formatPoints(t.pending?.points)} pts`)}
+          ${statCard("Paid last 7 days", formatPoints(t.paidLast7Days))}
+          ${statCard("Synced block", t.sync?.lastSyncedBlock ?? 0)}
+          ${statCard("Last sync", t.sync?.lastRunAt ? new Date(t.sync.lastRunAt).toLocaleTimeString("en-GB", { hour12: false }) : "—")}
+        </div>
+        ${warnings.length ? `<ul style="margin:10px 0 0;padding-left:18px;color:#b54708;font-size:13px;">${warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>` : ""}
+        <p style="margin:10px 0 4px;font-size:12px;color:#6b7280;">Limits (max per withdraw, admin-only mode) are edited below; the treasury itself is topped up from the cold wallet.</p>
+        <ul style="list-style:none;margin:10px 0 0;padding:0;">
+          <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Journal</li>
+          ${rows}
+        </ul>
+      </section>`;
 }
 
 function renderAdminEconomy() {
@@ -9749,6 +10386,8 @@ function renderAdminEconomy() {
         </ul>
       </section>
 
+      ${renderAdminTokenBlock(statCard)}
+
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Tunable coefficients</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
@@ -9764,6 +10403,9 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
           ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
           ${ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }])}
+          ${ecoNumberRow("Max per withdraw (0 = off)", "WITHDRAW_MAX_PER_TX", cfg.WITHDRAW_MAX_PER_TX)}
+          ${ecoSelectRow("Require capsule for withdraw", "WITHDRAW_REQUIRE_NFT", cfg.WITHDRAW_REQUIRE_NFT, [{ value: 0, label: "0 — no" }, { value: 1, label: "1 — capsule holders only" }])}
+          ${ecoNumberRow("Capsule hold hours", "WITHDRAW_NFT_HOLD_HOURS", cfg.WITHDRAW_NFT_HOLD_HOURS)}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
@@ -9807,7 +10449,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -10647,7 +11289,7 @@ function init() {
   });
 
   if (dashboardPoints) {
-    const canOpenWithdraw = () => state.isAdmin || state.withdrawPublic;
+    const canOpenWithdraw = () => dashboardPoints.classList.contains("is-withdrawable");
     dashboardPoints.addEventListener("click", () => {
       if (canOpenWithdraw()) openWithdrawModal();
     });

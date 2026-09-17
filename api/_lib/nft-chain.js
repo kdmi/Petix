@@ -167,6 +167,40 @@ function createChainClient(overrides = {}) {
     },
 
     /**
+     * Every Transfer of ONE token since fromBlock (tokenId is an indexed topic,
+     * so this is a single cheap getLogs regardless of collection activity).
+     * Ordered by block. Used by the ownedSince backfill.
+     */
+    async scanTokenTransfers(tokenId, fromBlock) {
+      const target = requireContract();
+      try {
+        const events = await target.queryFilter(target.filters.Transfer(null, null, tokenId), fromBlock, "latest");
+        return events
+          .map((event) => ({
+            tokenId: Number(event.args.tokenId),
+            from: normalizeAddress(event.args.from),
+            to: normalizeAddress(event.args.to),
+            blockNumber: event.blockNumber,
+          }))
+          .sort((a, b) => a.blockNumber - b.blockNumber);
+      } catch (error) {
+        throw rpcUnavailable(error);
+      }
+    },
+
+    /** Block timestamp in ms (null when the block cannot be read). */
+    async getBlockTimestamp(blockNumber) {
+      try {
+        const target = requireContract();
+        const activeProvider = target.runner?.provider || provider;
+        const block = await activeProvider.getBlock(Number(blockNumber));
+        return block && Number.isFinite(Number(block.timestamp)) ? Number(block.timestamp) * 1000 : null;
+      } catch (error) {
+        return null;
+      }
+    },
+
+    /**
      * Block to start the ownership scan from. Binary search over historical
      * eth_getCode is NOT usable here — Robinhood Chain's public RPC keeps no
      * archive state — so walk the contract's own logs backwards instead: the
