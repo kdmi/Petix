@@ -16,6 +16,8 @@ const ERC20_ABI = [
   "function totalSupply() view returns (uint256)",
   "function balanceOf(address owner) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
+  "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
 ];
 
 const problems = [];
@@ -58,6 +60,7 @@ async function main() {
       .map((entry) => entry.trim())
       .filter(Boolean),
     minGasEth: Number(process.env.TOKEN_MIN_GAS_ETH || 0.001),
+    payoutSource: String(process.env.TOKEN_PAYOUT_SOURCE || "").trim(),
   };
   const ethUsd = Number(argValue("--eth-usd")) || 0;
 
@@ -78,10 +81,18 @@ async function main() {
       bad("TOKEN_TREASURY_SECRET не парсится как приватный ключ");
     }
   }
+  if (env.payoutSource) {
+    isAddress(env.payoutSource)
+      ? ok("TOKEN_PAYOUT_SOURCE (кошелёк запуска = хранитель и приёмщик)", env.payoutSource)
+      : bad("TOKEN_PAYOUT_SOURCE не адрес");
+  } else {
+    warn("TOKEN_PAYOUT_SOURCE не задан", "оператор сам хранит монеты — монеты придётся перевести на него");
+  }
   const badInternal = env.internalWallets.filter((entry) => !isAddress(entry));
   if (badInternal.length) bad("TOKEN_INTERNAL_WALLETS содержит не-адреса", badInternal.join(", "));
   else if (env.internalWallets.length) ok("TOKEN_INTERNAL_WALLETS", `${env.internalWallets.length} кошельков`);
-  else warn("TOKEN_INTERNAL_WALLETS пуст", "пополнения раздатчика с холодного кошелька зачтутся ему как ввод");
+  else if (!env.payoutSource) warn("TOKEN_INTERNAL_WALLETS пуст", "пополнения оператора с других своих кошельков зачтутся им как ввод");
+  else ok("TOKEN_INTERNAL_WALLETS пуст", "оператор и кошелёк запуска исключаются из вводов автоматически");
   if (treasury && env.internalWallets.map((w) => w.toLowerCase()).includes(treasury.address.toLowerCase())) {
     warn("раздатчик указан в TOKEN_INTERNAL_WALLETS", "не нужно — его переводы и так игнорируются");
   }
@@ -132,17 +143,32 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\n4. Раздатчик");
+  console.log("\n4. Оператор и источник выплат");
   const signer = treasury.connect(provider);
-  const [tokensRaw, ethWei, nonceLatest, noncePending] = await Promise.all([
-    token.balanceOf(treasury.address),
+  const holder = env.payoutSource || treasury.address;
+  const [tokensRaw, ethWei, nonceLatest, noncePending, allowanceRaw] = await Promise.all([
+    token.balanceOf(holder),
     provider.getBalance(treasury.address),
     provider.getTransactionCount(treasury.address, "latest"),
     provider.getTransactionCount(treasury.address, "pending"),
+    env.payoutSource ? token.allowance(env.payoutSource, treasury.address) : Promise.resolve(null),
   ]);
   const tokens = formatUnits(tokensRaw, decimals);
   const eth = Number(formatEther(ethWei));
-  Number(tokens) > 0 ? ok("Монет на раздатчике", tokens) : bad("На раздатчике нет монет");
+  Number(tokens) > 0
+    ? ok(env.payoutSource ? "Монет на кошельке запуска" : "Монет на операторе", tokens)
+    : bad(env.payoutSource ? "На кошельке запуска нет монет" : "На операторе нет монет");
+  if (env.payoutSource) {
+    const allowance = formatUnits(allowanceRaw, decimals);
+    if (Number(allowance) > 0) {
+      ok("Разрешение оператору (allowance)", `${allowance} — доступно к выплате min(баланс, разрешение) = ${Math.min(Number(tokens), Number(allowance))}`);
+    } else {
+      bad(
+        "Разрешение оператору не выдано",
+        `с кошелька запуска выполнить approve(${treasury.address}, <недельный бюджет>) на контракте монеты`
+      );
+    }
+  }
   eth >= env.minGasEth ? ok("ETH на комиссии", `${eth}`) : bad("ETH ниже TOKEN_MIN_GAS_ETH", `${eth} < ${env.minGasEth}`);
   nonceLatest === noncePending
     ? ok("Nonce", `${nonceLatest} (очередь пуста)`)
@@ -151,7 +177,9 @@ async function main() {
   console.log("\n5. Оценка одного вывода");
   try {
     const amount = parseUnits("1", decimals);
-    const gas = await token.connect(signer).transfer.estimateGas(treasury.address, amount);
+    const gas = env.payoutSource
+      ? await token.connect(signer).transferFrom.estimateGas(env.payoutSource, treasury.address, amount)
+      : await token.connect(signer).transfer.estimateGas(treasury.address, amount);
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.maxFeePerGas || feeData.gasPrice || 0n;
     const costWei = gas * gasPrice;

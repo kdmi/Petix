@@ -8,6 +8,8 @@ const { Contract, Interface, JsonRpcProvider, Wallet, formatEther, id: keccakId,
 
 const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
+  "function transferFrom(address from, address to, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -68,10 +70,16 @@ function getTokenEnv() {
     null;
   const treasuryAddress = deriveTreasuryAddress(process.env.TOKEN_TREASURY_SECRET);
   const contract = normalizeAddress(process.env.TOKEN_CONTRACT);
+  // Decision 2026-09-17: the pool stays on the launch wallet. When TOKEN_PAYOUT_SOURCE
+  // is set, the operator (treasuryAddress) only signs transferFrom() within the
+  // allowance that wallet granted, and deposits are addressed to that wallet too.
+  const payoutSource = normalizeAddress(process.env.TOKEN_PAYOUT_SOURCE);
   return {
     enabled: isTokenEnabled(),
     contract,
     treasuryAddress,
+    payoutSource,
+    depositAddress: payoutSource || treasuryAddress,
     hasTreasurySecret: Boolean(String(process.env.TOKEN_TREASURY_SECRET || "").trim()),
     chainId,
     chainIdHex: chainId ? `0x${chainId.toString(16)}` : null,
@@ -188,21 +196,33 @@ function createChainClient(overrides = {}) {
   return {
     env,
 
-    /** Treasury balances + nonces in one round. Raw values are decimal strings. */
+    /**
+     * Operator ETH + nonces, pool balance and (with a payout source) the allowance.
+     * `availableRaw` is what a payout may actually draw: min(balance, allowance).
+     * Raw values are decimal strings.
+     */
     async getTreasurySnapshot() {
       try {
         const activeProvider = requireProvider();
         const contract = requireContract();
         const address = env.treasuryAddress;
-        const [tokensRaw, ethWei, nonceLatest, noncePending] = await Promise.all([
-          contract.balanceOf(address),
+        const holder = env.payoutSource || address;
+        const [tokensRaw, ethWei, nonceLatest, noncePending, allowanceRaw] = await Promise.all([
+          contract.balanceOf(holder),
           activeProvider.getBalance(address),
           activeProvider.getTransactionCount(address, "latest"),
           activeProvider.getTransactionCount(address, "pending"),
+          env.payoutSource ? contract.allowance(env.payoutSource, address) : Promise.resolve(null),
         ]);
+        const balance = BigInt(tokensRaw.toString());
+        const allowance = allowanceRaw == null ? null : BigInt(allowanceRaw.toString());
+        const available = allowance == null ? balance : balance < allowance ? balance : allowance;
         return {
           address,
-          tokensRaw: tokensRaw.toString(),
+          sourceAddress: env.payoutSource || null,
+          tokensRaw: balance.toString(),
+          allowanceRaw: allowance == null ? null : allowance.toString(),
+          availableRaw: available.toString(),
           ethWei: ethWei.toString(),
           nonceLatest: Number(nonceLatest),
           noncePending: Number(noncePending),
@@ -216,6 +236,9 @@ function createChainClient(overrides = {}) {
     async estimateTransferGas(to, amountRaw) {
       const contract = requireContract().connect(requireSigner());
       try {
+        if (env.payoutSource) {
+          return await contract.transferFrom.estimateGas(env.payoutSource, to, BigInt(amountRaw));
+        }
         return await contract.transfer.estimateGas(to, BigInt(amountRaw));
       } catch (error) {
         if (error?.code === "CALL_EXCEPTION" || /revert|insufficient/i.test(String(error?.message))) {
@@ -233,8 +256,10 @@ function createChainClient(overrides = {}) {
     async sendTransfer(to, amountRaw, nonce) {
       const contract = requireContract().connect(requireSigner());
       try {
-        const tx = await contract.transfer(to, BigInt(amountRaw), { nonce: Number(nonce) });
-        return { txHash: tx.hash, nonce: Number(tx.nonce) };
+        const tx = env.payoutSource
+          ? await contract.transferFrom(env.payoutSource, to, BigInt(amountRaw), { nonce: Number(nonce) })
+          : await contract.transfer(to, BigInt(amountRaw), { nonce: Number(nonce) });
+        return { txHash: tx.hash, nonce: Number(tx.nonce), from: env.payoutSource || env.treasuryAddress };
       } catch (error) {
         if (isNonceConflict(error)) throw nonceConflict(error);
         if (error?.code === "NETWORK_ERROR" || error?.code === "TIMEOUT" || error?.code === "SERVER_ERROR") {
@@ -272,14 +297,14 @@ function createChainClient(overrides = {}) {
     },
 
     /**
-     * Transfer(to = treasury) events of the token since fromBlock, up to
+     * Transfer(to = deposit address) events of the token since fromBlock, up to
      * latest − confirmations, chunked so public RPCs accept the range.
      * Returns { toBlock, transfers:[{ from, to, amountRaw, txHash, logIndex, blockNumber }] }.
      */
     async scanIncomingTransfers(fromBlock, { maxBlocks = null, confirmations = 0 } = {}) {
       const activeProvider = requireProvider();
-      if (!env.contract || !env.treasuryAddress) {
-        throw new Error("TOKEN_CONTRACT / treasury are not configured.");
+      if (!env.contract || !env.depositAddress) {
+        throw new Error("TOKEN_CONTRACT / deposit address are not configured.");
       }
 
       let toBlock;
@@ -291,7 +316,7 @@ function createChainClient(overrides = {}) {
       if (maxBlocks && toBlock - fromBlock > maxBlocks) toBlock = fromBlock + maxBlocks;
       if (toBlock < fromBlock) return { toBlock: fromBlock - 1, transfers: [] };
 
-      const topics = [TRANSFER_TOPIC, null, zeroPadValue(env.treasuryAddress, 32)];
+      const topics = [TRANSFER_TOPIC, null, zeroPadValue(env.depositAddress, 32)];
       const transfers = [];
       let chunk = Number(process.env.TOKEN_LOG_CHUNK) || 50000;
       let cursor = fromBlock;
@@ -306,7 +331,7 @@ function createChainClient(overrides = {}) {
           });
           for (const log of logs) {
             const decoded = decodeTransferLog(log);
-            if (decoded && decoded.to === env.treasuryAddress) transfers.push(decoded);
+            if (decoded && decoded.to === env.depositAddress) transfers.push(decoded);
           }
           cursor = end + 1;
         } catch (error) {
