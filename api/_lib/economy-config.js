@@ -32,6 +32,10 @@ const DEFAULTS = Object.freeze({
   WITHDRAW_REQUIRE_NFT: 1, // вывод только держателям капсулы коллекции (019/US7); админы освобождены
   WITHDRAW_NFT_HOLD_HOURS: 48, // сколько часов капсула должна непрерывно лежать на кошельке
   POINTS_PER_PETIX: 1,
+  // Рубильник заливки питомцев в капсулы (0=выкл, 1=вкл). По умолчанию выкл:
+  // сперва ревил тиров, и только когда все капсулы доехали до витрины —
+  // открываем заливку из админки, не трогая цепочку.
+  NFT_BIND_ENABLED: 0,
   NFT_BIND_LEVEL: 1, // мин. уровень персонажа для заливки в NFT-слот (016; 1 = порог отключён)
   NFT_MINT_LIMIT: 5, // лимит бесплатного минта слотов на кошелёк (инфо для фронта; on-chain лимит задаётся в контракте)
   NFT_UNBIND_COST: 10000, // цена очистки капсулы (сжигание привязанного персонажа)
@@ -129,6 +133,7 @@ function validateConfigPatch(patch) {
     "WITHDRAW_REQUIRE_NFT",
     "WITHDRAW_NFT_HOLD_HOURS",
     "POINTS_PER_PETIX",
+    "NFT_BIND_ENABLED",
     "NFT_BIND_LEVEL",
     "NFT_MINT_LIMIT",
     "NFT_UNBIND_COST",

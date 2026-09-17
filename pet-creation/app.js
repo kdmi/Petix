@@ -7547,6 +7547,13 @@ function isNftEnabled() {
   return Boolean(state.nft.config?.enabled);
 }
 
+// Заливка питомцев открывается отдельным рубильником: до ревила капсулы видно,
+// но посадить в них никого нельзя. Старый закешированный конфиг поля не знает —
+// undefined трактуем как «закрыто», это безопасная сторона.
+function isNftBindEnabled() {
+  return isNftEnabled() && state.nft.config?.bindEnabled === true;
+}
+
 // The config decides whether the card menu shows "Turn into NFT". Fetching it
 // over the network would make that item pop in a moment after the menu opens,
 // so the last known config is cached and applied on the very first paint.
@@ -7854,7 +7861,7 @@ function pickNftSlot(emptySlots, petName, marketplaceUrl) {
 }
 
 async function bindNftSlotFlow(characterId) {
-  if (!isNftEnabled() || state.nft.busy) return;
+  if (!isNftBindEnabled() || state.nft.busy) return;
   const record = state.characters.find((item) => String(item.id) === String(characterId));
   if (!record) return;
 
@@ -8228,6 +8235,8 @@ function renderCabinet() {
                 </span>
               </button>
           `
+          : !isNftBindEnabled()
+          ? "" // заливка ещё не открыта — пункта меню просто нет
           : `
               <button
                 class="cabinet-card-menu-item"
@@ -10410,6 +10419,7 @@ function renderAdminEconomy() {
           ${ecoNumberRow("Max per withdraw (0 = off)", "WITHDRAW_MAX_PER_TX", cfg.WITHDRAW_MAX_PER_TX)}
           ${ecoSelectRow("Require capsule for withdraw", "WITHDRAW_REQUIRE_NFT", cfg.WITHDRAW_REQUIRE_NFT, [{ value: 0, label: "0 — no" }, { value: 1, label: "1 — capsule holders only" }])}
           ${ecoNumberRow("Capsule hold hours", "WITHDRAW_NFT_HOLD_HOURS", cfg.WITHDRAW_NFT_HOLD_HOURS)}
+          ${ecoSelectRow("Seal pets into capsules", "NFT_BIND_ENABLED", cfg.NFT_BIND_ENABLED, [{ value: 0, label: "0 — closed (reveal only)" }, { value: 1, label: "1 — open" }])}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
@@ -10453,7 +10463,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });

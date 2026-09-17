@@ -6,6 +6,7 @@ const HANDLERS = {
   "delete-character": require("../../server-routes/admin/delete-character"),
   "economy-config": require("../../server-routes/admin/economy-config"),
   "farm-stats": require("../../server-routes/admin/farm-stats"),
+  "nft-reveal-audit": require("../../server-routes/admin/nft-reveal-audit"),
   "token-stats": require("../../server-routes/admin/token-stats"),
   waitlist: require("../../server-routes/admin/waitlist"),
   "waitlist-export": require("../../server-routes/admin/waitlist-export"),

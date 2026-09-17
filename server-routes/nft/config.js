@@ -32,6 +32,9 @@ module.exports = async (req, res) => {
     rpcUrl: env.rpcUrl,
     explorerUrl: env.explorerUrl,
     currencySymbol: env.currencySymbol,
+    // Заливка открывается отдельно от самой фичи: до ревила капсулы видно,
+    // но посадить в них питомца нельзя.
+    bindEnabled: Number(cfg.NFT_BIND_ENABLED) === 1,
     bindLevel: Math.max(1, Math.floor(Number(cfg.NFT_BIND_LEVEL) || 1)),
     mintLimit: Math.max(1, Math.floor(Number(cfg.NFT_MINT_LIMIT) || 5)),
     unbindCost: Math.max(0, Math.floor(Number(cfg.NFT_UNBIND_COST) || 0)),
