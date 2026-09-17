@@ -225,7 +225,17 @@ async function readMarketplaceToken(tokenId) {
     for (const trait of body?.nft?.traits || []) {
       if (trait?.trait_type) traits[trait.trait_type] = String(trait.value);
     }
-    return { traits };
+    // Что витрина хранит помимо трейтов — по этому видно, перечитывала ли она
+    // токен вообще (адрес метаданных ещё ipfs:// = не перечитывала).
+    const nft = body?.nft || {};
+    return {
+      traits,
+      meta: {
+        image: nft.image_url || null,
+        metadataUrl: nft.metadata_url || null,
+        updatedAt: nft.updated_at || null,
+      },
+    };
   } catch (error) {
     console.warn(`[nft] marketplace read ${tokenId} failed: ${error.message}`);
     return null;

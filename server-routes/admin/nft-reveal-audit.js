@@ -63,6 +63,7 @@ async function auditToken(tokenId, origin, { refresh }) {
     tier: getCapsuleTier(tokenId),
     expected,
     actual: theirs.traits,
+    marketplace: theirs.meta || null,
     refreshed: Boolean(refresh),
   };
 }
