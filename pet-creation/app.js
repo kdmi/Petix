@@ -1717,8 +1717,8 @@ const WITHDRAW_ERROR_COPY = {
   TOKEN_NOT_CONFIGURED: "Withdrawals are not available yet.",
   TOKEN_DISABLED: "Withdrawals are not available yet.",
   EVM_ONLY: "Withdrawals are available for EVM wallets only.",
-  NFT_REQUIRED: "Withdrawals are for capsule holders. Keep a Petix capsule on this wallet for {holdHours}h to unlock.",
-  NFT_HOLD_TOO_SHORT: "Your capsule needs to stay on this wallet for {holdHours}h. Withdrawals unlock {eligibleIn}.",
+  NFT_REQUIRED: "Withdrawal is available only if you hold at least 1 capsule for more than {holdHours} hours.",
+  NFT_HOLD_TOO_SHORT: "Withdrawal is available only if you hold at least 1 capsule for more than {holdHours} hours. Your current hold time: {heldFor}.",
   NFT_INDEX_UNAVAILABLE: "Capsule ownership can't be verified right now. Try again in a minute.",
 };
 const WITHDRAW_NFT_REASONS = ["NFT_REQUIRED", "NFT_HOLD_TOO_SHORT", "NFT_INDEX_UNAVAILABLE"];
@@ -1798,6 +1798,38 @@ function withdrawEligibleIn(eligibleAt) {
   return `in ${hours ? hours + "h " : ""}${minutes}m (${when})`;
 }
 
+function withdrawHeldFor(oldestSince) {
+  const since = Date.parse(oldestSince || "");
+  if (!Number.isFinite(since)) return "0 h";
+  const hours = Math.max(0, Math.floor((Date.now() - since) / 3600000));
+  if (hours < 1) return `${Math.max(1, Math.floor((Date.now() - since) / 60000))} min`;
+  return `${hours} h`;
+}
+
+// Capsule rule as the player reads it: one sentence, "capsule" links to the collection,
+// plus the wallet's own hold time when it already holds one.
+function renderCapsuleNote(container, reason) {
+  const nft = withdrawState.nft || {};
+  const holdHours = nft.holdHours || 48;
+  container.textContent = "";
+  container.append("Withdrawal is available only if you hold at least 1 ");
+  if (nft.marketplaceUrl) {
+    const link = document.createElement("a");
+    link.href = nft.marketplaceUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "withdraw-note-link";
+    link.textContent = "capsule";
+    container.append(link);
+  } else {
+    container.append("capsule");
+  }
+  container.append(` for more than ${holdHours} hours.`);
+  if (reason === "NFT_HOLD_TOO_SHORT" && nft.held > 0) {
+    container.append(` Your current hold time: ${withdrawHeldFor(nft.oldestSince)}.`);
+  }
+}
+
 function withdrawErrorText(error) {
   const code = error && error.code;
   const template = code && WITHDRAW_ERROR_COPY[code];
@@ -1807,6 +1839,7 @@ function withdrawErrorText(error) {
     .replace("{min}", formatWithdrawNumber(withdrawMin()))
     .replace("{maxPerTx}", formatWithdrawNumber(withdrawState.maxPerTx))
     .replace("{holdHours}", String((error && error.holdHours) || nft.holdHours || 48))
+    .replace("{heldFor}", withdrawHeldFor(nft.oldestSince))
     .replace("{eligibleIn}", withdrawEligibleIn((error && error.eligibleAt) || nft.eligibleAt));
 }
 
@@ -2161,8 +2194,16 @@ function renderWithdrawForm(options = {}) {
   // Limits line: per-tx cap and treasury availability, shown before the request (US4).
   const limitParts = [];
   if (withdrawState.maxPerTx > 0) limitParts.push("Max per withdrawal: " + formatWithdrawNumber(withdrawState.maxPerTx));
-  if (withdrawState.treasuryAvailable != null) {
-    limitParts.push("Available today: " + formatWithdrawNumber(withdrawState.treasuryAvailable));
+  // Pool capacity (operator allowance) is operational detail: players see it only
+  // when it actually caps them; admins always see it.
+  const poolAvailable = Number(withdrawState.treasuryAvailable);
+  const nftInfo = withdrawState.nft || {};
+  if (withdrawState.treasuryAvailable != null && Number.isFinite(poolAvailable)) {
+    if (nftInfo.exempt || state.isAdmin) {
+      limitParts.push("Pool available (admin): " + formatWithdrawNumber(poolAvailable));
+    } else if (poolAvailable < (withdrawState.balance || 0)) {
+      limitParts.push("Payout pool is refilling — up to " + formatWithdrawNumber(poolAvailable) + " right now");
+    }
   }
   // Admin preview of the capsule rule (admins are exempt, but the owner wants to
   // see how the index reads a wallet during the silent prod test).
@@ -2181,28 +2222,22 @@ function renderWithdrawForm(options = {}) {
 
   // Message: an error (priority) or the reason withdrawals are unavailable.
   let note = withdrawState.errorMessage;
-  let noteLink = null;
+  let capsuleReason = null;
   if (!note && withdrawState.configLoaded && !withdrawState.busy && !withdrawState.enabled) {
-    note = withdrawState.reason
-      ? withdrawErrorText({ code: withdrawState.reason })
-      : "Withdrawals are temporarily disabled.";
-    if (withdrawState.reason === "NFT_REQUIRED" && withdrawState.nft && withdrawState.nft.marketplaceUrl) {
-      noteLink = { href: withdrawState.nft.marketplaceUrl, label: "Get a capsule ↗" };
+    if (withdrawState.reason === "NFT_REQUIRED" || withdrawState.reason === "NFT_HOLD_TOO_SHORT") {
+      capsuleReason = withdrawState.reason;
+    } else {
+      note = withdrawState.reason
+        ? withdrawErrorText({ code: withdrawState.reason })
+        : "Withdrawals are temporarily disabled.";
     }
   }
   if (refs.error) {
-    if (note) {
+    if (capsuleReason) {
+      renderCapsuleNote(refs.error, capsuleReason);
+      refs.error.classList.remove("hidden");
+    } else if (note) {
       refs.error.textContent = note;
-      if (noteLink) {
-        const anchor = document.createElement("a");
-        anchor.href = noteLink.href;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-        anchor.className = "withdraw-note-link";
-        anchor.textContent = noteLink.label;
-        refs.error.appendChild(document.createTextNode(" "));
-        refs.error.appendChild(anchor);
-      }
       refs.error.classList.remove("hidden");
     } else {
       refs.error.classList.add("hidden");
