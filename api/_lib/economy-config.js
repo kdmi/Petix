@@ -66,6 +66,15 @@ const DEFAULTS = Object.freeze({
     gold: 0,
     prismatic: 0,
   }),
+  // Магазин энергии (020): доп. бои за Points. Кулдаун — на каждый пакет отдельно,
+  // так что потолок за сутки = сумма боёв всех пакетов (по умолчанию 9 за 1 050).
+  ENERGY_SHOP_ENABLED: 1,
+  ENERGY_PACKS: Object.freeze([
+    Object.freeze({ fights: 1, price: 150 }),
+    Object.freeze({ fights: 3, price: 400 }),
+    Object.freeze({ fights: 5, price: 500 }),
+  ]),
+  ENERGY_PACK_COOLDOWN_HOURS: 24,
 });
 
 const CACHE_TTL_MS = Number(process.env.ECONOMY_CONFIG_CACHE_TTL_MS) || 15000;
@@ -77,10 +86,18 @@ function deepCloneDefaults() {
     ...DEFAULTS,
     rarityMult: { ...DEFAULTS.rarityMult },
     SLOT_PRICES: [...DEFAULTS.SLOT_PRICES],
+    ENERGY_PACKS: cloneEnergyPacks(DEFAULTS.ENERGY_PACKS),
     NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
     NFT_TIER_FARM_BONUS_PCT: { ...DEFAULTS.NFT_TIER_FARM_BONUS_PCT },
     NFT_TIER_WIN_BONUS_PCT: { ...DEFAULTS.NFT_TIER_WIN_BONUS_PCT },
   };
+}
+
+function cloneEnergyPacks(packs) {
+  return (Array.isArray(packs) ? packs : []).map((pack) => ({
+    fights: Number(pack?.fights),
+    price: Number(pack?.price),
+  }));
 }
 
 function getDefaults() {
@@ -101,6 +118,8 @@ function mergeConfig(overrides) {
       base[key] = { ...base[key], ...overrides[key] };
     } else if (key === "SLOT_PRICES" && Array.isArray(overrides.SLOT_PRICES)) {
       base.SLOT_PRICES = [...overrides.SLOT_PRICES];
+    } else if (key === "ENERGY_PACKS" && Array.isArray(overrides.ENERGY_PACKS)) {
+      base.ENERGY_PACKS = cloneEnergyPacks(overrides.ENERGY_PACKS);
     } else if (typeof overrides[key] === "number" && Number.isFinite(overrides[key])) {
       base[key] = overrides[key];
     }
@@ -138,6 +157,8 @@ function validateConfigPatch(patch) {
     "NFT_MINT_LIMIT",
     "NFT_UNBIND_COST",
     "NFT_UNBIND_DELAY_MS",
+    "ENERGY_SHOP_ENABLED",
+    "ENERGY_PACK_COOLDOWN_HOURS",
   ];
   for (const key of numericKeys) {
     if (key in patch) {
@@ -176,6 +197,24 @@ function validateConfigPatch(patch) {
       } else if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
         errors.push({ field: mapKey, message: `${mapKey}.${tier} must be a number ≥ 0` });
       }
+    }
+  }
+
+  if ("ENERGY_PACKS" in patch) {
+    const packs = patch.ENERGY_PACKS;
+    if (!Array.isArray(packs) || packs.length === 0) {
+      errors.push({ field: "ENERGY_PACKS", message: "ENERGY_PACKS must be a non-empty array" });
+    } else {
+      packs.forEach((pack, index) => {
+        const fights = pack && pack.fights;
+        const price = pack && pack.price;
+        if (!Number.isInteger(fights) || fights < 1) {
+          errors.push({ field: "ENERGY_PACKS", message: `ENERGY_PACKS[${index}].fights must be an integer ≥ 1` });
+        }
+        if (typeof price !== "number" || !Number.isFinite(price) || price < 0) {
+          errors.push({ field: "ENERGY_PACKS", message: `ENERGY_PACKS[${index}].price must be a number ≥ 0` });
+        }
+      });
     }
   }
 

@@ -143,10 +143,31 @@ function resolveEnergyUsed(rawBattleState) {
   return Math.max(0, legacyMax - normalizeInteger(legacyCurrent, legacyMax));
 }
 
+function resolveEnergyPurchased(rawBattleState) {
+  const raw = Number(rawBattleState?.energyPurchased);
+  return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
+}
+
+function resolveEnergyPacks(rawBattleState) {
+  const raw = rawBattleState?.energyPacks;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const packs = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value && typeof value === "object") packs[key] = { ...value };
+  }
+  return packs;
+}
+
+// Купленная энергия (020) хранится отдельным остатком `energyPurchased`: она не
+// зависит от суточного сброса и тратится только после бесплатной. `energyPacks`
+// помнит последнюю покупку по индексу пакета — от неё считается кулдаун.
+// В view `energyCurrent`/`energyMax` включают купленное: клиент клампит одно по другому.
 function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 0 } = {}) {
   const currentDateKey = getBattleDateKey(now);
-  const energyMax = BATTLE_ENERGY_MAX + Math.max(0, Math.floor(Number(bonusEnergy) || 0));
+  const energyFreeMax = BATTLE_ENERGY_MAX + Math.max(0, Math.floor(Number(bonusEnergy) || 0));
   let energyUsed = resolveEnergyUsed(rawBattleState);
+  const energyPurchased = resolveEnergyPurchased(rawBattleState);
+  const energyPacks = resolveEnergyPacks(rawBattleState);
   let lastResetDate = String(rawBattleState?.lastResetDate || "").trim();
   let updatedAt = String(rawBattleState?.updatedAt || "").trim();
 
@@ -156,10 +177,16 @@ function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 
     updatedAt = now.toISOString();
   }
 
+  const energyFree = clamp(energyFreeMax - energyUsed, 0, energyFreeMax);
+
   return {
-    energyCurrent: clamp(energyMax - energyUsed, 0, energyMax),
-    energyMax,
+    energyCurrent: energyFree + energyPurchased,
+    energyMax: energyFreeMax + energyPurchased,
+    energyFree,
+    energyFreeMax,
     energyUsed,
+    energyPurchased,
+    energyPacks,
     lastResetDate,
     updatedAt: updatedAt || now.toISOString(),
   };
@@ -173,6 +200,9 @@ function buildBattleStateView(rawBattleState, { now = new Date(), wallet = "", b
   return {
     energyCurrent,
     energyMax: normalized.energyMax,
+    energyFree: isUnlimited ? normalized.energyFreeMax : normalized.energyFree,
+    energyFreeMax: normalized.energyFreeMax,
+    energyPurchased: normalized.energyPurchased,
     canStartFight: isUnlimited || energyCurrent > 0,
     resetsAt: getNextBattleResetAt(now).toISOString(),
     timezone: BATTLE_TIMEZONE,
@@ -201,6 +231,16 @@ function assertBattleEnergyAvailable(rawBattleState, { now = new Date(), wallet 
   return normalized;
 }
 
+function withRecomputedTotals(state) {
+  const energyFree = clamp(state.energyFreeMax - state.energyUsed, 0, state.energyFreeMax);
+  return {
+    ...state,
+    energyFree,
+    energyCurrent: energyFree + state.energyPurchased,
+    energyMax: state.energyFreeMax + state.energyPurchased,
+  };
+}
+
 function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "", bonusEnergy = 0 } = {}) {
   const normalized = assertBattleEnergyAvailable(rawBattleState, { now, wallet, bonusEnergy });
   if (hasUnlimitedBattleEnergy(wallet)) {
@@ -211,19 +251,22 @@ function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wal
     };
   }
 
-  const spendAmount = clamp(normalizeInteger(amount, 1), 1, normalized.energyMax);
+  const spendAmount = clamp(normalizeInteger(amount, 1), 1, Math.max(1, normalized.energyMax));
 
   if (normalized.energyCurrent < spendAmount) {
     throw createNoEnergyError();
   }
 
-  const energyUsed = normalized.energyUsed + spendAmount;
-  return {
+  // Сначала бесплатная (она всё равно сгорит в полночь), потом купленная.
+  const fromFree = Math.min(spendAmount, normalized.energyFree);
+  const fromPurchased = spendAmount - fromFree;
+
+  return withRecomputedTotals({
     ...normalized,
-    energyUsed,
-    energyCurrent: clamp(normalized.energyMax - energyUsed, 0, normalized.energyMax),
+    energyUsed: normalized.energyUsed + fromFree,
+    energyPurchased: normalized.energyPurchased - fromPurchased,
     updatedAt: now.toISOString(),
-  };
+  });
 }
 
 function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "", bonusEnergy = 0 } = {}) {
@@ -236,15 +279,17 @@ function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wall
     };
   }
 
-  const refundAmount = clamp(normalizeInteger(amount, 1), 1, normalized.energyMax);
-  const energyUsed = Math.max(0, normalized.energyUsed - refundAmount);
+  const refundAmount = Math.max(1, normalizeInteger(amount, 1));
+  // Зеркально трате: сначала возвращаем в бесплатную, остаток — в купленную.
+  const toFree = Math.min(refundAmount, normalized.energyUsed);
+  const toPurchased = refundAmount - toFree;
 
-  return {
+  return withRecomputedTotals({
     ...normalized,
-    energyUsed,
-    energyCurrent: clamp(normalized.energyMax - energyUsed, 0, normalized.energyMax),
+    energyUsed: normalized.energyUsed - toFree,
+    energyPurchased: normalized.energyPurchased + toPurchased,
     updatedAt: now.toISOString(),
-  };
+  });
 }
 
 module.exports = {
