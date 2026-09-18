@@ -22,11 +22,11 @@ test("WITHDRAW_MAX_PER_TX rejects negative and non-numeric values", () => {
   assert.equal(mergeConfig({ WITHDRAW_MAX_PER_TX: "100" }).WITHDRAW_MAX_PER_TX, 0);
 });
 
-test("2026-09-17 defaults: MIN_WITHDRAW 1000, capsule gate on, 48h hold", () => {
+test("defaults: MIN_WITHDRAW 1000, capsule gate on, 36h hold", () => {
   const defaults = getDefaults();
   assert.equal(defaults.MIN_WITHDRAW, 1000);
   assert.equal(defaults.WITHDRAW_REQUIRE_NFT, 1);
-  assert.equal(defaults.WITHDRAW_NFT_HOLD_HOURS, 48);
+  assert.equal(defaults.WITHDRAW_NFT_HOLD_HOURS, 36);
   assert.equal(validateConfigPatch({ WITHDRAW_REQUIRE_NFT: 0, WITHDRAW_NFT_HOLD_HOURS: 24 }).ok, true);
   assert.equal(validateConfigPatch({ WITHDRAW_NFT_HOLD_HOURS: -1 }).ok, false);
   assert.equal(mergeConfig({ WITHDRAW_NFT_HOLD_HOURS: 24 }).WITHDRAW_NFT_HOLD_HOURS, 24);
