@@ -37,6 +37,8 @@ const ALLOWLIST = new Map([
   // Feature 016 demo NFT collection on Robinhood Chain — a throwaway public demo, not a token address.
   ["0x79093bb689264b05d9ed246d10f5fac3b679f4a3", "016 demo SLOT BOX collection (public demo, retired)"],
   ["0xdc3a8fa4774df5190341ac440ffe8bc697cdd6b3", "016 demo results (public demo, retired)"],
+  // The launched $PETIX token contract — public by definition (landing header copies it). Wallets and keys stay in env.
+  ["0xb79ec3cdffefe0ec6c806d715e4082d6be4dbf55", "public $PETIX token contract on Robinhood Chain (launched 2026-09-18)"],
 ]);
 
 function walk(dir, out) {
