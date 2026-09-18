@@ -248,6 +248,9 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
     reason = nftGate.reason;
   }
   const enabled = reason === null;
+  // Deposits do not depend on the capsule gate: a wallet that cannot withdraw
+  // yet may still top up its Points. Same rule as assertDepositAccess.
+  const depositAllowed = reason === null || String(reason).startsWith("NFT_");
 
   const base = {
     enabled,
@@ -284,6 +287,15 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
       explorerUrl: env.explorerUrl,
       currencySymbol: env.currencySymbol,
     },
+    ...(depositAllowed
+      ? {
+          deposit: {
+            address: env.depositAddress,
+            tokenContract: env.contract,
+            confirmations: env.confirmations,
+          },
+        }
+      : {}),
   };
   if (!enabled) return base;
 
@@ -315,11 +327,6 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
 
   return {
     ...base,
-    deposit: {
-      address: env.depositAddress,
-      tokenContract: env.contract,
-      confirmations: env.confirmations,
-    },
     treasury,
     pending,
     balance: normalizeCurrency(profile.currency).balance,

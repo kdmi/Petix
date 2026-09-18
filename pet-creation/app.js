@@ -2253,7 +2253,9 @@ function renderWithdrawForm(options = {}) {
   }
 
   if (refs.toDeposit) {
-    refs.toDeposit.classList.toggle("hidden", !(withdrawState.enabled && withdrawState.depositAddress));
+    // The server sends `deposit.address` whenever deposits are open for this
+    // wallet — including when withdrawing is blocked by the capsule rule.
+    refs.toDeposit.classList.toggle("hidden", !withdrawState.depositAddress);
   }
 
   // Fee line follows WITHDRAW_FEE_PCT — when the fee is 0, the line hides.

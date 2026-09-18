@@ -55,6 +55,7 @@ test("gating: non-admin while WITHDRAW_ENABLED=0 → enabled:false, reason ADMIN
     assert.equal(config.body.reason, "ADMIN_ONLY");
     assert.equal(config.body.public, false);
     assert.equal(config.body.isAdmin, false);
+    assert.equal(config.body.deposit, undefined, "admin-only mode keeps the deposit address away from players");
     assertNoSecrets(config.body);
 
     const prepare = await invokeJsonHandler(dispatcher, {
