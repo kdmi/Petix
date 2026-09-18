@@ -952,6 +952,16 @@ let lastAttrTouchEndAt = 0;
 let lastAttrsScreenTouchEndAt = 0;
 let toastTimeoutId = 0;
 let creatureTypeLimitToastAt = 0;
+// Магазин энергии (020): объявлено до state, чтобы сбросы/рендеры могли звать close/render в любой момент.
+const energyShopState = {
+  built: false,
+  refs: null,
+  open: false,
+  busyIndex: -1,
+  timer: 0,
+  error: "",
+};
+
 let battleStateRefreshTimeoutId = 0;
 let battleStateRefreshPromise = null;
 let lastBattleStateRefreshAt = 0;
@@ -1053,6 +1063,7 @@ const state = {
   maxCharacters: MAX_CHARACTERS_PER_WALLET,
   nextSlotPrice: null,
   burnCost: null,
+  energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
   profileUpdatedAt: null,
@@ -2639,6 +2650,186 @@ function closeWithdrawModal() {
   document.body.classList.remove("withdraw-modal-open");
 }
 
+// === Energy shop (feature 020): клик по молнии → попап с пакетами доп. боёв за Points ===
+
+function isEnergyShopEnabled() {
+  const shop = state.energyShop;
+  return Boolean(
+    state.isAuthenticated && shop && shop.enabled && Array.isArray(shop.packs) && shop.packs.length > 0
+  );
+}
+
+function ensureEnergyShopModal() {
+  if (energyShopState.built) return energyShopState.refs;
+
+  const closeIcon =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">' +
+    '<path d="M1.5 1.5 L10.5 10.5 M10.5 1.5 L1.5 10.5" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>';
+
+  const overlay = document.createElement("div");
+  overlay.className = "withdraw-overlay energy-shop-overlay hidden";
+  overlay.id = "energyShopOverlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML =
+    '<section class="withdraw-modal energy-shop-modal" role="dialog" aria-modal="true" aria-labelledby="energyShopTitle">' +
+      '<div class="withdraw-header">' +
+        '<span class="withdraw-title" id="energyShopTitle">Energy</span>' +
+        '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+      '</div>' +
+      '<div class="energy-shop-counter" aria-live="polite">' +
+        '<img src="/assets/dashboard/energy-bolt.svg" alt="" width="40" height="40" />' +
+        '<span class="energy-shop-counter-value" data-role="energy">0</span>' +
+      '</div>' +
+      '<p class="energy-shop-lead">Free fights refill every day. Bought fights never expire.</p>' +
+      '<div class="energy-shop-packs" data-role="packs"></div>' +
+      '<div class="withdraw-error hidden" data-role="error" role="alert"></div>' +
+    '</section>';
+  document.body.appendChild(overlay);
+
+  const refs = {
+    overlay,
+    energy: overlay.querySelector('[data-role="energy"]'),
+    packs: overlay.querySelector('[data-role="packs"]'),
+    error: overlay.querySelector('[data-role="error"]'),
+  };
+  energyShopState.refs = refs;
+  energyShopState.built = true;
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeEnergyShopModal();
+  });
+  overlay.querySelector('[data-role="close"]').addEventListener("click", closeEnergyShopModal);
+  refs.packs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-pack-index]");
+    if (!button || button.disabled) return;
+    void buyEnergyPack(Number(button.getAttribute("data-pack-index")));
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && energyShopState.open) closeEnergyShopModal();
+  });
+
+  return refs;
+}
+
+function getEnergyPackRemainingSec(pack, nowMs) {
+  const availableAtMs = Date.parse(pack?.availableAt || "");
+  if (!Number.isFinite(availableAtMs)) return 0;
+  return Math.max(0, Math.ceil((availableAtMs - nowMs) / 1000));
+}
+
+function renderEnergyShop() {
+  if (!energyShopState.built) return;
+  const refs = energyShopState.refs;
+  const shop = state.energyShop || { packs: [] };
+  const balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
+  const nowMs = Date.now();
+
+  refs.energy.textContent = String(state.energyCurrent);
+
+  refs.packs.innerHTML = (shop.packs || [])
+    .map((pack) => {
+      const remainingSec = getEnergyPackRemainingSec(pack, nowMs);
+      const onCooldown = remainingSec > 0;
+      const tooPoor = !onCooldown && balance < pack.price;
+      const busy = energyShopState.busyIndex === pack.index;
+      const disabled = onCooldown || tooPoor || busy || energyShopState.busyIndex !== -1;
+      let label = "Buy";
+      let buttonClass = "energy-pack-buy";
+      if (busy) {
+        label = "…";
+      } else if (onCooldown) {
+        label = formatFarmCountdown(remainingSec);
+        buttonClass += " is-cooldown";
+      } else if (tooPoor) {
+        label = "Not enough";
+        buttonClass += " is-poor";
+      }
+      const fightsLabel = `${pack.fights} ${pack.fights === 1 ? "fight" : "fights"}`;
+      return (
+        `<div class="energy-pack${onCooldown ? " is-cooldown" : ""}">` +
+          '<div class="energy-pack-info">' +
+            `<span class="energy-pack-fights"><img src="/assets/dashboard/energy-bolt.svg" alt="" width="18" height="18" />${escapeHtml(fightsLabel)}</span>` +
+            `<span class="energy-pack-price"><img src="/assets/dashboard/points-coin.svg" alt="" width="16" height="16" />${formatPoints(pack.price)} Points</span>` +
+          "</div>" +
+          `<button type="button" class="${buttonClass}" data-pack-index="${pack.index}" ${disabled ? 'disabled aria-disabled="true"' : ""} aria-label="${escapeHtml(onCooldown ? `Available in ${formatFarmCountdown(remainingSec)}` : `Buy ${fightsLabel} for ${pack.price} Points`)}">${escapeHtml(label)}</button>` +
+        "</div>"
+      );
+    })
+    .join("");
+
+  refs.error.textContent = energyShopState.error || "";
+  refs.error.classList.toggle("hidden", !energyShopState.error);
+}
+
+function tickEnergyShop() {
+  if (!energyShopState.open) return;
+  renderEnergyShop();
+}
+
+function openEnergyShopModal() {
+  if (!isEnergyShopEnabled()) return;
+  ensureEnergyShopModal();
+  hideWalletMenu();
+  energyShopState.open = true;
+  energyShopState.error = "";
+  renderEnergyShop();
+  energyShopState.refs.overlay.classList.remove("hidden");
+  energyShopState.refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+  if (!energyShopState.timer) {
+    energyShopState.timer = window.setInterval(tickEnergyShop, 1000);
+  }
+}
+
+function closeEnergyShopModal() {
+  if (!energyShopState.built) return;
+  energyShopState.open = false;
+  energyShopState.refs.overlay.classList.add("hidden");
+  energyShopState.refs.overlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("withdraw-modal-open");
+  if (energyShopState.timer) {
+    window.clearInterval(energyShopState.timer);
+    energyShopState.timer = 0;
+  }
+}
+
+async function buyEnergyPack(packIndex) {
+  if (energyShopState.busyIndex !== -1) return;
+  energyShopState.busyIndex = packIndex;
+  energyShopState.error = "";
+  renderEnergyShop();
+  try {
+    const res = await apiRequest("/api/character/buy-energy", { packIndex });
+    if (res.battleState) applyBattleStatePayload(res.battleState);
+    if (typeof res.balance === "number" && state.currency) {
+      state.currency = { ...state.currency, balance: res.balance };
+    }
+    if (res.energyShop) state.energyShop = res.energyShop;
+    energyShopState.busyIndex = -1;
+    updateEnergyUi();
+    updateDashboardPointsUi();
+    renderEnergyShop();
+    showToast(`+${res.fights} ${res.fights === 1 ? "fight" : "fights"} added!`);
+    // Кнопки Fight в кабинете/арене читают state.energyCurrent при рендере —
+    // перерисуем экраны с сервера, как после покупки слота.
+    void refreshCharactersFromServer();
+  } catch (error) {
+    energyShopState.busyIndex = -1;
+    if (error.code === "INSUFFICIENT_FUNDS") {
+      energyShopState.error = "Not enough Points for this pack.";
+    } else if (error.code === "PACK_COOLDOWN") {
+      energyShopState.error = "This pack was bought recently — check the timer.";
+    } else if (error.code === "SHOP_DISABLED") {
+      energyShopState.error = "The energy shop is closed right now.";
+    } else {
+      energyShopState.error = error.message || "Couldn't buy energy.";
+    }
+    // Состояние могло разойтись (другая вкладка) — подтянем свежее.
+    void refreshCharactersFromServer();
+    renderEnergyShop();
+  }
+}
+
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   state.isAuthenticated = true;
   state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
@@ -2686,6 +2877,8 @@ function showWalletAuthState() {
   state.activeBattle = null;
   state.energyCurrent = DEFAULT_DASHBOARD_ENERGY_CURRENT;
   state.energyMax = DEFAULT_DASHBOARD_ENERGY_MAX;
+  state.energyShop = null;
+  closeEnergyShopModal();
   state.battleStateResetsAt = "";
   state.battleStateTimezone = "";
   state.isFightPreparing = false;
@@ -3040,6 +3233,10 @@ function syncStateWithPayload(payload = {}) {
   }
   if (typeof payload.burnCost === "number") {
     state.burnCost = Math.max(0, Math.floor(payload.burnCost));
+  }
+  if (payload.energyShop && typeof payload.energyShop === "object") {
+    state.energyShop = payload.energyShop;
+    updateEnergyUi();
   }
 
   let isStaleProfilePayload = false;
@@ -5358,21 +5555,34 @@ function updateEnergyUi() {
   dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent}`);
 
   const isEmptyEnergy = state.energyCurrent <= 0;
-  dashboardEnergy.classList.toggle("has-empty-energy", isEmptyEnergy);
+  // Магазин энергии (020): пока он открыт, индикатор — кнопка, а подсказка
+  // «приходи завтра» не нужна. При выключенном магазине всё как раньше.
+  const shoppable = isEnergyShopEnabled();
+  dashboardEnergy.classList.toggle("has-empty-energy", isEmptyEnergy && !shoppable);
+  dashboardEnergy.classList.toggle("is-shoppable", shoppable);
 
   if (dashboardEnergyTooltip) {
-    dashboardEnergyTooltip.setAttribute("aria-hidden", isEmptyEnergy ? "false" : "true");
+    dashboardEnergyTooltip.setAttribute("aria-hidden", isEmptyEnergy && !shoppable ? "false" : "true");
   }
 
-  if (isEmptyEnergy) {
+  if (shoppable) {
+    dashboardEnergy.setAttribute("role", "button");
+    dashboardEnergy.setAttribute("tabindex", "0");
+    dashboardEnergy.setAttribute("aria-label", `Energy ${state.energyCurrent}. Buy more fights`);
+    dashboardEnergy.removeAttribute("aria-describedby");
+  } else if (isEmptyEnergy) {
+    dashboardEnergy.removeAttribute("role");
     dashboardEnergy.setAttribute("tabindex", "0");
     if (dashboardEnergyTooltip) {
       dashboardEnergy.setAttribute("aria-describedby", "dashboardEnergyTooltip");
     }
   } else {
+    dashboardEnergy.removeAttribute("role");
     dashboardEnergy.removeAttribute("tabindex");
     dashboardEnergy.removeAttribute("aria-describedby");
   }
+
+  if (energyShopState.open) renderEnergyShop();
 }
 
 function updateDashboardPointsUi() {
@@ -7405,7 +7615,11 @@ async function startFightFlow(characterId) {
   }
 
   if (state.energyCurrent <= 0) {
-    showToast("You need more energy before starting the next fight.");
+    if (isEnergyShopEnabled()) {
+      openEnergyShopModal();
+    } else {
+      showToast("You need more energy before starting the next fight.");
+    }
     return;
   }
 
@@ -10263,6 +10477,22 @@ async function loadAdminEconomy({ force = false } = {}) {
   }
 }
 
+// Пакеты энергии (020) в админке: "1:150, 3:400, 5:500" ↔ [{fights, price}].
+function formatEnergyPacksInput(packs) {
+  return (Array.isArray(packs) ? packs : []).map((pack) => `${pack.fights}:${pack.price}`).join(", ");
+}
+
+function parseEnergyPacksInput(raw) {
+  return String(raw || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [fights, price] = part.split(":").map((n) => Number(String(n).trim()));
+      return { fights, price };
+    });
+}
+
 function ecoNumberRow(label, key, value) {
   return `
     <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#1a1a2e;">
@@ -10425,10 +10655,17 @@ function renderAdminEconomy() {
           ${ecoSelectRow("Require capsule for withdraw", "WITHDRAW_REQUIRE_NFT", cfg.WITHDRAW_REQUIRE_NFT, [{ value: 0, label: "0 — no" }, { value: 1, label: "1 — capsule holders only" }])}
           ${ecoNumberRow("Capsule hold hours", "WITHDRAW_NFT_HOLD_HOURS", cfg.WITHDRAW_NFT_HOLD_HOURS)}
           ${ecoSelectRow("Seal pets into capsules", "NFT_BIND_ENABLED", cfg.NFT_BIND_ENABLED, [{ value: 0, label: "0 — closed (reveal only)" }, { value: 1, label: "1 — open" }])}
+          ${ecoSelectRow("Energy shop", "ENERGY_SHOP_ENABLED", cfg.ENERGY_SHOP_ENABLED, [{ value: 0, label: "0 — closed" }, { value: 1, label: "1 — open" }])}
+          ${ecoNumberRow("Energy pack cooldown (hours)", "ENERGY_PACK_COOLDOWN_HOURS", cfg.ENERGY_PACK_COOLDOWN_HOURS)}
         </div>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
           <input type="text" data-eco-key="SLOT_PRICES" value="${escapeHtml(slotPrices)}"
+            style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
+          Energy packs (fights:price, comma-separated — e.g. 1:150, 3:400, 5:500)
+          <input type="text" data-eco-key="ENERGY_PACKS" value="${escapeHtml(formatEnergyPacksInput(cfg.ENERGY_PACKS))}"
             style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
         </label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
@@ -10468,7 +10705,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -10489,6 +10726,11 @@ async function saveAdminEconomy() {
       .map((part) => Number(part.trim()))
       .filter((n) => Number.isFinite(n));
     patch.SLOT_PRICES = prices;
+  }
+
+  const packsInput = adminEconomyPanel.querySelector('[data-eco-key="ENERGY_PACKS"]');
+  if (packsInput && String(packsInput.value || "").trim()) {
+    patch.ENERGY_PACKS = parseEnergyPacksInput(packsInput.value);
   }
 
   state.isSavingAdminEconomy = true;
@@ -11317,6 +11559,19 @@ function init() {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         openWithdrawModal();
+      }
+    });
+  }
+
+  if (dashboardEnergy) {
+    dashboardEnergy.addEventListener("click", () => {
+      if (isEnergyShopEnabled()) openEnergyShopModal();
+    });
+    dashboardEnergy.addEventListener("keydown", (event) => {
+      if (!isEnergyShopEnabled()) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openEnergyShopModal();
       }
     });
   }

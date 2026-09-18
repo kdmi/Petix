@@ -8635,3 +8635,153 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   font-weight: 700;
   text-decoration: underline;
 }
+
+/* === Energy shop (feature 020) === */
+/* Ховер как у баланса (.dashboard-points.is-withdrawable): мягкая пилюля-подложка. */
+body[data-page="dashboard"] .dashboard-energy.is-shoppable {
+  border-radius: 99px;
+  cursor: pointer;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  transition: background 0.15s;
+}
+
+body[data-page="dashboard"] .dashboard-energy.is-shoppable:hover {
+  background: rgba(16, 24, 40, 0.06);
+}
+
+body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
+  background: rgba(16, 24, 40, 0.06);
+  outline: 2px solid #101828;
+  outline-offset: 2px;
+}
+
+.energy-shop-modal {
+  padding-bottom: 20px;
+}
+
+.energy-shop-counter {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  height: 80px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.energy-shop-counter-value {
+  color: #101828;
+  font-family: "Fraunces", serif;
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  line-height: 80px;
+}
+
+.energy-shop-lead {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.energy-shop-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.energy-pack {
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.energy-pack:hover {
+  border-color: #d0d5dd;
+}
+
+.energy-pack.is-cooldown {
+  background: #fcfcfd;
+}
+
+.energy-pack-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.energy-pack-fights {
+  align-items: center;
+  color: #101828;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  gap: 6px;
+  line-height: 20px;
+}
+
+.energy-pack-price {
+  align-items: center;
+  color: #475467;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  gap: 6px;
+  line-height: 16px;
+}
+
+.energy-pack-buy {
+  background: #101828;
+  border: none;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  height: 40px;
+  line-height: 20px;
+  min-width: 96px;
+  padding: 0 18px;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.energy-pack-buy:hover:not(:disabled) {
+  background: #1d2939;
+}
+
+.energy-pack-buy:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.energy-pack-buy.is-cooldown {
+  background: #eaecf0;
+  color: #475467;
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+}
+
+.energy-pack-buy.is-poor {
+  background: #fef3f2;
+  color: #b42318;
+  opacity: 1;
+}
+
+.energy-shop-modal .withdraw-error {
+  margin-top: 14px;
+  text-align: center;
+}

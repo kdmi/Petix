@@ -8,6 +8,7 @@ const { getWalletProfile } = require("../../api/_lib/store");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { getMaxCharacters, getNextSlotPrice } = require("../../api/_lib/slots");
 const { getWalletCapsuleBonus } = require("../../api/_lib/nft");
+const { buildEnergyShopView } = require("../../api/_lib/energy-shop");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -47,6 +48,9 @@ module.exports = async (req, res) => {
       wallet: session.wallet,
       bonusEnergy: capsuleBonus.extraBattles,
     }),
+    // Магазин энергии (020): пакеты и кулдауны едут вместе с профилем, чтобы попап
+    // открывался без отдельного запроса.
+    energyShop: buildEnergyShopView(profile.battleState, cfg, { now }),
     currency: profile.currency || { balance: 0, totalEarned: 0 },
     paidSlots: profile.paidSlots || 0,
     maxCharacters: getMaxCharacters(profile, cfg),
