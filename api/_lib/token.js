@@ -172,19 +172,23 @@ async function evaluateNftGate(wallet, cfg, isAdmin, deps, { live = false } = {}
   } catch (error) {
     summary.marketplaceUrl = null;
   }
-  if (!required || isAdmin) return summary;
+  if (!required) return summary;
+  // Admins are exempt from the rule but still get the holding data: during the
+  // silent prod test the owner wants to SEE how the index reads the test wallet.
+  const exempt = Boolean(isAdmin);
+  const bypass = (reason) => (exempt ? { ...summary, eligible: true, reason: null, wouldBlock: reason } : { ...summary, reason });
 
-  if (!deps.nft || !deps.nft.isEnabled()) return { ...summary, reason: "NFT_INDEX_UNAVAILABLE" };
+  if (!deps.nft || !deps.nft.isEnabled()) return bypass("NFT_INDEX_UNAVAILABLE");
   let holdings;
   try {
     holdings = await withTimeout(deps.nft.getHoldings(wallet), deps.nftTimeoutMs, "capsule index");
   } catch (error) {
-    return { ...summary, reason: "NFT_INDEX_UNAVAILABLE" };
+    return bypass("NFT_INDEX_UNAVAILABLE");
   }
   const tokens = (holdings && holdings.tokens) || [];
   summary.held = tokens.length;
   summary.tokens = tokens.map((entry) => ({ tokenId: entry.tokenId, since: entry.since || null }));
-  if (!tokens.length) return { ...summary, reason: "NFT_REQUIRED" };
+  if (!tokens.length) return bypass("NFT_REQUIRED");
 
   const now = deps.now();
   const holdMs = holdHours * 3600000;
@@ -196,7 +200,8 @@ async function evaluateNftGate(wallet, cfg, isAdmin, deps, { live = false } = {}
     summary.eligibleAt = new Date(Date.parse(dated[0].since) + holdMs).toISOString();
   }
   let qualifying = dated.filter((entry) => now - Date.parse(entry.since) >= holdMs);
-  if (!qualifying.length) return { ...summary, reason: "NFT_HOLD_TOO_SHORT" };
+  if (!qualifying.length) return bypass("NFT_HOLD_TOO_SHORT");
+  if (exempt) return { ...summary, eligible: true, qualifyingTokenId: qualifying[0].tokenId };
 
   if (live) {
     const target = String(wallet).toLowerCase();
@@ -262,9 +267,12 @@ async function getTokenConfigForWallet(wallet, depOverrides) {
             holdHours: nftGate.holdHours,
             exempt: nftGate.exempt,
             held: nftGate.held,
+            tokens: nftGate.tokens,
             oldestSince: nftGate.oldestSince,
             eligibleAt: nftGate.eligibleAt,
             eligible: nftGate.eligible,
+            // For exempt admins: what the rule WOULD have said (null = would pass).
+            wouldBlock: nftGate.wouldBlock || null,
             marketplaceUrl: nftGate.marketplaceUrl,
           },
         }

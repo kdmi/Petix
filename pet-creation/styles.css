@@ -8539,15 +8539,8 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
 }
 
 .withdraw-back {
-  background: #f2f4f7;
-  border: none;
-  border-radius: 50%;
-  color: #344054;
-  cursor: pointer;
-  font-size: 16px;
-  height: 28px;
-  line-height: 28px;
-  width: 28px;
+  left: 0;
+  right: auto;
 }
 
 .deposit-lead {

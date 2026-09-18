@@ -120,8 +120,18 @@ test("nft gate: admins are exempt; WITHDRAW_REQUIRE_NFT=0 disables the rule; hol
     const adminConfig = await token.getTokenConfigForWallet(ADMIN, deps);
     assert.equal(adminConfig.enabled, true);
     assert.equal(adminConfig.nft.exempt, true);
+    assert.equal(adminConfig.nft.wouldBlock, "NFT_REQUIRED", "exempt admins still see what the rule would say");
     const adminResult = await token.requestWithdraw(ADMIN, 1000, deps, { isAdmin: true });
     assert.equal(adminResult.status, "sent");
+
+    // an exempt admin holding a young capsule sees the hold data and the would-be verdict
+    nftFake.setHoldings(ADMIN, [{ tokenId: 21, since: BASE_NOW - 40 * HOUR }]);
+    const adminHolding = await token.getTokenConfigForWallet(ADMIN, deps);
+    assert.equal(adminHolding.enabled, true);
+    assert.equal(adminHolding.nft.held, 1);
+    assert.equal(adminHolding.nft.oldestSince, new Date(BASE_NOW - 40 * HOUR).toISOString());
+    assert.equal(adminHolding.nft.eligibleAt, new Date(BASE_NOW + 8 * HOUR).toISOString());
+    assert.equal(adminHolding.nft.wouldBlock, "NFT_HOLD_TOO_SHORT");
 
     nftFake.setHoldings(PLAYER, [{ tokenId: 5, since: BASE_NOW - 2 * HOUR }]);
     configOverrides.WITHDRAW_NFT_HOLD_HOURS = 1;

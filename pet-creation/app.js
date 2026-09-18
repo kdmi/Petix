@@ -1956,7 +1956,9 @@ function ensureWithdrawModal() {
       '</div>' +
       '<div class="withdraw-view hidden" data-view="deposit">' +
         '<div class="withdraw-header">' +
-          '<button class="withdraw-back" type="button" aria-label="Back" data-role="to-form">←</button>' +
+          '<button class="withdraw-close withdraw-back" type="button" aria-label="Back" data-role="to-form">' +
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 4L4 8L8 12M12 8H4" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>' +
+          '</button>' +
           '<span class="withdraw-title">Deposit</span>' +
           '<button class="withdraw-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
         '</div>' +
@@ -2161,6 +2163,16 @@ function renderWithdrawForm(options = {}) {
   if (withdrawState.maxPerTx > 0) limitParts.push("Max per withdrawal: " + formatWithdrawNumber(withdrawState.maxPerTx));
   if (withdrawState.treasuryAvailable != null) {
     limitParts.push("Available today: " + formatWithdrawNumber(withdrawState.treasuryAvailable));
+  }
+  // Admin preview of the capsule rule (admins are exempt, but the owner wants to
+  // see how the index reads a wallet during the silent prod test).
+  const nft = withdrawState.nft;
+  if (nft && nft.exempt && nft.required) {
+    const fmt = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
+    const verdict = nft.wouldBlock ? WITHDRAW_ERROR_COPY[nft.wouldBlock] ? nft.wouldBlock.toLowerCase().replace(/_/g, " ") : nft.wouldBlock : "would pass";
+    limitParts.push(
+      `Capsule check (admin preview): held ${nft.held} · since ${fmt(nft.oldestSince)} · unlocks ${fmt(nft.eligibleAt)} · ${verdict}`
+    );
   }
   if (refs.limits) {
     refs.limits.textContent = limitParts.join(" · ");
