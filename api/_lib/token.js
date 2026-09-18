@@ -748,6 +748,9 @@ async function confirmDeposit(wallet, txHash, depOverrides) {
   if (!matching.length) {
     throw fail(400, "This transaction is not a $PETIX transfer from your wallet to the deposit address.", "BAD_REQUEST");
   }
+  if (await isContractSender(sender, deps)) {
+    throw fail(400, "Transfers from contracts are not credited.", "BAD_REQUEST");
+  }
   if (receipt.confirmations < env.confirmations) {
     return { status: "pending", confirmations: receipt.confirmations, required: env.confirmations, txHash: hash };
   }
@@ -776,6 +779,50 @@ async function confirmDeposit(wallet, txHash, depOverrides) {
   };
 }
 
+async function isContractSender(address, deps) {
+  if (!deps.chain || typeof deps.chain.isContract !== "function") return false;
+  return deps.chain.isContract(address);
+}
+
+/**
+ * Self-healing for deposits credited to contract addresses before the
+ * EOA-only rule existed (the launch buy arrives from the Pons curve, DEX
+ * pools send tokens back on sells). Debits the credited Points, marks the
+ * records reverted. Idempotent; bounded by recentWallets.
+ */
+async function revertContractDeposits(deps) {
+  const state = await deps.tokenStore.readTokenState();
+  let reverted = 0;
+  for (const wallet of state.recentWallets) {
+    let isContract = false;
+    try {
+      isContract = await isContractSender(wallet, deps);
+    } catch (error) {
+      continue; // RPC hiccup — try again next run
+    }
+    if (!isContract) continue;
+    const profile = await deps.profiles.getWalletProfile(wallet);
+    const live = (profile.deposits || []).filter((record) => !record.reverted);
+    if (!live.length) continue;
+    const now = new Date(deps.now()).toISOString();
+    await deps.profiles.updateWalletProfile(wallet, (current) => {
+      let debit = 0;
+      for (const record of current.deposits || []) {
+        if (record.reverted) continue;
+        debit += Number(record.points) || 0;
+        record.reverted = true;
+        record.revertedAt = now;
+        record.revertReason = "CONTRACT_SENDER";
+      }
+      const currency = normalizeCurrency(current.currency);
+      current.currency = { balance: Math.max(0, currency.balance - debit), totalEarned: currency.totalEarned };
+      return current;
+    });
+    reverted += live.length;
+  }
+  return reverted;
+}
+
 /**
  * Cron/background path: scan Transfer(to=treasury) from the cursor up to
  * latest − confirmations, credit senders, then settle `sent` withdrawals of
@@ -789,7 +836,9 @@ async function syncDeposits(depOverrides) {
     toBlock: null,
     credited: [],
     skippedInternal: 0,
+    skippedContract: 0,
     skippedDuplicate: 0,
+    revertedContractDeposits: 0,
     reconciled: 0,
     errors: [],
   };
@@ -850,6 +899,12 @@ async function syncDeposits(depOverrides) {
       continue;
     }
     try {
+      // Only wallets (EOAs) deposit: the launch buy comes from the curve
+      // contract, DEX pools return tokens on sells — none of them are players.
+      if (await isContractSender(from, deps)) {
+        result.skippedContract += 1;
+        continue;
+      }
       const outcome = await creditDeposit(from, transfer, "sync", deps);
       if (outcome.credited) {
         result.credited.push({ wallet: from, points: outcome.points, txHash: transfer.txHash });
@@ -860,6 +915,13 @@ async function syncDeposits(depOverrides) {
       if (error?.httpCode === "BAD_REQUEST") continue; // sub-token dust: ignore silently
       result.errors.push(`${transfer.txHash}: ${error.message}`);
     }
+  }
+
+  // Undo credits that slipped through to contract addresses earlier.
+  try {
+    result.revertedContractDeposits = await revertContractDeposits(deps);
+  } catch (error) {
+    result.errors.push(`revert contract deposits: ${error.message}`);
   }
 
   // Settle in-flight withdrawals for wallets we have seen recently.
@@ -972,13 +1034,13 @@ async function adminStats(depOverrides) {
     }
     for (const record of profile.deposits || []) {
       const creditedAt = Date.parse(record.creditedAt || "") || 0;
-      if (Math.floor(creditedAt / DAY_MS) === todayIndex) depositedToday += Number(record.points) || 0;
+      if (!record.reverted && Math.floor(creditedAt / DAY_MS) === todayIndex) depositedToday += Number(record.points) || 0;
       recent.push({
         kind: "deposit",
         wallet,
         points: record.points,
         petix: record.points,
-        status: "credited",
+        status: record.reverted ? "reverted" : "credited",
         reason: null,
         txHash: record.txHash,
         explorerUrl: explorerTxUrl(env, record.txHash),

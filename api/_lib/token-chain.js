@@ -162,6 +162,8 @@ function decodeTransferLog(log) {
   }
 }
 
+const codeCache = new Map(); // address → isContract (code never disappears from an address)
+
 function createChainClient(overrides = {}) {
   const env = getTokenEnv();
 
@@ -349,6 +351,24 @@ function createChainClient(overrides = {}) {
 
     encodeTransferTx(to, amountRaw) {
       return encodeTransferTx(env.contract, env.chainIdHex, to, amountRaw);
+    },
+
+    /**
+     * True when the address holds code (bonding curve, DEX pool, router…).
+     * Deposits are credited to EOAs only: a contract cannot sign in to Petix,
+     * and the launch buy itself arrives from the Pons curve contract.
+     */
+    async isContract(address) {
+      const key = String(address || "").toLowerCase();
+      if (codeCache.has(key)) return codeCache.get(key);
+      try {
+        const code = await requireProvider().getCode(key);
+        const result = Boolean(code && code !== "0x");
+        codeCache.set(key, result);
+        return result;
+      } catch (error) {
+        throw rpcUnavailable(error);
+      }
     },
   };
 }

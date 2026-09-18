@@ -92,6 +92,7 @@ function createFakeChain({
     nonceConflictOnce: false, // next sendTransfer throws NONCE_CONFLICT once
     gasEstimateFails: false,
     rpcDown: false,
+    contracts: new Set(), // addresses that hold code (lowercase)
     sendDelayMs: 0,
     inFlightSends: 0,
     maxConcurrentSends: 0,
@@ -188,6 +189,11 @@ function createFakeChain({
           (entry) => entry.blockNumber >= fromBlock && entry.blockNumber <= toBlock
         ),
       };
+    },
+
+    async isContract(address) {
+      assertRpc();
+      return state.contracts.has(String(address).toLowerCase());
     },
 
     encodeTransferTx(to, amountRaw) {
