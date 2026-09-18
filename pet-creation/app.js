@@ -2164,6 +2164,16 @@ function renderWithdrawForm(options = {}) {
   if (withdrawState.treasuryAvailable != null) {
     limitParts.push("Available today: " + formatWithdrawNumber(withdrawState.treasuryAvailable));
   }
+  // Admin preview of the capsule rule (admins are exempt, but the owner wants to
+  // see how the index reads a wallet during the silent prod test).
+  const nft = withdrawState.nft;
+  if (nft && nft.exempt && nft.required) {
+    const fmt = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
+    const verdict = nft.wouldBlock ? WITHDRAW_ERROR_COPY[nft.wouldBlock] ? nft.wouldBlock.toLowerCase().replace(/_/g, " ") : nft.wouldBlock : "would pass";
+    limitParts.push(
+      `Capsule check (admin preview): held ${nft.held} · since ${fmt(nft.oldestSince)} · unlocks ${fmt(nft.eligibleAt)} · ${verdict}`
+    );
+  }
   if (refs.limits) {
     refs.limits.textContent = limitParts.join(" · ");
     refs.limits.classList.toggle("hidden", limitParts.length === 0);
