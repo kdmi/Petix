@@ -147,3 +147,37 @@ test("sync: also settles `sent` withdrawals of recently active wallets", async (
     assert.equal(profile.withdrawals[0].status, "confirmed");
   });
 });
+
+test("sync: transfers from contracts (Pons curve, DEX pools) are never deposits; earlier contract credits are reverted", async () => {
+  await withTokenEnv(async ({ chain, deps, store, token, tokenStore }) => {
+    const curve = "0x" + "b".repeat(40);
+    // launch buy: the bonding curve sends 17M to the launch wallet (deposit address)
+    const launchBuy = chain.mineIncoming(curve, 17_000_000);
+    const playerTx = chain.mineIncoming(PLAYER, 300);
+    chain.advance(12);
+    chain.state.contracts.add(curve);
+
+    const run = await token.syncDeposits(deps);
+    assert.equal(run.skippedContract, 1);
+    assert.deepEqual(run.credited.map((entry) => entry.txHash), [playerTx]);
+    const curveProfile = await store.getWalletProfile(curve);
+    assert.equal(curveProfile.currency.balance, 0, "a contract never gets Points");
+
+    // self-heal: a contract that WAS credited before the rule existed gets debited
+    await store.updateWalletProfile(curve, (profile) => ({
+      ...profile,
+      currency: { balance: 17_000_000, totalEarned: 0 },
+      deposits: [{ key: `${launchBuy}:0`, txHash: launchBuy, logIndex: 0, blockNumber: 1, amountRaw: "0", points: 17_000_000, creditedAt: "2026-09-18T11:25:00.000Z", source: "sync" }],
+    }));
+    await tokenStore.withTokenState((state) => tokenStore.rememberWallet(state, curve));
+    const heal = await token.syncDeposits(deps);
+    assert.equal(heal.revertedContractDeposits, 1);
+    const healed = await store.getWalletProfile(curve);
+    assert.equal(healed.currency.balance, 0);
+    assert.equal(healed.deposits[0].reverted, true);
+    assert.equal(healed.deposits[0].revertReason, "CONTRACT_SENDER");
+    // idempotent
+    const again = await token.syncDeposits(deps);
+    assert.equal(again.revertedContractDeposits, 0);
+  });
+});

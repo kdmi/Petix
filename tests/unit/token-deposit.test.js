@@ -121,3 +121,15 @@ test("deposit-confirm: rejects wrong contract, wrong recipient, foreign sender, 
     assert.equal((profile.deposits || []).length, 0);
   });
 });
+
+test("deposit-confirm: a sender that holds code is refused", async () => {
+  await withTokenEnv(async ({ chain, deps, store, token }) => {
+    const contractSender = "0x" + "b".repeat(40);
+    chain.state.contracts.add(contractSender);
+    const txHash = chain.mineIncoming(contractSender, 500);
+    chain.advance(12);
+    await expectFail(token.confirmDeposit(contractSender, txHash, deps), "BAD_REQUEST");
+    const profile = await store.getWalletProfile(contractSender);
+    assert.equal(profile.currency.balance, 0);
+  });
+});
