@@ -164,6 +164,18 @@ function decodeTransferLog(log) {
 
 const codeCache = new Map(); // address → isContract (code never disappears from an address)
 
+// EIP-7702 delegation designator: 0xef0100 followed by the 20-byte delegate.
+// Wallets such as Robinhood Wallet set this on ordinary user accounts, so an
+// address carrying it is still a person's wallet — the account signs its own
+// transactions — not a protocol contract like the Pons curve or a DEX pool.
+const EIP7702_DELEGATION = /^0xef0100[0-9a-f]{40}$/i;
+
+function isDeployedContractCode(code) {
+  if (!code || code === "0x") return false;
+  if (EIP7702_DELEGATION.test(String(code))) return false;
+  return true;
+}
+
 function createChainClient(overrides = {}) {
   const env = getTokenEnv();
 
@@ -363,7 +375,7 @@ function createChainClient(overrides = {}) {
       if (codeCache.has(key)) return codeCache.get(key);
       try {
         const code = await requireProvider().getCode(key);
-        const result = Boolean(code && code !== "0x");
+        const result = isDeployedContractCode(code);
         codeCache.set(key, result);
         return result;
       } catch (error) {
@@ -381,6 +393,7 @@ module.exports = {
   deriveTreasuryAddress,
   encodeTransferTx,
   formatEther,
+  isDeployedContractCode,
   getTokenEnv,
   isNonceConflict,
   isTokenEnabled,
