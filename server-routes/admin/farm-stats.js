@@ -3,8 +3,9 @@ const { normalizeFarmState } = require("../../api/_lib/farm");
 const { readDb } = require("../../api/_lib/store");
 const { listBattleRecords } = require("../../api/_lib/battle-store");
 
-// Annual emission budget reference (Points). Курс 1:1 → 10M $PETIX/год (feature 013).
-const POOL_BUDGET = Number(process.env.ECONOMY_POOL_BUDGET) || 10000000;
+// Reward pool reference (Points = $PETIX 1:1). Решение 2026-09-17: пул = dev buy
+// 100M токенов при запуске на Pons (было 10M/год по 013). Переопределяется env.
+const POOL_BUDGET = Number(process.env.ECONOMY_POOL_BUDGET) || 100000000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function recordTimestamp(record) {

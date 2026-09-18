@@ -1010,6 +1010,7 @@ const state = {
   hasHydratedCharacters: false,
   adminSection: "characters",
   adminEconomyConfig: null,
+  adminEconomyTab: "overview", // overview | token | farm | shop
   adminEconomyDefaults: null,
   adminEconomyStats: null,
   adminTokenStats: null, // /api/admin/token-stats (019); null while the flag is off
@@ -10630,6 +10631,14 @@ function renderAdminTokenBlock(statCard) {
       </section>`;
 }
 
+// 100,000,000 does not fit a stat card: 1.5M / 100M / 12,345 style for big figures.
+function formatPointsCompact(value) {
+  const n = Math.max(0, Math.round(Number(value) || 0));
+  if (n >= 1e9) return `${(n / 1e9).toFixed(n % 1e9 === 0 ? 0 : 1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1)}M`;
+  return formatPoints(n);
+}
+
 function renderAdminEconomy() {
   if (!adminEconomyPanel) return;
 
@@ -10670,58 +10679,27 @@ function renderAdminEconomy() {
         .join("")
     : '<li style="font-size:13px;color:#6b7280;">No earners yet.</li>';
 
-  adminEconomyPanel.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:20px;">
-      <section>
-        <h3 style="margin:0 0 10px;font-size:15px;">Emission vs pool budget</h3>
-        <div class="admin-stats-grid">
-          ${statCard("Total emitted", formatPoints(stats.totalEmitted))}
-          ${statCard("Outstanding balance", formatPoints(stats.totalBalance))}
-          ${statCard("Emitted last 24h", formatPoints(stats.emittedLast24h))}
-          ${statCard("Active farmers", stats.activeFarmers ?? 0)}
-          ${statCard("Pool budget", formatPoints(stats.poolBudget))}
-          ${statCard("Pool used", `${stats.poolBudgetUsedPct ?? 0}%`)}
-        </div>
-        <ul style="list-style:none;margin:10px 0 0;padding:0;">
-          <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Top earners</li>
-          ${topEarnersHtml}
-        </ul>
-      </section>
+  const tab = ["overview", "token", "farm", "shop"].includes(state.adminEconomyTab) ? state.adminEconomyTab : "overview";
+  const subnav = [
+    ["overview", "Overview"],
+    ["token", "Token & withdraw"],
+    ["farm", "Farm & battles"],
+    ["shop", "Slots, energy & capsules"],
+  ]
+    .map(
+      ([key, label]) =>
+        `<button type="button" class="admin-nav-btn${tab === key ? " active" : ""}" data-eco-tab="${key}">${label}</button>`
+    )
+    .join("");
 
-      ${renderAdminTokenBlock(statCard)}
-
-      <section>
-        <h3 style="margin:0 0 10px;font-size:15px;">Tunable coefficients</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-          ${ecoNumberRow("Farm base (pts/h, Common L1)", "FARM_BASE", cfg.FARM_BASE)}
-          ${ecoNumberRow("Farm level k", "FARM_LEVEL_K", cfg.FARM_LEVEL_K)}
-          ${ecoNumberRow("Rarity × Common", "rarity:Common", rarity.Common)}
-          ${ecoNumberRow("Rarity × Rare", "rarity:Rare", rarity.Rare)}
-          ${ecoNumberRow("Rarity × Epic", "rarity:Epic", rarity.Epic)}
-          ${ecoNumberRow("Rarity × Legendary", "rarity:Legendary", rarity.Legendary)}
-          ${ecoNumberRow("Battle reward base", "BATTLE_REWARD_BASE", cfg.BATTLE_REWARD_BASE)}
-          ${ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K)}
-          ${ecoNumberRow("Burn cost", "BURN_COST", cfg.BURN_COST)}
-          ${ecoNumberRow("Min withdraw", "MIN_WITHDRAW", cfg.MIN_WITHDRAW)}
-          ${ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT)}
-          ${ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }])}
-          ${ecoNumberRow("Max per withdraw (0 = off)", "WITHDRAW_MAX_PER_TX", cfg.WITHDRAW_MAX_PER_TX)}
-          ${ecoSelectRow("Require capsule for withdraw", "WITHDRAW_REQUIRE_NFT", cfg.WITHDRAW_REQUIRE_NFT, [{ value: 0, label: "0 — no" }, { value: 1, label: "1 — capsule holders only" }])}
-          ${ecoNumberRow("Capsule hold hours", "WITHDRAW_NFT_HOLD_HOURS", cfg.WITHDRAW_NFT_HOLD_HOURS)}
-          ${ecoSelectRow("Seal pets into capsules", "NFT_BIND_ENABLED", cfg.NFT_BIND_ENABLED, [{ value: 0, label: "0 — closed (reveal only)" }, { value: 1, label: "1 — open" }])}
-          ${ecoSelectRow("Energy shop", "ENERGY_SHOP_ENABLED", cfg.ENERGY_SHOP_ENABLED, [{ value: 0, label: "0 — closed" }, { value: 1, label: "1 — open" }])}
-          ${ecoNumberRow("Energy pack cooldown (hours)", "ENERGY_PACK_COOLDOWN_HOURS", cfg.ENERGY_PACK_COOLDOWN_HOURS)}
-        </div>
+  const grid = (rows) => `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">${rows.join("")}</div>`;
+  const textRow = (label, key, value) => `
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
-          Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)
-          <input type="text" data-eco-key="SLOT_PRICES" value="${escapeHtml(slotPrices)}"
+          ${label}
+          <input type="text" data-eco-key="${key}" value="${escapeHtml(value)}"
             style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
-          Energy packs (fights:price, comma-separated — e.g. 1:150, 3:400, 5:500)
-          <input type="text" data-eco-key="ENERGY_PACKS" value="${escapeHtml(formatEnergyPacksInput(cfg.ENERGY_PACKS))}"
-            style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
-        </label>
+        </label>`;
+  const saveFooter = `
         <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-top:12px;">
           Reason (required, min 3 chars)
           <input type="text" id="adminEconomyReason" placeholder="Why this change?"
@@ -10731,9 +10709,91 @@ function renderAdminEconomy() {
         <button data-action="save-economy" type="button"
           style="margin-top:12px;border:none;border-radius:12px;padding:12px 20px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;font-size:14px;${state.isSavingAdminEconomy ? "opacity:0.6;cursor:wait;" : ""}"
           ${state.isSavingAdminEconomy ? 'disabled aria-disabled="true"' : ""}>
-          ${state.isSavingAdminEconomy ? "Saving..." : "Save coefficients"}
-        </button>
+          ${state.isSavingAdminEconomy ? "Saving..." : "Save changes"}
+        </button>`;
+
+  let body = "";
+  if (tab === "overview") {
+    body = `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Emission vs reward pool</h3>
+        <div class="admin-stats-grid">
+          ${statCard("Total emitted", formatPoints(stats.totalEmitted))}
+          ${statCard("Outstanding balance", formatPoints(stats.totalBalance))}
+          ${statCard("Emitted last 24h", formatPoints(stats.emittedLast24h))}
+          ${statCard("Active farmers", stats.activeFarmers ?? 0)}
+          ${statCard("Reward pool", formatPointsCompact(stats.poolBudget))}
+          ${statCard("Pool used", `${stats.poolBudgetUsedPct ?? 0}%`)}
+        </div>
+        <ul style="list-style:none;margin:10px 0 0;padding:0;">
+          <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Top earners</li>
+          ${topEarnersHtml}
+        </ul>
+      </section>`;
+  } else if (tab === "token") {
+    body = `
+      ${renderAdminTokenBlock(statCard) || '<section><h3 style="margin:0 0 10px;font-size:15px;">$PETIX treasury</h3><p class="admin-empty">Token features are off (TOKEN_ENABLED is not set).</p></section>'}
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Withdraw rules</h3>
+        ${grid([
+          ecoSelectRow("Withdraw access", "WITHDRAW_ENABLED", cfg.WITHDRAW_ENABLED, [{ value: 0, label: "0 — admin only" }, { value: 1, label: "1 — all users" }]),
+          ecoNumberRow("Min withdraw (Points)", "MIN_WITHDRAW", cfg.MIN_WITHDRAW),
+          ecoNumberRow("Max per withdraw (0 = off)", "WITHDRAW_MAX_PER_TX", cfg.WITHDRAW_MAX_PER_TX),
+          ecoNumberRow("Withdraw fee %", "WITHDRAW_FEE_PCT", cfg.WITHDRAW_FEE_PCT),
+          ecoSelectRow("Require capsule for withdraw", "WITHDRAW_REQUIRE_NFT", cfg.WITHDRAW_REQUIRE_NFT, [{ value: 0, label: "0 — no" }, { value: 1, label: "1 — capsule holders only" }]),
+          ecoNumberRow("Capsule hold hours", "WITHDRAW_NFT_HOLD_HOURS", cfg.WITHDRAW_NFT_HOLD_HOURS),
+        ])}
+        ${saveFooter}
+      </section>`;
+  } else if (tab === "farm") {
+    body = `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Farm</h3>
+        ${grid([
+          ecoNumberRow("Farm base (pts/h, Common L1)", "FARM_BASE", cfg.FARM_BASE),
+          ecoNumberRow("Farm level k", "FARM_LEVEL_K", cfg.FARM_LEVEL_K),
+          ecoNumberRow("Rarity × Common", "rarity:Common", rarity.Common),
+          ecoNumberRow("Rarity × Rare", "rarity:Rare", rarity.Rare),
+          ecoNumberRow("Rarity × Epic", "rarity:Epic", rarity.Epic),
+          ecoNumberRow("Rarity × Legendary", "rarity:Legendary", rarity.Legendary),
+        ])}
       </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Battles &amp; burn</h3>
+        ${grid([
+          ecoNumberRow("Battle reward base", "BATTLE_REWARD_BASE", cfg.BATTLE_REWARD_BASE),
+          ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K),
+          ecoNumberRow("Burn cost", "BURN_COST", cfg.BURN_COST),
+        ])}
+        ${saveFooter}
+      </section>`;
+  } else {
+    body = `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Slots</h3>
+        ${textRow(`Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)`, "SLOT_PRICES", slotPrices)}
+      </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Energy shop</h3>
+        ${grid([
+          ecoSelectRow("Energy shop", "ENERGY_SHOP_ENABLED", cfg.ENERGY_SHOP_ENABLED, [{ value: 0, label: "0 — closed" }, { value: 1, label: "1 — open" }]),
+          ecoNumberRow("Energy pack cooldown (hours)", "ENERGY_PACK_COOLDOWN_HOURS", cfg.ENERGY_PACK_COOLDOWN_HOURS),
+        ])}
+        ${textRow("Energy packs (fights:price, comma-separated — e.g. 1:150, 3:400, 5:500)", "ENERGY_PACKS", formatEnergyPacksInput(cfg.ENERGY_PACKS))}
+      </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Capsules</h3>
+        ${grid([
+          ecoSelectRow("Seal pets into capsules", "NFT_BIND_ENABLED", cfg.NFT_BIND_ENABLED, [{ value: 0, label: "0 — closed (reveal only)" }, { value: 1, label: "1 — open" }]),
+        ])}
+        ${saveFooter}
+      </section>`;
+  }
+
+  adminEconomyPanel.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <nav class="admin-nav admin-subnav" aria-label="Economy sections">${subnav}</nav>
+      ${body}
     </div>`;
 }
 
@@ -11716,6 +11776,13 @@ function init() {
 
   if (adminEconomyPanel) {
     adminEconomyPanel.addEventListener("click", (event) => {
+      const tabButton = event.target.closest("[data-eco-tab]");
+      if (tabButton) {
+        event.preventDefault();
+        state.adminEconomyTab = tabButton.getAttribute("data-eco-tab") || "overview";
+        renderAdminEconomy();
+        return;
+      }
       const saveButton = event.target.closest('[data-action="save-economy"]');
       if (!saveButton || saveButton.disabled) return;
       event.preventDefault();

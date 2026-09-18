@@ -8786,3 +8786,19 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 .withdraw-admin-preview .withdraw-note-link {
   color: #475467;
 }
+
+/* Economy sub-tabs (admin) */
+.admin-subnav {
+  flex-wrap: wrap;
+}
+
+.admin-subnav .admin-nav-btn {
+  font-size: 13px;
+  min-height: 32px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.admin-stat-value {
+  overflow-wrap: anywhere;
+}
