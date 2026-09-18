@@ -5534,6 +5534,9 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   max-width: 100%;
   object-fit: contain;
   width: auto;
+  /* Pet art is pixel art; the lightbox is the only place it is shown larger
+     than its 512px source, so upscale without smoothing. */
+  image-rendering: pixelated;
 }
 
 .admin-lightbox-caption {
