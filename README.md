@@ -4,6 +4,8 @@ Petix is a browser-based pet battler built around EVM wallet identity (MetaMask 
 
 The project includes the public player experience, the battle backend, progression systems, replayable arena history, and an admin panel for character and battle oversight.
 
+$PETIX coin: 0xb79ec3cdffefe0ec6c806d715e4082d6be4dbf55
+
 ## What Is Live In The Project
 
 ### Player Experience
