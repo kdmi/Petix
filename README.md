@@ -114,7 +114,7 @@ Off by default. Custodial model: the server-side **operator** pays gas and sends
 | `TOKEN_INTERNAL_WALLETS` | Recommended | Comma-separated project wallets (cold pool, launcher) whose transfers to the treasury are top-ups, not deposits |
 | `TOKEN_MIN_GAS_ETH` | Optional | Minimum treasury ETH to accept a withdrawal (default `0.001`) |
 
-Runtime-tunable via the admin `economy-config`: `MIN_WITHDRAW` (default `1000`), `WITHDRAW_FEE_PCT`, `WITHDRAW_ENABLED` (`0` = admins only, `1` = everyone), `WITHDRAW_MAX_PER_TX` (`0` = no cap), `WITHDRAW_REQUIRE_NFT` (`1` = only wallets holding a capsule of the collection, admins exempt) and `WITHDRAW_NFT_HOLD_HOURS` (default `48`, counted from the block the capsule arrived in; requires the NFT feature and its cron to be on). Cron: `/api/token/sync` every minute (registered in `vercel.json`). Preflight: `node scripts/token/preflight.js`.
+Runtime-tunable via the admin `economy-config`: `MIN_WITHDRAW` (default `1000`), `WITHDRAW_FEE_PCT`, `WITHDRAW_ENABLED` (`0` = admins only, `1` = everyone), `WITHDRAW_MAX_PER_TX` (`0` = no cap), `WITHDRAW_REQUIRE_NFT` (`1` = only wallets holding a capsule of the collection, admins exempt) and `WITHDRAW_NFT_HOLD_HOURS` (default `36`, counted from the block the capsule arrived in; requires the NFT feature and its cron to be on). Cron: `/api/token/sync` every minute (registered in `vercel.json`). Preflight: `node scripts/token/preflight.js`.
 
 ### Start The App
 

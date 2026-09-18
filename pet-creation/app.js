@@ -1811,7 +1811,7 @@ function withdrawHeldFor(oldestSince) {
 // plus the wallet's own hold time when it already holds one.
 function renderCapsuleNote(container, reason) {
   const nft = withdrawState.nft || {};
-  const holdHours = nft.holdHours || 48;
+  const holdHours = nft.holdHours || 36;
   container.textContent = "";
   container.append("Withdrawal is available only if you hold at least 1 ");
   if (nft.marketplaceUrl) {
@@ -1839,7 +1839,7 @@ function withdrawErrorText(error) {
   return template
     .replace("{min}", formatWithdrawNumber(withdrawMin()))
     .replace("{maxPerTx}", formatWithdrawNumber(withdrawState.maxPerTx))
-    .replace("{holdHours}", String((error && error.holdHours) || nft.holdHours || 48))
+    .replace("{holdHours}", String((error && error.holdHours) || nft.holdHours || 36))
     .replace("{heldFor}", withdrawHeldFor(nft.oldestSince))
     .replace("{eligibleIn}", withdrawEligibleIn((error && error.eligibleAt) || nft.eligibleAt));
 }
