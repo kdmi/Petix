@@ -8777,4 +8777,12 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 .energy-shop-modal .withdraw-error {
   margin-top: 14px;
   text-align: center;
+
+.withdraw-admin-preview {
+  color: #667085;
+  margin-top: 6px;
+}
+
+.withdraw-admin-preview .withdraw-note-link {
+  color: #475467;
 }
