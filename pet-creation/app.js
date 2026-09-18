@@ -10610,7 +10610,7 @@ function renderAdminEconomy() {
           (entry) =>
             `<li style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #eef0f4;font-size:13px;">
               <span style="font-family:monospace;overflow:hidden;text-overflow:ellipsis;max-width:60%;">${escapeHtml(String(entry.wallet || ""))}</span>
-              <span>${formatPoints(entry.totalEarned)} pts</span>
+              <span title="earned all time · current balance">${formatPoints(entry.totalEarned)} earned · ${formatPoints(entry.balance)} balance</span>
             </li>`
         )
         .join("")

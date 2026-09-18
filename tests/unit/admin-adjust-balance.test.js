@@ -93,6 +93,21 @@ test("adjust-balance: admin credits Points and the wallet sees them", async () =
 
     const profile = await store.getWalletProfile(PLAYER.toLowerCase());
     assert.equal(profile.currency.balance, 10000);
+    // Подарок — не заработок: статистика эмиссии его не видит.
+    assert.equal(profile.currency.totalEarned, 0);
+    assert.equal(profile.currency.adjusted, 10000);
+  });
+});
+
+test("adjust-balance: earnedDelta corrects totalEarned without touching the balance", async () => {
+  await withTempStore(async ({ store, route }) => {
+    await invoke(route, { as: ADMIN, body: { wallet: PLAYER, amount: 500, reason: "seed" } });
+    const res = await invoke(route, { as: ADMIN, body: { wallet: PLAYER, earnedDelta: -300, reason: "fix stats" } });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.after, 500);
+    assert.equal(res.body.totalEarnedAfter, 0); // не ниже нуля
+    const profile = await store.getWalletProfile(PLAYER.toLowerCase());
+    assert.equal(profile.currency.balance, 500);
   });
 });
 
@@ -102,7 +117,7 @@ test("adjust-balance: a debit never goes below zero and reports what it took", a
     const res = await invoke(route, { as: ADMIN, body: { wallet: PLAYER, amount: -1000, reason: "rollback" } });
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.after, 0);
-    assert.equal(res.body.debited, 300);
+    assert.equal(res.body.applied, -300);
   });
 });
 

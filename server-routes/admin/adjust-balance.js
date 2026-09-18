@@ -7,15 +7,18 @@ const {
   normalizeEvmAddress,
   parseJsonBody,
 } = require("../../api/_lib/auth");
-const { creditCurrency, debitCurrency, normalizeCurrency } = require("../../api/_lib/currency");
+const { adjustCurrency, normalizeCurrency } = require("../../api/_lib/currency");
 const { getWalletProfile, updateWalletProfile } = require("../../api/_lib/store");
 
-// Ручная правка баланса Points: компенсации, подарки, откаты. Только админ,
-// только целое число, обязательная причина — она уходит в лог вместе с тем,
-// кто и кому. Списание не уводит баланс в минус.
+// Ручная правка Points: компенсации, подарки, откаты. Только админ, обязательная
+// причина — она уходит в лог вместе с тем, кто и кому.
 //
-// POST /api/admin/adjust-balance  { wallet, amount, reason }
-//   amount > 0 — начислить, amount < 0 — списать.
+// POST /api/admin/adjust-balance  { wallet, reason, amount?, earnedDelta? }
+//   amount      — дельта баланса (± целое). НЕ считается заработком: подарок —
+//                 не эмиссия, в «Top earners» и «Total emitted» не попадает.
+//   earnedDelta — коррекция totalEarned (± целое), баланс не трогает. Нужна,
+//                 чтобы поправить статистику, если заработок был искажён.
+//   Хотя бы одно из двух. Списание не уводит баланс в минус.
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -50,9 +53,14 @@ module.exports = async (req, res) => {
   }
   const wallet = normalizeEvmAddress(rawWallet);
 
-  const amount = Number(body?.amount);
-  if (!Number.isInteger(amount) || amount === 0) {
-    json(res, 400, { error: "amount must be a non-zero integer." });
+  const amount = body?.amount === undefined ? 0 : Number(body.amount);
+  const earnedDelta = body?.earnedDelta === undefined ? 0 : Number(body.earnedDelta);
+  if (!Number.isInteger(amount) || !Number.isInteger(earnedDelta)) {
+    json(res, 400, { error: "amount and earnedDelta must be integers." });
+    return;
+  }
+  if (amount === 0 && earnedDelta === 0) {
+    json(res, 400, { error: "Nothing to change: give amount and/or earnedDelta." });
     return;
   }
 
@@ -63,19 +71,32 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const before = normalizeCurrency((await getWalletProfile(wallet)).currency).balance;
-    let debited = null;
+    const before = normalizeCurrency((await getWalletProfile(wallet)).currency);
+    let applied = 0;
     await updateWalletProfile(wallet, (profile) => {
-      if (amount > 0) creditCurrency(profile, amount);
-      else debited = debitCurrency(profile, -amount);
+      if (amount !== 0) applied = adjustCurrency(profile, amount);
+      if (earnedDelta !== 0) {
+        const current = normalizeCurrency(profile.currency);
+        profile.currency = { ...current, totalEarned: Math.max(0, current.totalEarned + earnedDelta) };
+      }
       return profile;
     });
-    const after = normalizeCurrency((await getWalletProfile(wallet)).currency).balance;
+    const after = normalizeCurrency((await getWalletProfile(wallet)).currency);
 
     console.log(
-      `[admin:adjust-balance] ${session.wallet} → ${wallet}: ${amount > 0 ? "+" : ""}${amount} (${before} → ${after}) — ${reason}`
+      `[admin:adjust-balance] ${session.wallet} → ${wallet}: balance ${before.balance} → ${after.balance}` +
+        ` (applied ${applied}), totalEarned ${before.totalEarned} → ${after.totalEarned} — ${reason}`
     );
-    json(res, 200, { wallet, amount, before, after, ...(debited !== null ? { debited } : {}) });
+    json(res, 200, {
+      wallet,
+      amount,
+      applied,
+      earnedDelta,
+      before: before.balance,
+      after: after.balance,
+      totalEarnedBefore: before.totalEarned,
+      totalEarnedAfter: after.totalEarned,
+    });
   } catch (error) {
     console.error("[admin:adjust-balance]", error);
     json(res, 500, { error: "Balance adjustment failed." });

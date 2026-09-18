@@ -17,10 +17,37 @@ function normalizeCurrency(raw) {
   if (!raw || typeof raw !== "object") {
     return { balance: 0, totalEarned: 0 };
   }
-  return {
+  const normalized = {
     balance: toSafeInteger(raw.balance, 0),
     totalEarned: toSafeInteger(raw.totalEarned, 0),
   };
+  // Ручные правки админа (подарки, компенсации, откаты) — не заработок и не
+  // эмиссия. Держим их отдельно, чтобы статистика оставалась честной.
+  const adjusted = Number(raw.adjusted);
+  if (Number.isFinite(adjusted) && adjusted !== 0) normalized.adjusted = Math.trunc(adjusted);
+  return normalized;
+}
+
+/**
+ * Ручная правка баланса без учёта в totalEarned. Отрицательная дельта не уводит
+ * баланс в минус; возвращает фактически применённую дельту.
+ */
+function adjustCurrency(profile, delta) {
+  const amount = Number(delta);
+  if (!Number.isInteger(amount) || amount === 0) {
+    throw new Error("Adjustment must be a non-zero integer.");
+  }
+  if (!profile || typeof profile !== "object") {
+    throw new Error("adjustCurrency: profile is required.");
+  }
+  const current = normalizeCurrency(profile.currency);
+  const applied = amount < 0 ? -Math.min(-amount, current.balance) : amount;
+  profile.currency = {
+    ...current,
+    balance: current.balance + applied,
+    adjusted: (current.adjusted || 0) + applied,
+  };
+  return applied;
 }
 
 function computeCoinReward(level, options = {}) {
@@ -90,6 +117,7 @@ function formatCoins(value) {
 // END format-coins-mirror
 
 module.exports = {
+  adjustCurrency,
   computeCoinReward,
   creditCurrency,
   debitCurrency,
