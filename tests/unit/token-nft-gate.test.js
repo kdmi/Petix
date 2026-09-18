@@ -34,7 +34,7 @@ function requireNft(configOverrides, hours = 48) {
 }
 
 test("nft gate: no capsule → NFT_REQUIRED, nothing debited", async () => {
-  await withTokenEnv(async ({ configOverrides, deps, store, token }) => {
+  await withTokenEnv(async ({ chain, configOverrides, deps, store, token }) => {
     requireNft(configOverrides);
     await seedBalance(store, PLAYER, 5000);
     const config = await token.getTokenConfigForWallet(PLAYER, deps);
@@ -45,6 +45,8 @@ test("nft gate: no capsule → NFT_REQUIRED, nothing debited", async () => {
     assert.equal(config.nft.held, 0);
     assert.equal(config.nft.eligible, false);
     assert.equal(config.nft.marketplaceUrl, "https://market.test/capsules");
+    // Deposits stay open for a wallet the capsule rule blocks from withdrawing.
+    assert.equal(config.deposit.address, chain.state.treasury.address);
 
     await expectFail(token.requestWithdraw(PLAYER, 1000, deps, { isAdmin: false }), "NFT_REQUIRED");
     const profile = await store.getWalletProfile(PLAYER);
