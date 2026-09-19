@@ -42,6 +42,7 @@ Create `.env.local` at the repo root. See `README.md` for the full variable tabl
 - `SOLANA_AUTH_SECRET` (required, ≥32 chars) — HMAC secret for session/challenge/character cookies in `api/_lib/auth.js`. The legacy name is kept on purpose (it also seeds the blob storage path); auth itself is EVM now.
 - `INTERNAL_API_SECRET` (≥24 chars) — enables internal route auth and produces stable hashed blob paths for storage.
 - `GEMINI_API_KEY` / `GOOGLE_AI_API_KEY` — optional; when absent, battle narration falls back to deterministic template copy.
+- `GEMINI_IMAGE_SIZE` — pet image size requested from Gemini: `512` (default since feature 021) or `1K`; anything else falls back to 512 with one warning. Image model default is the stable `gemini-3.1-flash-image` (`GEMINI_IMAGE_MODEL` overrides). Existing images are never regenerated — see [specs/021-pet-image-512px/](specs/021-pet-image-512px/).
 - `BLOB_READ_WRITE_TOKEN` + `NODE_ENV=production` — switches storage from local JSON to `@vercel/blob`.
 - `ADMIN_WALLETS` / `ADMIN_WALLET` — admin wallets on top of the hard-coded legacy default in `api/_lib/auth.js` (`AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9`). EVM `0x…` entries are matched case-insensitively (canonical form is lowercase); current admin: `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`.
 - WalletConnect project id is NOT an env var — it is a public constant in `assets/petix-config.js` (`window.PETIX_WALLETCONNECT_PROJECT_ID`); empty id degrades the WalletConnect button gracefully while MetaMask keeps working.

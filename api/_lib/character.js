@@ -49,6 +49,42 @@ const IMAGE_GENERATION_ERROR_MESSAGE =
 const SHEET_FETCH_TIMEOUT_MS = 6000;
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
 const GEMINI_IMAGE_TIMEOUT_MS = 45000;
+// Stable model id — the "-preview" alias is no longer listed in the Gemini docs.
+const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+// Pets are pixel art shown in boxes of at most 248 CSS px (≤ 496 device px on
+// retina), so a 512 square is enough and costs ~⅓ less than 1K. GEMINI_IMAGE_SIZE
+// switches back to 1K without a code change; existing images are never redrawn.
+const DEFAULT_GEMINI_IMAGE_SIZE = "512";
+const GEMINI_IMAGE_SIZE_ALIASES = new Map([
+  ["512", "512"],
+  ["512px", "512"],
+  ["0.5k", "512"],
+  ["1k", "1K"],
+  ["1024", "1K"],
+  ["1024px", "1K"],
+]);
+let warnedAboutImageSize = false;
+
+function resolveGeminiImageSize() {
+  const raw = String(process.env.GEMINI_IMAGE_SIZE || "").trim();
+  if (!raw) {
+    return DEFAULT_GEMINI_IMAGE_SIZE;
+  }
+
+  const normalized = GEMINI_IMAGE_SIZE_ALIASES.get(raw.toLowerCase());
+  if (normalized) {
+    return normalized;
+  }
+
+  if (!warnedAboutImageSize) {
+    warnedAboutImageSize = true;
+    console.warn(
+      "[character:image]",
+      `GEMINI_IMAGE_SIZE="${raw}" is not supported, falling back to ${DEFAULT_GEMINI_IMAGE_SIZE}.`
+    );
+  }
+  return DEFAULT_GEMINI_IMAGE_SIZE;
+}
 const LOCAL_FALLBACK_IMAGE_PATH = path.join(
   process.cwd(),
   "assets",
@@ -747,7 +783,7 @@ async function requestGeminiImage(prompt, referenceImage) {
     return null;
   }
 
-  const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
+  const model = process.env.GEMINI_IMAGE_MODEL || DEFAULT_GEMINI_IMAGE_MODEL;
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -776,6 +812,10 @@ async function requestGeminiImage(prompt, referenceImage) {
         ],
         generationConfig: {
           responseModalities: ["TEXT", "IMAGE"],
+          imageConfig: {
+            aspectRatio: "1:1",
+            imageSize: resolveGeminiImageSize(),
+          },
         },
       }),
     },
@@ -1138,6 +1178,7 @@ module.exports = {
   getImageExtension,
   loadShapeReferenceImage,
   requestGeminiImage,
+  resolveGeminiImageSize,
   getAttributeIncrementSpend,
   getAttributePointBudget,
   getExperienceForNextLevel,

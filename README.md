@@ -75,6 +75,9 @@ Minimum recommended variables:
 | `SOLANA_AUTH_SECRET` | Yes | Signs auth/session tokens (legacy name kept on purpose: it also seeds the blob storage path — renaming it orphans production data) |
 | `INTERNAL_API_SECRET` | Recommended | Internal route auth and stable storage paths |
 | `GEMINI_API_KEY` or `GOOGLE_AI_API_KEY` | Optional | Enables live AI generation and battle narration |
+| `GEMINI_IMAGE_MODEL` | Optional | Image model id, default `gemini-3.1-flash-image` (Nano Banana 2) |
+| `GEMINI_IMAGE_SIZE` | Optional | Pet image size requested from the model: `512` (default) or `1K`. Existing images are never regenerated; on Vercel a change needs a Redeploy |
+| `GEMINI_TEXT_MODEL` | Optional | Text model for names/powers/narration, default `gemini-2.5-flash` |
 | `BLOB_READ_WRITE_TOKEN` | Production only | Enables Vercel Blob persistence |
 | `ADMIN_WALLETS` or `ADMIN_WALLET` | Optional | Admin wallets, comma-separated. EVM `0x…` addresses are matched case-insensitively (e.g. `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`); legacy base58 entries still match exactly |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated allowed origins |
