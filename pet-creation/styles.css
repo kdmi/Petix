@@ -8885,9 +8885,16 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
   width: 28px;
 }
 
+/* На тёмной кнопке монета инвертируется: тёмный кружок стал бы невидимым. */
 .petbuy-coin--btn {
+  filter: invert(1);
   margin: 0 4px 0 2px;
   vertical-align: -3px;
+}
+
+/* Кнопка гаснет, когда денег не хватает — иконка гасится вместе с ней. */
+.petbuy-submit:disabled .petbuy-coin--btn {
+  filter: invert(1) opacity(0.85);
 }
 
 .petbuy-sub {
