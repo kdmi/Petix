@@ -130,6 +130,17 @@
         max-width: 620px;
       }
 
+      .snapshot {
+        color: var(--faint);
+        font-size: 14px;
+        line-height: 20px;
+        margin: 10px 0 0;
+      }
+
+      .snapshot.is-stale {
+        color: var(--warn);
+      }
+
       section {
         margin-top: 40px;
       }
@@ -477,6 +488,7 @@
         wallet that holds the pool, and every deposit lands on it. This page lists that traffic, with a
         link to the transaction for each line.
       </p>
+      <p class="snapshot" id="snapshot"></p>
 
       <div id="content">
         <section>
@@ -579,24 +591,31 @@
             </li>`;
         };
 
-        // The journal is paged server-side and swapped in place, so the page
-        // keeps a fixed height however long the history gets.
-        const renderLedger = (data) => {
+        // One snapshot per load, paged locally: the page keeps a fixed height
+        // however long the history gets, and two pages can never come from two
+        // different builds (which could duplicate or skip a row at the seam).
+        const PAGE_SIZE = 20;
+        let journal = [];
+
+        const renderLedger = (requestedPage) => {
           const box = document.getElementById("ledger");
           if (!box) return;
-          const entries = Array.isArray(data.entries) ? data.entries : [];
+          const pageCount = Math.max(1, Math.ceil(journal.length / PAGE_SIZE));
+          const page = Math.min(Math.max(1, requestedPage), pageCount);
+          const start = (page - 1) * PAGE_SIZE;
+          const entries = journal.slice(start, start + PAGE_SIZE);
           if (!entries.length) {
             box.innerHTML =
               '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>';
             return;
           }
-          const page = Number(data.page) || 1;
-          const pageCount = Number(data.pageCount) || 1;
+          const from = start + 1;
+          const to = Math.min(start + PAGE_SIZE, journal.length);
           const pager =
             pageCount > 1
               ? `<div class="pager">
                   <button class="ghost-btn" type="button" data-page="${page - 1}"${page <= 1 ? " disabled" : ""}>← Newer</button>
-                  <span class="pager-info">${escapeHtml(points(data.from))}–${escapeHtml(points(data.to))} of ${escapeHtml(points(data.totalEntries))}</span>
+                  <span class="pager-info">${escapeHtml(points(from))}–${escapeHtml(points(to))} of ${escapeHtml(points(journal.length))}</span>
                   <button class="ghost-btn" type="button" data-page="${page + 1}"${page >= pageCount ? " disabled" : ""}>Older →</button>
                 </div>`
               : "";
@@ -608,27 +627,6 @@
               ${entries.map(ledgerRow).join("")}
             </ul>
             ${pager}`;
-        };
-
-        let loadingPage = false;
-
-        const loadPage = async (page) => {
-          if (loadingPage) return;
-          loadingPage = true;
-          const box = document.getElementById("ledger");
-          if (box) box.classList.add("is-loading");
-          try {
-            const response = await fetch(`/api/token/ledger?page=${encodeURIComponent(page)}`, {
-              headers: { Accept: "application/json" },
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            renderLedger(await response.json());
-          } catch (error) {
-            // Keep the page the viewer already has — the pager stays usable.
-          } finally {
-            loadingPage = false;
-            if (box) box.classList.remove("is-loading");
-          }
         };
 
         const render = (data) => {
@@ -712,17 +710,28 @@
               </p>
             </section>`;
 
-          renderLedger(data);
+          journal = entries;
+          renderLedger(1);
 
+          // The feed is a snapshot rebuilt every couple of minutes, and two
+          // visitors can be served snapshots of slightly different ages. Naming
+          // the moment keeps a lower number readable as "older", not "wrong".
+          const snapshot = document.getElementById("snapshot");
+          if (snapshot && data.updatedAt) {
+            snapshot.classList.toggle("is-stale", Boolean(data.stale));
+            snapshot.textContent = data.stale
+              ? `Showing the last complete snapshot, taken ${utc(data.updatedAt)} — a refresh is in progress.`
+              : `Snapshot taken ${utc(data.updatedAt)}, rebuilt every couple of minutes.`;
+          }
           if (data.updatedAt) {
-            updated.textContent = `Last updated ${utc(data.updatedAt)}. Data comes from the wallet and the game's payout journal.`;
+            updated.textContent = `Data comes from the wallet and the game's payout journal. Snapshot ${utc(data.updatedAt)}.`;
           }
         };
 
         content.addEventListener("click", (event) => {
           const pageButton = event.target.closest("[data-page]");
           if (pageButton && !pageButton.disabled) {
-            loadPage(Number(pageButton.getAttribute("data-page")) || 1);
+            renderLedger(Number(pageButton.getAttribute("data-page")) || 1);
             return;
           }
           const button = event.target.closest("[data-copy]");

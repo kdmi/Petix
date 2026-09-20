@@ -83,18 +83,12 @@ test("public ledger: no session needed, totals per direction, masked wallets, tx
     // Cacheable at the edge: the page must not cost one profile read per visitor.
     assert.match(String(res.headers["cache-control"]), /s-maxage=\d+/);
 
-    // A short journal is one page.
-    assert.equal(body.page, 1);
-    assert.equal(body.pageCount, 1);
     assert.equal(body.totalEntries, 3);
-    assert.equal(body.from, 1);
-    assert.equal(body.to, 3);
   });
 });
 
-test("public ledger: pages over the journal, clamps a page past the end", async () => {
+test("public ledger: the whole journal ships in one snapshot, newest first", async () => {
   await withTokenEnv(async ({ chain, clock, deps, store, token }) => {
-    // 25 deposits → two pages of 20 + 5.
     await seedBalance(store, PLAYER, 0);
     for (let index = 0; index < 25; index += 1) {
       chain.mineIncoming(PLAYER, 10 + index);
@@ -104,38 +98,100 @@ test("public ledger: pages over the journal, clamps a page past the end", async 
     await token.syncDeposits(deps);
 
     const dispatcher = freshDispatcher(token, deps);
-    const first = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" })).body;
-    assert.equal(first.totalEntries, 25);
-    assert.equal(first.pageCount, 2);
-    assert.equal(first.page, 1);
-    assert.equal(first.pageSize, 20);
-    assert.equal(first.entries.length, 20);
-    assert.equal(first.from, 1);
-    assert.equal(first.to, 20);
+    const body = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" })).body;
 
-    const second = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=2" })).body;
-    assert.equal(second.page, 2);
-    assert.equal(second.entries.length, 5);
-    assert.equal(second.from, 21);
-    assert.equal(second.to, 25);
-    // Pages do not overlap and stay newest-first across the boundary.
-    const keys = [...first.entries, ...second.entries].map((entry) => entry.txHash);
-    assert.equal(new Set(keys).size, 25);
-    const stamps = [...first.entries, ...second.entries].map((entry) => Date.parse(entry.at));
+    // One response carries the journal the page pages through: a viewer can
+    // never read two pages built from two different snapshots.
+    assert.equal(body.totalEntries, 25);
+    assert.equal(body.entries.length, 25);
+    assert.equal(new Set(body.entries.map((entry) => entry.txHash)).size, 25);
+    const stamps = body.entries.map((entry) => Date.parse(entry.at));
     assert.deepEqual(stamps, [...stamps].sort((a, b) => b - a));
-
-    // Totals are the whole journal, not the page.
-    assert.equal(second.totals.depositedCount, 25);
-
-    // A page past the end answers the last one; junk reads as page 1.
-    const beyond = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=99" })).body;
-    assert.equal(beyond.page, 2);
-    assert.equal(beyond.entries.length, 5);
-    for (const bad of ["0", "-3", "abc", ""]) {
-      const res = (await invokeJsonHandler(dispatcher, { url: `/api/token/ledger?page=${bad}` })).body;
-      assert.equal(res.page, 1, `page=${bad}`);
-    }
+    assert.equal(body.totals.depositedCount, 25);
+    // Paging lives in the page now — no page/pageCount in the payload.
+    assert.equal(body.page, undefined);
+    assert.equal(body.pageCount, undefined);
   });
+});
+
+test("public ledger: a build that cannot read a profile fails instead of under-reporting", async () => {
+  await withTokenEnv(async ({ chain, deps, store, token }) => {
+    autoConfirm(chain);
+    await seedBalance(store, PLAYER, 3000);
+    await seedBalance(store, OTHER, 3000);
+    await token.requestWithdraw(PLAYER, 500, deps, { isAdmin: true });
+    await token.requestWithdraw(OTHER, 700, deps, { isAdmin: true });
+
+    const realRead = deps.profiles.getWalletProfile;
+    const failFor = (wallet) => async (target) => {
+      if (target === wallet) throw new Error("blob unavailable");
+      return realRead(target);
+    };
+
+    // Skipping the unreadable wallet would answer 500 instead of 1200 — the
+    // build must refuse rather than publish a total that walked backwards.
+    deps.profiles.getWalletProfile = failFor(OTHER);
+    await assert.rejects(() => token.publicLedger(deps), /blob unavailable/);
+    deps.profiles.getWalletProfile = realRead;
+  });
+});
+
+test("public ledger: a failed rebuild keeps serving the last complete snapshot", async () => {
+  await withTokenEnv(
+    async ({ chain, deps, store, token }) => {
+      autoConfirm(chain);
+      await seedBalance(store, PLAYER, 3000);
+      await seedBalance(store, OTHER, 3000);
+      await token.requestWithdraw(PLAYER, 500, deps, { isAdmin: true });
+      await token.requestWithdraw(OTHER, 700, deps, { isAdmin: true });
+
+      // TOKEN_LEDGER_CACHE_MS=0 → every request rebuilds, so the next call
+      // really does go through the failure path.
+      const dispatcher = freshDispatcher(token, deps);
+      const good = await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" });
+      assert.equal(good.body.totals.withdrawnPoints, 1200);
+      assert.equal(good.body.stale, undefined);
+
+      const realRead = deps.profiles.getWalletProfile;
+      deps.profiles.getWalletProfile = async (target) => {
+        if (target === OTHER) throw new Error("blob unavailable");
+        return realRead(target);
+      };
+      try {
+        const fallback = await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" });
+        assert.equal(fallback.status, 200);
+        assert.equal(fallback.body.stale, true);
+        assert.equal(fallback.body.totals.withdrawnPoints, 1200, "totals must not drop when a profile is unreadable");
+        assert.equal(fallback.body.updatedAt, good.body.updatedAt, "the page shows the snapshot it actually got");
+      } finally {
+        deps.profiles.getWalletProfile = realRead;
+      }
+    },
+    { env: { TOKEN_LEDGER_CACHE_MS: "0" } }
+  );
+});
+
+test("public ledger: a first build that fails answers an error, not an empty journal", async () => {
+  await withTokenEnv(
+    async ({ chain, deps, store, token }) => {
+      autoConfirm(chain);
+      await seedBalance(store, PLAYER, 3000);
+      await token.requestWithdraw(PLAYER, 500, deps, { isAdmin: true });
+
+      const realRead = deps.profiles.getWalletProfile;
+      deps.profiles.getWalletProfile = async () => {
+        throw new Error("blob unavailable");
+      };
+      try {
+        const dispatcher = freshDispatcher(token, deps);
+        const res = await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" });
+        assert.equal(res.status, 500);
+      } finally {
+        deps.profiles.getWalletProfile = realRead;
+      }
+    },
+    { env: { TOKEN_LEDGER_CACHE_MS: "0" } }
+  );
 });
 
 test("public ledger: payouts in flight are pending, refunded ones are not listed", async () => {
@@ -176,14 +232,10 @@ test("public ledger: the journal is capped and says so", async () => {
     const dispatcher = freshDispatcher(token, deps);
     const body = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" })).body;
     assert.equal(body.totalEntries, 500);
+    assert.equal(body.entries.length, 500);
     assert.equal(body.capped, true);
-    assert.equal(body.pageCount, 25);
     // Totals still count everything, only the listing is trimmed.
     assert.equal(body.totals.depositedCount, 505);
-
-    const last = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=25" })).body;
-    assert.equal(last.entries.length, 20);
-    assert.equal(last.to, 500);
   });
 });
 

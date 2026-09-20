@@ -1123,9 +1123,9 @@ async function adminStats(depOverrides) {
 // Public ledger (transparency page, no session)
 // ---------------------------------------------------------------------------
 
-// How much journal the public feed keeps in one build. The route pages over it,
-// so this is the depth of history the page can reach — older movements stay on
-// the chain (and the wallet list itself rotates after MAX_RECENT_WALLETS).
+// How much journal the public feed keeps in one build — the depth the page can
+// page through. Older movements stay on the chain (and the wallet list itself
+// rotates after MAX_RECENT_WALLETS).
 const PUBLIC_ENTRIES = 500;
 
 function maskWallet(wallet) {
@@ -1145,8 +1145,9 @@ function explorerAddressUrl(env, address) {
  * Only money that actually moved is listed: confirmed payouts, payouts in
  * flight and credited deposits; refunded (failed/dropped) requests never
  * touched the wallet, so they would only add noise.
- * One profile read per wallet with token history — the route caches the result
- * and pages over `entries`, so every page costs one build, not one per page.
+ * One profile read per wallet with token history — the route caches the whole
+ * result and serves it in one piece, so a viewer always reads ONE snapshot
+ * (the page slices it into pages itself, which cannot mix two builds).
  */
 async function publicLedger(depOverrides) {
   const deps = resolveDeps(depOverrides);
@@ -1171,13 +1172,11 @@ async function publicLedger(depOverrides) {
   const pending = { count: 0, points: 0 };
 
   for (const wallet of state.recentWallets) {
-    let profile;
-    try {
-      profile = await deps.profiles.getWalletProfile(wallet);
-    } catch (error) {
-      // One unreadable profile must not take the whole page down.
-      continue;
-    }
+    // A failed read aborts the build instead of skipping the wallet: skipping
+    // silently drops that wallet's payouts from the "all time" numbers, and the
+    // totals then go BACKWARDS for as long as that snapshot is cached. The
+    // route keeps serving the last complete snapshot instead.
+    const profile = await deps.profiles.getWalletProfile(wallet);
     const masked = maskWallet(wallet);
     let paidThisWallet = false;
 
