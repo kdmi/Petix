@@ -82,6 +82,59 @@ test("public ledger: no session needed, totals per direction, masked wallets, tx
 
     // Cacheable at the edge: the page must not cost one profile read per visitor.
     assert.match(String(res.headers["cache-control"]), /s-maxage=\d+/);
+
+    // A short journal is one page.
+    assert.equal(body.page, 1);
+    assert.equal(body.pageCount, 1);
+    assert.equal(body.totalEntries, 3);
+    assert.equal(body.from, 1);
+    assert.equal(body.to, 3);
+  });
+});
+
+test("public ledger: pages over the journal, clamps a page past the end", async () => {
+  await withTokenEnv(async ({ chain, clock, deps, store, token }) => {
+    // 25 deposits → two pages of 20 + 5.
+    await seedBalance(store, PLAYER, 0);
+    for (let index = 0; index < 25; index += 1) {
+      chain.mineIncoming(PLAYER, 10 + index);
+      clock.now += 60000;
+    }
+    chain.advance(12);
+    await token.syncDeposits(deps);
+
+    const dispatcher = freshDispatcher(token, deps);
+    const first = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" })).body;
+    assert.equal(first.totalEntries, 25);
+    assert.equal(first.pageCount, 2);
+    assert.equal(first.page, 1);
+    assert.equal(first.pageSize, 20);
+    assert.equal(first.entries.length, 20);
+    assert.equal(first.from, 1);
+    assert.equal(first.to, 20);
+
+    const second = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=2" })).body;
+    assert.equal(second.page, 2);
+    assert.equal(second.entries.length, 5);
+    assert.equal(second.from, 21);
+    assert.equal(second.to, 25);
+    // Pages do not overlap and stay newest-first across the boundary.
+    const keys = [...first.entries, ...second.entries].map((entry) => entry.txHash);
+    assert.equal(new Set(keys).size, 25);
+    const stamps = [...first.entries, ...second.entries].map((entry) => Date.parse(entry.at));
+    assert.deepEqual(stamps, [...stamps].sort((a, b) => b - a));
+
+    // Totals are the whole journal, not the page.
+    assert.equal(second.totals.depositedCount, 25);
+
+    // A page past the end answers the last one; junk reads as page 1.
+    const beyond = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=99" })).body;
+    assert.equal(beyond.page, 2);
+    assert.equal(beyond.entries.length, 5);
+    for (const bad of ["0", "-3", "abc", ""]) {
+      const res = (await invokeJsonHandler(dispatcher, { url: `/api/token/ledger?page=${bad}` })).body;
+      assert.equal(res.page, 1, `page=${bad}`);
+    }
   });
 });
 
@@ -103,6 +156,34 @@ test("public ledger: payouts in flight are pending, refunded ones are not listed
     assert.equal(body.pending.points, 300);
     assert.equal(body.entries.length, 1);
     assert.equal(body.entries[0].status, "pending");
+  });
+});
+
+test("public ledger: the journal is capped and says so", async () => {
+  await withTokenEnv(async ({ deps, store, token, tokenStore }) => {
+    await store.updateWalletProfile(PLAYER, (current) => ({
+      ...current,
+      deposits: Array.from({ length: 505 }, (_, index) => ({
+        key: `dep-${index}`,
+        points: 10,
+        txHash: `0x${String(index).padStart(64, "0")}`,
+        creditedAt: new Date(Date.parse("2026-09-12T12:00:00.000Z") - index * 60000).toISOString(),
+        source: PLAYER,
+      })),
+    }));
+    await tokenStore.withTokenState((state) => tokenStore.rememberWallet(state, PLAYER));
+
+    const dispatcher = freshDispatcher(token, deps);
+    const body = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger" })).body;
+    assert.equal(body.totalEntries, 500);
+    assert.equal(body.capped, true);
+    assert.equal(body.pageCount, 25);
+    // Totals still count everything, only the listing is trimmed.
+    assert.equal(body.totals.depositedCount, 505);
+
+    const last = (await invokeJsonHandler(dispatcher, { url: "/api/token/ledger?page=25" })).body;
+    assert.equal(last.entries.length, 20);
+    assert.equal(last.to, 500);
   });
 });
 
