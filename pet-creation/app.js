@@ -11304,10 +11304,7 @@ function renderPetBuyModal(pricing) {
   const missing = Math.max(0, Math.floor(Number(pricing.missing) || 0));
 
   refs.price.textContent = formatPetPrice(price);
-  refs.sub.textContent =
-    "Pet #" +
-    pricing.nextPetIndex +
-    (pricing.priceUsd ? " · about $" + Number(pricing.priceUsd).toFixed(2) : "");
+  refs.sub.textContent = "Pet #" + pricing.nextPetIndex;
   refs.balance.textContent = formatPetPrice(balance);
   refs.missing.textContent = formatPetPrice(missing);
   refs.missingRow.classList.toggle("hidden", missing <= 0);
@@ -11316,7 +11313,7 @@ function renderPetBuyModal(pricing) {
   refs.topup.classList.toggle("hidden", missing <= 0);
   refs.note.textContent =
     missing > 0
-      ? "Farm more Points or deposit $PETIX — the price follows the coin, so it stays about the same in dollars."
+      ? "Farm more Points or deposit $PETIX to cover the difference."
       : "Points are spent at creation. Each next pet costs more than the last.";
   refs.error.classList.add("hidden");
   refs.error.textContent = "";
