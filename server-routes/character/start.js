@@ -7,6 +7,7 @@ const {
 } = require("../../api/_lib/auth");
 const {
   buildCharacterDraft,
+  isDraftExpired,
   serializeCharacterRecord,
 } = require("../../api/_lib/character");
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
@@ -34,6 +35,11 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Read the body before anything awaits on storage: the request stream is
+    // still unread at this point, and parsing it later can miss the payload.
+    const body = await parseJsonBody(req);
+    const creatureType = body.creatureType || body.archetype || "";
+
     const profile = await getWalletProfile(session.wallet);
     const cfg = await getEconomyConfig();
     const maxCharacters = getMaxCharacters(profile, cfg);
@@ -46,8 +52,29 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const body = await parseJsonBody(req);
-    const creatureType = body.creatureType || body.archetype || "";
+    // Every start is a paid generation (one image plus two text calls), and the
+    // slot cap above only counts saved characters — a wallet that keeps an
+    // unfinished draft would otherwise redraw its pet for free on every call.
+    // Admins keep the old behaviour so prompt changes stay testable on prod.
+    const pendingDraft = profile.draft;
+    if (pendingDraft && !isDraftExpired(pendingDraft) && !isAdminWallet(session.wallet)) {
+      console.log(
+        "[character:start]",
+        JSON.stringify({
+          wallet: session.wallet,
+          characterId: pendingDraft.id,
+          creatureType: pendingDraft.creatureType,
+          resumedDraft: true,
+        })
+      );
+
+      json(res, 200, {
+        draft: serializeCharacterRecord(pendingDraft),
+        characters: profile.characters.map(serializeCharacterRecord),
+      });
+      return;
+    }
+
     const draft = await buildCharacterDraft(creatureType, createImageStore());
 
     const nextProfile = {
