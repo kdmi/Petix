@@ -1011,6 +1011,27 @@ async function buildCharacterDraft(creatureTypeInput, imageStore) {
   };
 }
 
+// A draft is a paid generation (one image + two text calls), so a wallet that
+// already has one resumes it instead of starting another. The TTL stamped on
+// the draft is what decides when it stops blocking a fresh start; drafts saved
+// without one fall back to their creation time, and a draft with neither is
+// treated as expired so a broken record can never lock a wallet out.
+function isDraftExpired(draft, now = Date.now()) {
+  if (!draft) return true;
+
+  const expiresAt = Date.parse(draft.draftExpiresAt || "");
+  if (Number.isFinite(expiresAt)) {
+    return expiresAt <= now;
+  }
+
+  const createdAt = Date.parse(draft.createdAt || "");
+  if (Number.isFinite(createdAt)) {
+    return createdAt + DRAFT_TTL_MS <= now;
+  }
+
+  return true;
+}
+
 function normalizeAttributes(stats) {
   return ATTRIBUTE_KEYS.reduce((acc, key) => {
     acc[key] = Number(stats?.[key] ?? 0);
@@ -1202,6 +1223,7 @@ module.exports = {
   buildImagePrompt,
   createPromptContext,
   getImageExtension,
+  isDraftExpired,
   loadShapeReferenceImage,
   generateCharacterName,
   generatePowerOptions,
