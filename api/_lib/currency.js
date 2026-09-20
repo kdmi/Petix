@@ -97,6 +97,32 @@ function debitCurrency(profile, amount) {
   return actualDebited;
 }
 
+const SPEND_LOG_LIMIT = 200;
+
+/**
+ * Журнал списаний (024). Каждый потраченный внутри игры Point — это погашенное
+ * требование к казне, и именно он уходит в еженедельное сжигание, поэтому трата
+ * записывается рядом с балансом, в той же мутации профиля.
+ *
+ * Журнал обрезается сверху: он нужен игроку как история, а сумма к сжиганию
+ * живёт отдельным счётчиком в состоянии токена.
+ */
+function recordSpend(profile, { points, reason, ref = null, at = null }) {
+  const amount = Math.floor(Number(points) || 0);
+  if (!profile || typeof profile !== "object" || amount <= 0) return profile;
+
+  const log = Array.isArray(profile.spend) ? profile.spend : [];
+  log.push({
+    at: at || new Date().toISOString(),
+    points: amount,
+    reason: String(reason || "other"),
+    ref: ref ? String(ref) : null,
+    refunded: false,
+  });
+  profile.spend = log.slice(-SPEND_LOG_LIMIT);
+  return profile;
+}
+
 // BEGIN format-coins-mirror
 function formatCoins(value) {
   const n = Math.max(0, Math.floor(Number(value) || 0));
@@ -123,4 +149,5 @@ module.exports = {
   debitCurrency,
   formatCoins,
   normalizeCurrency,
+  recordSpend,
 };

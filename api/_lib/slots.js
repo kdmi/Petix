@@ -1,73 +1,85 @@
-const { normalizeCurrency } = require("./currency");
+// Вместимость кошелька (feature 013 → 024). Чистая логика: конфиг и профиль
+// передаются аргументами, сети и файловой системы здесь нет.
+//
+// Слоты как покупаемая сущность выведены из эксплуатации (024): игрок больше не
+// покупает место заранее, он платит за самого питомца в момент создания (см.
+// pet-price.js). Здесь остались вместимость, подсчёт занятых мест и разовый
+// зачёт того, что кошелёк оплатил по прежним правилам.
 
-// Pure slot logic (Farm-экономика, feature 013). No network/FS — config + profile passed in.
-// 3 free slots + up to (MAX_CHARACTER_SLOTS - 3) paid slots. Price escalates per SLOT_PRICES.
+// Запасное значение для конфигов, где ключа ещё нет (старые переопределения).
+const DEFAULT_FREE_SLOTS = 1;
 
-const FREE_SLOTS = 3;
+function getFreeSlots(cfg) {
+  const n = Math.floor(Number(cfg && cfg.FREE_SLOTS));
+  return Number.isFinite(n) && n >= 1 ? n : DEFAULT_FREE_SLOTS;
+}
 
 function getPaidSlots(profile) {
   const n = Math.floor(Number(profile && profile.paidSlots) || 0);
   return Math.max(0, n);
 }
 
-/** Total character capacity for this wallet (free + purchased), capped at MAX_CHARACTER_SLOTS. */
+/** Предел питомцев на кошелёк. Одинаков для всех: места больше не покупаются. */
 function getMaxCharacters(profile, cfg) {
-  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || FREE_SLOTS);
-  return Math.min(cap, FREE_SLOTS + getPaidSlots(profile));
+  const cap = Math.floor(Number(cfg && cfg.MAX_CHARACTER_SLOTS) || 10);
+  return Math.max(1, cap);
 }
 
 /**
- * Price of the NEXT slot to unlock, or null if the wallet is already at MAX_CHARACTER_SLOTS.
- * The next slot is character #(FREE_SLOTS + paidSlots + 1); price index is paidSlots.
- */
-function getNextSlotPrice(profile, cfg) {
-  const paid = getPaidSlots(profile);
-  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || FREE_SLOTS);
-  if (FREE_SLOTS + paid >= cap) return null;
-  const prices = Array.isArray(cfg.SLOT_PRICES) ? cfg.SLOT_PRICES : [];
-  const price = prices[paid];
-  return typeof price === "number" && Number.isFinite(price) ? price : null;
-}
-
-/** 1-based index of the next character slot to unlock (e.g. 4 for the first paid slot). */
-function getNextSlotIndex(profile) {
-  return FREE_SLOTS + getPaidSlots(profile) + 1;
-}
-
-/**
- * Can the wallet buy the next slot?
- * → { ok:true, price, slotIndex } | { ok:false, reason:"MAX_SLOTS" } |
- *   { ok:false, reason:"INSUFFICIENT_FUNDS", required, balance }
- */
-function canBuySlot(profile, cfg) {
-  const price = getNextSlotPrice(profile, cfg);
-  if (price === null) {
-    return { ok: false, reason: "MAX_SLOTS" };
-  }
-  const balance = normalizeCurrency(profile && profile.currency).balance;
-  if (balance < price) {
-    return { ok: false, reason: "INSUFFICIENT_FUNDS", required: price, balance };
-  }
-  return { ok: true, price, slotIndex: getNextSlotIndex(profile) };
-}
-
-/**
- * Персонажи, занимающие слоты кошелька. Питомец, запечатанный в капсулу, живёт
- * в NFT, а не в слоте (решение владельца 2026-09-18): он не мешает создать
- * следующего, а у покупателя капсулы не съедает лимит. Слот освобождается в
- * момент посадки, а не продажи.
+ * Питомцы, занимающие места кошелька. Питомец, запечатанный в капсулу, живёт
+ * в NFT, а не в кошельке (решение владельца 2026-09-18): он не мешает создать
+ * следующего, а у покупателя капсулы не съедает лимит.
  */
 function countSlotCharacters(profile) {
   const characters = Array.isArray(profile && profile.characters) ? profile.characters : [];
   return characters.filter((record) => !(record && record.nft && record.nft.tokenId)).length;
 }
 
+/**
+ * Открытые места кошелька. Место открывается один раз — бесплатным первым
+ * питомцем или покупкой — и остаётся за кошельком навсегда: сожжённый питомец
+ * освобождает место, но не закрывает его, и следующий питомец в этом месте
+ * бесплатен (решение владельца 2026-09-20). Платой за перерисовку служит
+ * стоимость сжигания.
+ *
+ * Считается один раз при первом обращении. Кошельки прежних правил ничего не
+ * теряют: им засчитываются и купленные слоты, и места, которые они уже
+ * занимают питомцами.
+ *
+ * Возвращает true, если профиль изменён; вызывающий код сохраняет его в
+ * составе своей записи.
+ */
+function ensureUnlockedSlots(profile, cfg) {
+  if (!profile || typeof profile !== "object") return false;
+  // Number(null) === 0, а null здесь означает «ещё не считалось».
+  if (profile.unlockedSlots != null && Number.isFinite(Number(profile.unlockedSlots))) {
+    return false;
+  }
+
+  const cap = getMaxCharacters(profile, cfg);
+  const fromPurchases = getFreeSlots(cfg) + getPaidSlots(profile);
+  profile.unlockedSlots = Math.min(cap, Math.max(fromPurchases, countSlotCharacters(profile)));
+  return true;
+}
+
+/** Открытые места с запасным вычислением для профилей, где поле ещё не считалось. */
+function getUnlockedSlots(profile, cfg) {
+  const free = getFreeSlots(cfg);
+  const cap = getMaxCharacters(profile, cfg);
+  const raw = profile ? profile.unlockedSlots : null;
+  const stored = raw == null ? NaN : Number(raw);
+  // Бесплатное место есть у любого кошелька, поэтому оно же и нижняя граница:
+  // испорченное или недосчитанное значение не запирает создание питомцев.
+  if (Number.isFinite(stored)) return Math.min(cap, Math.max(free, Math.floor(stored)));
+  return Math.min(cap, Math.max(free + getPaidSlots(profile), countSlotCharacters(profile)));
+}
+
 module.exports = {
-  FREE_SLOTS,
+  DEFAULT_FREE_SLOTS,
   countSlotCharacters,
-  getPaidSlots,
+  ensureUnlockedSlots,
+  getFreeSlots,
+  getUnlockedSlots,
   getMaxCharacters,
-  getNextSlotPrice,
-  getNextSlotIndex,
-  canBuySlot,
+  getPaidSlots,
 };

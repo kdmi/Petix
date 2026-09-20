@@ -9,7 +9,7 @@ const {
   withIsolatedBattleHistoryEnv,
 } = require("./helpers/battle-history-test-utils");
 
-const BURN_COST = 1000; // default from api/_lib/economy-config.js
+const BURN_COST = 10000; // default from api/_lib/economy-config.js
 
 function burnRequest(auth, wallet, petId) {
   return {
@@ -36,7 +36,7 @@ test("POST /api/character/burn debits the cost, deletes the pet, and keeps paid 
     const victim = createCompletedCharacter({ id: "char_victim", name: "Victim" });
     await seedProfile(store, wallet, {
       characters: [keeper, victim],
-      balance: 1200,
+      balance: 12000,
       totalEarned: 5000,
       paidSlots: 2,
     });
@@ -50,16 +50,16 @@ test("POST /api/character/burn debits the cost, deletes the pet, and keeps paid 
     assert.equal(response.body.burned, true);
     assert.equal(response.body.petId, "char_victim");
     assert.equal(response.body.pricePaid, BURN_COST);
-    assert.equal(response.body.balance, 1200 - BURN_COST);
+    assert.equal(response.body.balance, 12000 - BURN_COST);
     assert.equal(response.body.paidSlots, 2);
-    assert.equal(response.body.maxCharacters, 5);
+    assert.equal(response.body.maxCharacters, 10, "the cap no longer depends on purchased places");
 
     const profile = await store.getWalletProfile(wallet);
     assert.deepEqual(
       profile.characters.map((record) => record.id),
       ["char_keeper"]
     );
-    assert.equal(profile.currency.balance, 1200 - BURN_COST);
+    assert.equal(profile.currency.balance, 12000 - BURN_COST);
     // burn is a sink: totalEarned must stay untouched
     assert.equal(profile.currency.totalEarned, 5000);
     assert.equal(profile.paidSlots, 2);
@@ -92,7 +92,7 @@ test("POST /api/character/burn returns 404 for an unknown pet and for a repeated
   await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store }) => {
     const wallet = createWallet("4");
     const pet = createCompletedCharacter({ id: "char_once", name: "Once" });
-    await seedProfile(store, wallet, { characters: [pet], balance: 2000 });
+    await seedProfile(store, wallet, { characters: [pet], balance: 20000 });
 
     const missing = await invokeJsonHandler(
       characterActionRoute,
@@ -116,7 +116,7 @@ test("POST /api/character/burn returns 404 for an unknown pet and for a repeated
 
     // exactly one debit happened
     const profile = await store.getWalletProfile(wallet);
-    assert.equal(profile.currency.balance, 2000 - BURN_COST);
+    assert.equal(profile.currency.balance, 20000 - BURN_COST);
   });
 });
 
@@ -128,10 +128,10 @@ test("POST /api/character/burn rejects generating pets and cross-wallet ids", as
       ...createCompletedCharacter({ id: "char_wip", name: "WIP" }),
       status: "generating",
     };
-    await seedProfile(store, wallet, { characters: [generating], balance: 2000 });
+    await seedProfile(store, wallet, { characters: [generating], balance: 20000 });
     await seedProfile(store, otherWallet, {
       characters: [createCompletedCharacter({ id: "char_foreign", name: "Foreign" })],
-      balance: 2000,
+      balance: 20000,
     });
 
     const notCompleted = await invokeJsonHandler(
@@ -149,7 +149,7 @@ test("POST /api/character/burn rejects generating pets and cross-wallet ids", as
     assert.equal(foreign.statusCode, 404);
     const otherProfile = await store.getWalletProfile(otherWallet);
     assert.equal(otherProfile.characters.length, 1);
-    assert.equal(otherProfile.currency.balance, 2000);
+    assert.equal(otherProfile.currency.balance, 20000);
   });
 });
 
@@ -168,7 +168,7 @@ test("POST /api/character/burn rejects farming pets and allows burn after claim"
       ...createCompletedCharacter({ id: "char_claimed", name: "Done" }),
       farmState: { active: false, startedAt: null, lastClaimedAt: new Date().toISOString() },
     };
-    await seedProfile(store, wallet, { characters: [farming, ready, claimed], balance: 2000 });
+    await seedProfile(store, wallet, { characters: [farming, ready, claimed], balance: 20000 });
 
     const midCycle = await invokeJsonHandler(
       characterActionRoute,
@@ -197,7 +197,7 @@ test("POST /api/character/burn rejects farming pets and allows burn after claim"
       profile.characters.map((record) => record.id).sort(),
       ["char_farming", "char_ready"]
     );
-    assert.equal(profile.currency.balance, 2000 - BURN_COST);
+    assert.equal(profile.currency.balance, 20000 - BURN_COST);
   });
 });
 

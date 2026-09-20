@@ -284,3 +284,45 @@ test("public ledger: RPC down → pool balance null, journal still served", asyn
     assert.equal(body.totals.withdrawnPoints, 500);
   });
 });
+
+test("public ledger: burns are published with their tx, pending ones are not", async () => {
+  await withTokenEnv(async ({ deps, token, tokenStore }) => {
+    await tokenStore.withTokenState((state) => {
+      tokenStore.addSpend(state, { points: 30000, reason: "pet_creation" });
+      // One burn confirmed on the chain, one still in flight.
+      tokenStore.recordBurn(state, {
+        id: "burn_done",
+        points: 20000,
+        txHash: "0xburned",
+        status: "sent",
+        at: "2026-09-20T10:00:00.000Z",
+        byReason: { pet_creation: 20000 },
+      });
+      tokenStore.drainBurnQueue(state, 20000);
+      tokenStore.settleBurn(state, "burn_done", {
+        status: "confirmed",
+        at: "2026-09-20T10:00:20.000Z",
+      });
+      tokenStore.recordBurn(state, {
+        id: "burn_flying",
+        points: 5000,
+        txHash: "0xflying",
+        status: "sent",
+        at: "2026-09-20T11:00:00.000Z",
+        byReason: { pet_creation: 5000 },
+      });
+      tokenStore.drainBurnQueue(state, 5000);
+      return state;
+    });
+
+    const ledger = await token.publicLedger(deps);
+
+    assert.equal(ledger.burned.totalPoints, 20000, "only the confirmed burn counts");
+    assert.equal(ledger.burned.count, 1);
+    assert.equal(ledger.burned.queuedPoints, 5000, "what is left waiting for the next burn");
+    assert.equal(ledger.burned.entries.length, 1, "the in-flight burn is not published yet");
+    assert.equal(ledger.burned.entries[0].points, 20000);
+    assert.equal(ledger.burned.entries[0].txHash, "0xburned");
+    assert.match(ledger.burned.entries[0].txUrl, /0xburned$/);
+  });
+});

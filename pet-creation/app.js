@@ -189,7 +189,8 @@ const ADMIN_WALLETS = [
   "AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9",
   "0x0e8caf9eca5e45df0e6f50f58a5bf664db1740c1",
 ];
-const MAX_CHARACTERS_PER_WALLET = 3;
+// Fallback until /api/character/me delivers the runtime capacity (FREE_SLOTS + paid slots).
+const MAX_CHARACTERS_PER_WALLET = 1;
 const CUSTOM_CREATURE_TYPE_MAX_LENGTH = 24;
 const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
@@ -1063,6 +1064,12 @@ const state = {
   paidSlots: 0,
   maxCharacters: MAX_CHARACTERS_PER_WALLET,
   nextSlotPrice: null,
+  // Цена следующего питомца (024): приезжает из /api/character/me.
+  petPricing: null,
+  // Курс монеты и лестница для админки (024).
+  adminPrice: null,
+  adminBurn: null,
+  adminBurnRunning: false,
   burnCost: null,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
@@ -3287,6 +3294,9 @@ function syncStateWithPayload(payload = {}) {
   if ("nextSlotPrice" in payload) {
     state.nextSlotPrice =
       typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
+  }
+  if (payload.petPricing && typeof payload.petPricing === "object") {
+    state.petPricing = payload.petPricing;
   }
   if (typeof payload.burnCost === "number") {
     state.burnCost = Math.max(0, Math.floor(payload.burnCost));
@@ -10515,6 +10525,7 @@ async function loadAdminEconomy({ force = false } = {}) {
   state.adminEconomyError = "";
   renderAdminTable();
   try {
+    void loadAdminPrice({ force });
     const [cfgRes, statsRes, tokenRes] = await Promise.all([
       apiRequest("/api/admin/economy-config", {}, "GET"),
       apiRequest("/api/admin/farm-stats", {}, "GET"),
@@ -10675,7 +10686,7 @@ function renderAdminEconomy() {
   const cfg = state.adminEconomyConfig || {};
   const stats = state.adminEconomyStats || {};
   const rarity = cfg.rarityMult || {};
-  const slotPrices = Array.isArray(cfg.SLOT_PRICES) ? cfg.SLOT_PRICES.join(", ") : "";
+  const petPricesUsd = Array.isArray(cfg.PET_PRICES_USD) ? cfg.PET_PRICES_USD.join(", ") : "";
 
   const statCard = (label, value) => `
     <article class="admin-stat-card">
@@ -10789,7 +10800,9 @@ function renderAdminEconomy() {
     body = `
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Slots</h3>
-        ${textRow(`Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)`, "SLOT_PRICES", slotPrices)}
+        ${grid([ecoNumberRow("Free slots", "FREE_SLOTS", cfg.FREE_SLOTS)])}
+        ${textRow(`Pet prices in USD (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - (cfg.FREE_SLOTS || 1)} values, increasing)`, "PET_PRICES_USD", petPricesUsd)}
+        ${renderAdminPriceBlock()}
       </section>
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Energy shop</h3>
@@ -10815,6 +10828,173 @@ function renderAdminEconomy() {
     </div>`;
 }
 
+// Курс монеты и действующая лестница цен на питомцев (024). Долларовая
+// лестница задаётся в конфиге выше, а здесь видно, во что она превращается по
+// текущей котировке — и можно обновить котировку руками, не дожидаясь крона.
+function renderAdminPriceBlock() {
+  const price = state.adminPrice;
+  if (!price) {
+    return `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Coin price</h3>
+        <p style="font-size:13px;color:#6b7280;margin:0;">Loading the quote…</p>
+      </section>`;
+  }
+
+  const quote = price.quote || {};
+  const age =
+    quote.ageMinutes === null || quote.ageMinutes === undefined
+      ? "never"
+      : quote.ageMinutes < 60
+        ? `${quote.ageMinutes} min ago`
+        : `${Math.round(quote.ageMinutes / 60)} h ago`;
+  const flags = [
+    quote.stale ? "stale" : "",
+    quote.bootstrap ? "bootstrap rate" : "",
+    quote.clamped ? "clamped" : "",
+    quote.rejections ? `${quote.rejections} rejected` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const ladder = Array.isArray(price.ladder) ? price.ladder : [];
+  const rows = ladder
+    .map(
+      (step) =>
+        `<tr><td style="padding:2px 10px 2px 0;">Pet #${step.index}</td>` +
+        `<td style="padding:2px 10px 2px 0;color:#6b7280;">$${Number(step.usd).toFixed(2)}</td>` +
+        `<td style="padding:2px 0;font-weight:600;">${formatPoints(step.points)}</td></tr>`
+    )
+    .join("");
+
+  const burn = state.adminBurn || {};
+  const queue = burn.queue || price.burnQueue || {};
+  const byReason = Object.entries(queue.byReason || {})
+    .map(([reason, points]) => `${reason.replace(/_/g, " ")}: ${formatPoints(points)}`)
+    .join(" · ");
+  const burnBlocked = {
+    TOKEN_DISABLED: "Token operations are off",
+    NOTHING_TO_BURN: "Nothing queued yet",
+    TREASURY_UNREACHABLE: "Treasury is unreachable",
+    LOW_GAS: "Operator is low on gas",
+    NOT_ENOUGH_ALLOWANCE: "Allowance below the queued amount",
+  }[burn.blockedReason] || "";
+  const recentBurns = Array.isArray(burn.burns) ? burn.burns.slice(-5).reverse() : [];
+  const burnRows = recentBurns
+    .map((entry) => {
+      const link =
+        entry.txHash && burn.explorerUrl
+          ? `<a href="${escapeHtml(burn.explorerUrl)}/tx/${escapeHtml(entry.txHash)}" target="_blank" rel="noopener noreferrer">${escapeHtml(entry.txHash.slice(0, 10))}…</a>`
+          : escapeHtml(entry.txHash ? entry.txHash.slice(0, 10) + "…" : "—");
+      const when = entry.at ? new Date(entry.at).toLocaleString() : "";
+      return `<tr><td style="padding:2px 10px 2px 0;">${formatPoints(entry.points)}</td>` +
+        `<td style="padding:2px 10px 2px 0;color:#6b7280;">${escapeHtml(entry.status)}</td>` +
+        `<td style="padding:2px 10px 2px 0;">${link}</td>` +
+        `<td style="padding:2px 0;color:#6b7280;">${escapeHtml(when)}</td></tr>`;
+    })
+    .join("");
+
+  return `
+    <section>
+      <h3 style="margin:0 0 10px;font-size:15px;">Coin price</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:13px;margin-bottom:10px;">
+        <span>1 $PETIX = <strong>${quote.usd ? Number(quote.usd).toPrecision(3) : "—"}</strong> USD</span>
+        <span style="color:#6b7280;">${formatPoints(quote.pointsPerUsd)} Points per $1</span>
+        <span style="color:#6b7280;">${escapeHtml(quote.source || "—")} · ${escapeHtml(age)}</span>
+        ${flags ? `<span style="color:#b42318;">${escapeHtml(flags)}</span>` : ""}
+        <button type="button" class="admin-nav-btn" data-role="price-refresh">Refresh now</button>
+      </div>
+      <table style="font-size:13px;border-collapse:collapse;">${rows}</table>
+    </section>
+    <section>
+      <h3 style="margin:0 0 10px;font-size:15px;">🔥 Burn</h3>
+      <div class="admin-burn">
+        <div class="admin-burn-counter">
+          <span class="admin-burn-label">Queued for burning</span>
+          <strong class="admin-burn-value">${formatPoints(queue.points || 0)}</strong>
+          ${byReason ? `<span class="admin-burn-reasons">${escapeHtml(byReason)}</span>` : ""}
+        </div>
+        <button type="button" class="admin-burn-btn" data-role="burn-run"${burn.canBurn ? "" : " disabled"}>
+          <span class="admin-burn-flame" aria-hidden="true">🔥</span> BURN
+        </button>
+      </div>
+      <p style="font-size:13px;color:#6b7280;margin:10px 0 0;">
+        Burned so far: <strong>${formatPoints(burn.burnedTotalPoints || 0)}</strong> $PETIX${burnBlocked ? ` · <span style="color:#b42318;">${escapeHtml(burnBlocked)}</span>` : ""}
+      </p>
+      ${burnRows ? `<table style="font-size:13px;border-collapse:collapse;margin-top:8px;">${burnRows}</table>` : ""}
+    </section>`;
+}
+
+async function loadAdminPrice({ force = false } = {}) {
+  if (state.adminPrice && !force) return;
+  try {
+    state.adminPrice = await apiRequest("/api/admin/price", {}, "GET");
+  } catch (error) {
+    state.adminPrice = { quote: {}, ladder: [], burnQueue: {}, error: error.message };
+  }
+  try {
+    state.adminBurn = await apiRequest("/api/admin/burn", {}, "GET");
+  } catch (error) {
+    state.adminBurn = { queue: {}, burns: [], error: error.message };
+  }
+  renderAdminTable();
+}
+
+// Костёр необратим, поэтому спрашиваем прямо и показываем, что именно уйдёт.
+async function runAdminBurn() {
+  const queued = Math.max(0, Math.floor(Number(state.adminBurn?.queue?.points) || 0));
+  if (!queued) return;
+  const confirmed = window.confirm(
+    `Burn ${formatPoints(queued)} $PETIX for good?\n\n` +
+      "The coins leave the pool and never come back. This also spends the same allowance that pays player withdrawals."
+  );
+  if (!confirmed) return;
+
+  state.adminBurnRunning = true;
+  renderAdminTable();
+  try {
+    const result = await apiRequest("/api/admin/burn", {});
+    state.adminBurn = result;
+    showToast(
+      result.status === "confirmed"
+        ? `🔥 Burned ${formatPoints(result.points)} $PETIX`
+        : `🔥 Burn sent — ${formatPoints(result.points)} $PETIX on the way`
+    );
+    playBurnEffect();
+  } catch (error) {
+    showToast(error.message || "Burn failed.");
+  }
+  state.adminBurnRunning = false;
+  void loadAdminPrice({ force: true });
+}
+
+/** Короткий огонёк на весь экран: сжигание — событие, его видно. */
+function playBurnEffect() {
+  const layer = document.createElement("div");
+  layer.className = "burn-effect";
+  layer.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 12; i += 1) {
+    const flame = document.createElement("span");
+    flame.textContent = "🔥";
+    flame.style.left = `${Math.round(Math.random() * 90) + 5}%`;
+    flame.style.animationDelay = `${Math.round(Math.random() * 400)}ms`;
+    flame.style.fontSize = `${Math.round(Math.random() * 24) + 20}px`;
+    layer.appendChild(flame);
+  }
+  document.body.appendChild(layer);
+  window.setTimeout(() => layer.remove(), 2200);
+}
+
+async function refreshAdminPrice() {
+  try {
+    state.adminPrice = await apiRequest("/api/admin/price", {});
+    showToast("Quote refreshed.");
+  } catch (error) {
+    showToast(error.message || "Could not refresh the quote.");
+  }
+  renderAdminTable();
+}
+
 function readEcoNumberInput(key) {
   if (!adminEconomyPanel) return undefined;
   const input = adminEconomyPanel.querySelector(`[data-eco-key="${key}"]`);
@@ -10837,7 +11017,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "FREE_SLOTS", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
@@ -10851,13 +11031,13 @@ async function saveAdminEconomy() {
   });
   if (hasRarity) patch.rarityMult = rarityMult;
 
-  const slotsInput = adminEconomyPanel.querySelector('[data-eco-key="SLOT_PRICES"]');
-  if (slotsInput && String(slotsInput.value || "").trim()) {
-    const prices = String(slotsInput.value)
+  const pricesInput = adminEconomyPanel.querySelector('[data-eco-key="PET_PRICES_USD"]');
+  if (pricesInput && String(pricesInput.value || "").trim()) {
+    const prices = String(pricesInput.value)
       .split(",")
       .map((part) => Number(part.trim()))
       .filter((n) => Number.isFinite(n));
-    patch.SLOT_PRICES = prices;
+    patch.PET_PRICES_USD = prices;
   }
 
   const packsInput = adminEconomyPanel.querySelector('[data-eco-key="ENERGY_PACKS"]');
@@ -11213,6 +11393,166 @@ function moveTo(step, { replace = true } = {}) {
   resetStepScroll();
 }
 
+
+// --- Окно покупки питомца (024) -------------------------------------------
+// Второй и последующие питомцы платные. Цена приезжает в профиле, здесь она
+// только показывается: подтверждение уходит на сервер вместе с ценой, которую
+// увидел игрок, и сервер сверяет её со своей.
+
+const petBuyState = { built: false, refs: null, resolve: null, pricing: null };
+
+// Та же монета Points, что в шапке: в окне покупки суммы подписаны иконкой, а
+// не словом.
+function petBuyCoin(className) {
+  return '<img class="' + className + '" src="/assets/dashboard/points-coin.svg" alt="Points" />';
+}
+
+function formatPetPrice(value) {
+  return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
+}
+
+function ensurePetBuyModal() {
+  if (petBuyState.built) return petBuyState.refs;
+
+  const closeIcon =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">' +
+    '<path d="M1.5 1.5 L10.5 10.5 M10.5 1.5 L1.5 10.5" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>';
+
+  const overlay = document.createElement("div");
+  overlay.className = "petbuy-overlay hidden";
+  overlay.id = "petBuyOverlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML =
+    '<section class="petbuy-modal" role="dialog" aria-modal="true" aria-labelledby="petBuyTitle">' +
+      '<div class="petbuy-header">' +
+        '<span class="petbuy-title" id="petBuyTitle">Unlock another pet</span>' +
+        '<button class="petbuy-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+      '</div>' +
+      '<div class="petbuy-price">' + petBuyCoin("petbuy-coin petbuy-coin--lg") + '<span data-role="price">0</span></div>' +
+      '<div class="petbuy-sub" data-role="sub">Pet 2 of 10</div>' +
+      '<div class="petbuy-rows">' +
+        '<div class="petbuy-row"><span>Your balance</span>' +
+          '<strong>' + petBuyCoin("petbuy-coin") + '<span data-role="balance">0</span></strong></div>' +
+        '<div class="petbuy-row petbuy-row--missing hidden" data-role="missing-row"><span>Not enough</span>' +
+          '<strong>' + petBuyCoin("petbuy-coin") + '<span data-role="missing">0</span></strong></div>' +
+      '</div>' +
+      '<button class="petbuy-submit" type="button" data-role="confirm">' +
+        'Unlock for ' + petBuyCoin("petbuy-coin petbuy-coin--btn") + '<span data-role="confirm-price">0</span>' +
+      '</button>' +
+      '<button class="petbuy-secondary hidden" type="button" data-role="topup">Top up Points</button>' +
+      '<div class="petbuy-note" data-role="note"></div>' +
+      '<div class="petbuy-error hidden" data-role="error" role="alert"></div>' +
+    '</section>';
+
+  document.body.appendChild(overlay);
+
+  const refs = {
+    overlay,
+    close: overlay.querySelector('[data-role="close"]'),
+    price: overlay.querySelector('[data-role="price"]'),
+    sub: overlay.querySelector('[data-role="sub"]'),
+    balance: overlay.querySelector('[data-role="balance"]'),
+    missingRow: overlay.querySelector('[data-role="missing-row"]'),
+    missing: overlay.querySelector('[data-role="missing"]'),
+    confirm: overlay.querySelector('[data-role="confirm"]'),
+    confirmPrice: overlay.querySelector('[data-role="confirm-price"]'),
+    topup: overlay.querySelector('[data-role="topup"]'),
+    note: overlay.querySelector('[data-role="note"]'),
+    error: overlay.querySelector('[data-role="error"]'),
+  };
+
+  refs.close.addEventListener("click", () => closePetBuyModal(false));
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closePetBuyModal(false);
+  });
+  refs.confirm.addEventListener("click", () => {
+    if (refs.confirm.disabled) return;
+    closePetBuyModal(true);
+  });
+  refs.topup.addEventListener("click", () => {
+    const missing = Math.max(0, Number(petBuyState.pricing?.missing) || 0);
+    closePetBuyModal(false);
+    openDepositModal(missing);
+  });
+
+  petBuyState.built = true;
+  petBuyState.refs = refs;
+  return refs;
+}
+
+function renderPetBuyModal(pricing) {
+  const refs = ensurePetBuyModal();
+  const price = Math.max(0, Math.floor(Number(pricing.price) || 0));
+  const balance = Math.max(0, Math.floor(Number(pricing.balance) || 0));
+  const missing = Math.max(0, Math.floor(Number(pricing.missing) || 0));
+
+  refs.price.textContent = formatPetPrice(price);
+  refs.sub.textContent = `Pet ${pricing.nextPetIndex} of ${pricing.maxPets || 10}`;
+  refs.balance.textContent = formatPetPrice(balance);
+  refs.missing.textContent = formatPetPrice(missing);
+  refs.missingRow.classList.toggle("hidden", missing <= 0);
+  refs.confirmPrice.textContent = formatPetPrice(price);
+  refs.confirm.disabled = missing > 0;
+  refs.topup.classList.toggle("hidden", missing <= 0);
+  refs.note.textContent =
+    missing > 0
+      ? "Farm more Points or deposit $PETIX to cover the difference."
+      : "Points are spent at creation. Each next pet costs more than the last.";
+  refs.error.classList.add("hidden");
+  refs.error.textContent = "";
+}
+
+function openPetBuyModal(pricing) {
+  const refs = ensurePetBuyModal();
+  petBuyState.pricing = pricing;
+  renderPetBuyModal(pricing);
+  refs.overlay.classList.remove("hidden");
+  refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+
+  return new Promise((resolve) => {
+    petBuyState.resolve = resolve;
+  });
+}
+
+function closePetBuyModal(confirmed) {
+  const refs = petBuyState.refs;
+  if (refs) {
+    refs.overlay.classList.add("hidden");
+    refs.overlay.setAttribute("aria-hidden", "true");
+  }
+  document.body.classList.remove("withdraw-modal-open");
+  const resolve = petBuyState.resolve;
+  petBuyState.resolve = null;
+  if (resolve) resolve(Boolean(confirmed));
+}
+
+function showPetBuyError(message, pricing) {
+  const refs = ensurePetBuyModal();
+  if (pricing) {
+    petBuyState.pricing = pricing;
+    renderPetBuyModal(pricing);
+  }
+  refs.error.textContent = message;
+  refs.error.classList.remove("hidden");
+}
+
+/** Депозит с заранее подставленной суммой — вход из окна покупки. */
+function openDepositModal(amount) {
+  ensureWithdrawModal();
+  hideWalletMenu();
+  withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
+  const missing = Math.max(0, Math.floor(Number(amount) || 0));
+  if (missing > 0) withdrawState.depositAmountText = String(missing);
+  withdrawState.view = "deposit";
+  withdrawState.open = true;
+  showWithdrawView();
+  void refreshWithdrawConfig();
+  withdrawState.refs.overlay.classList.remove("hidden");
+  withdrawState.refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+}
+
 async function startCharacterCreation() {
   if (state.isStarting) return;
 
@@ -11235,6 +11575,20 @@ async function startCharacterCreation() {
     return;
   }
 
+  // Второй и последующие питомцы платные (024): сперва окно покупки, и только
+  // после подтверждения — генерация.
+  const pricing = state.petPricing;
+  let expectedPrice = 0;
+  if (pricing && !pricing.free && Number(pricing.price) > 0) {
+    if (pricing.blockedReason === "max_pets") {
+      window.alert(`Character limit reached. Maximum is ${pricing.maxPets}.`);
+      return;
+    }
+    const confirmed = await openPetBuyModal(pricing);
+    if (!confirmed) return;
+    expectedPrice = Number(pricing.price);
+  }
+
   state.pendingStartAfterAuth = false;
   state.isStarting = true;
   resetCharacterState({ keepTypeSelection: true, keepCharacters: true });
@@ -11244,7 +11598,10 @@ async function startCharacterCreation() {
 
   try {
     const [data] = await Promise.all([
-      apiRequest("/api/character/start", { creatureType }),
+      apiRequest(
+        "/api/character/start",
+        expectedPrice > 0 ? { creatureType, expectedPrice } : { creatureType }
+      ),
       wait(1200),
     ]);
 
@@ -11253,6 +11610,17 @@ async function startCharacterCreation() {
     moveTo("powers");
   } catch (error) {
     moveTo("type");
+    // Цена уехала или денег не хватило: возвращаем игрока в окно покупки с
+    // актуальными числами, а не в общий экран ошибки.
+    if (/price changed/i.test(error.message) || /not enough points/i.test(error.message)) {
+      await restoreCharacterState();
+      const fresh = state.petPricing;
+      if (fresh && !fresh.free && Number(fresh.price) > 0) {
+        const retry = await openPetBuyModal(fresh);
+        if (retry) void startCharacterCreation();
+      }
+      return;
+    }
     if (/already exists/i.test(error.message)) {
       await restoreCharacterState();
       return;
@@ -11799,6 +12167,18 @@ function init() {
         event.preventDefault();
         state.adminEconomyTab = tabButton.getAttribute("data-eco-tab") || "overview";
         renderAdminEconomy();
+        return;
+      }
+      const burnButton = event.target.closest('[data-role="burn-run"]');
+      if (burnButton) {
+        event.preventDefault();
+        if (!burnButton.disabled) void runAdminBurn();
+        return;
+      }
+      const refreshPrice = event.target.closest('[data-role="price-refresh"]');
+      if (refreshPrice) {
+        event.preventDefault();
+        void refreshAdminPrice();
         return;
       }
       const saveButton = event.target.closest('[data-action="save-economy"]');

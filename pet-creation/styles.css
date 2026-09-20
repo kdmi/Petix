@@ -5842,14 +5842,17 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     width: 100%;
   }
 
+  /* Растягиваем кнопку по краям вместо центрирования через transform: ховер
+     ставит свой transform и снёс бы центрирование, уводя кнопку за экран.
+     Заодно уходит горизонтальный скролл от 100vw, в которые входит полоса
+     прокрутки. */
   .type-continue-btn {
     bottom: 24px;
-    left: 50%;
+    left: 16px;
     margin-top: 0;
     position: fixed;
-    right: auto;
-    transform: translateX(-50%);
-    width: calc(100vw - 32px);
+    right: 16px;
+    width: auto;
     z-index: 20;
   }
 
@@ -8780,6 +8783,7 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 .energy-shop-modal .withdraw-error {
   margin-top: 14px;
   text-align: center;
+}
 
 .withdraw-admin-preview {
   color: #667085;
@@ -8804,4 +8808,306 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 
 .admin-stat-value {
   overflow-wrap: anywhere;
+}
+
+/* Окно покупки питомца (024). Визуально — та же карточка, что у вывода. */
+.petbuy-overlay {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.6);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 96;
+}
+
+.petbuy-overlay.hidden {
+  display: none;
+}
+
+.petbuy-modal {
+  animation: withdraw-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 32px 64px -12px rgba(16, 24, 40, 0.24);
+  box-sizing: border-box;
+  max-width: 360px;
+  padding: 24px;
+  width: 100%;
+}
+
+.petbuy-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.petbuy-title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.petbuy-close {
+  align-items: center;
+  background: #f2f4f7;
+  border: none;
+  border-radius: 99px;
+  cursor: pointer;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.petbuy-price {
+  align-items: center;
+  color: #101828;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 36px;
+  font-weight: 800;
+  gap: 8px;
+  line-height: 44px;
+  margin-top: 16px;
+}
+
+/* Монета Points вместо слова: та же иконка, что в шапке. */
+.petbuy-coin {
+  display: inline-block;
+  height: 16px;
+  vertical-align: -2px;
+  width: 16px;
+}
+
+.petbuy-coin--lg {
+  height: 28px;
+  vertical-align: 0;
+  width: 28px;
+}
+
+/* На тёмной кнопке монета инвертируется: тёмный кружок стал бы невидимым. */
+.petbuy-coin--btn {
+  filter: invert(1);
+  margin: 0 4px 0 2px;
+  vertical-align: -3px;
+}
+
+/* Кнопка гаснет, когда денег не хватает — иконка гасится вместе с ней. */
+.petbuy-submit:disabled .petbuy-coin--btn {
+  filter: invert(1) opacity(0.85);
+}
+
+.petbuy-sub {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.petbuy-rows {
+  border-top: 1px solid #eaecf0;
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.petbuy-row {
+  color: #475467;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.petbuy-row strong {
+  align-items: center;
+  color: #101828;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.petbuy-row--missing strong {
+  color: #d92d20;
+}
+
+.petbuy-row.hidden {
+  display: none;
+}
+
+.petbuy-submit {
+  background: #101828;
+  border: none;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  height: 48px;
+  margin-top: 20px;
+  transition: background 0.15s, opacity 0.15s;
+  width: 100%;
+}
+
+.petbuy-submit:hover:not(:disabled) {
+  background: #1d2939;
+}
+
+.petbuy-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.petbuy-secondary {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 99px;
+  color: #101828;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  height: 48px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.petbuy-secondary:hover {
+  background: #f9fafb;
+}
+
+.petbuy-secondary.hidden {
+  display: none;
+}
+
+.petbuy-note {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.petbuy-error {
+  background: #fef3f2;
+  border-radius: 12px;
+  color: #b42318;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.petbuy-error.hidden {
+  display: none;
+}
+
+/* Костёр в админке (024): счётчик, кнопка и короткий огонёк после нажатия. */
+.admin-burn {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.admin-burn-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-burn-label {
+  color: #9a3412;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.admin-burn-value {
+  color: #7c2d12;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 32px;
+}
+
+.admin-burn-reasons {
+  color: #9a3412;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+}
+
+.admin-burn-btn {
+  align-items: center;
+  background: #ea580c;
+  border: none;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  gap: 8px;
+  height: 44px;
+  letter-spacing: 0.04em;
+  padding: 0 22px;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.admin-burn-btn:hover:not(:disabled) {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+
+.admin-burn-btn:disabled {
+  background: #fdba74;
+  cursor: not-allowed;
+}
+
+.admin-burn-btn .admin-burn-flame {
+  font-size: 18px;
+}
+
+.burn-effect {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 200;
+}
+
+.burn-effect span {
+  animation: burn-rise 2s ease-out forwards;
+  bottom: -40px;
+  position: absolute;
+}
+
+@keyframes burn-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-70vh) scale(1.25) rotate(12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burn-effect span {
+    animation-duration: 0.01ms;
+  }
 }

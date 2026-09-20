@@ -5,6 +5,7 @@ const {
   isLikelyEvmAddress,
   json,
 } = require("../../api/_lib/auth");
+const { ensureFreshQuote } = require("../../api/_lib/price-quote");
 const { syncDeposits } = require("../../api/_lib/token");
 const { sendDomainError } = require("./_shared");
 
@@ -41,7 +42,12 @@ module.exports = async (req, res) => {
   }
 
   try {
-    json(res, 200, await syncDeposits());
+    const result = await syncDeposits();
+    // Курс монеты обновляется на этом же кроне (024): отдельного расписания не
+    // заводим, а при простое котировка догонит себя сама. Неудача источника не
+    // должна ронять синхронизацию депозитов.
+    const price = await ensureFreshQuote().catch((error) => ({ ok: false, error: error.message }));
+    json(res, 200, { ...result, price: { ok: price.ok, skipped: price.skipped === true } });
   } catch (error) {
     if (sendDomainError(res, error)) return;
     json(res, 500, { error: error.message || "Sync failed." });

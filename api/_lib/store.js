@@ -55,6 +55,10 @@ const EMPTY_WALLET_PROFILE = {
   battleState: normalizeBattleState(null),
   currency: { balance: 0, totalEarned: 0 },
   paidSlots: 0,
+  // Платное создание питомцев (024): сколько мест открыто (бесплатное плюс
+  // оплаченные) и журнал списаний Points.
+  unlockedSlots: null,
+  spend: [],
   withdrawals: [],
   deposits: [],
   profileUpdatedAt: null,
@@ -165,6 +169,13 @@ function cloneWalletProfile(profile) {
     battleState: normalizeBattleState(profile?.battleState),
     currency: normalizeCurrency(profile?.currency),
     paidSlots: normalizePaidSlots(profile?.paidSlots),
+    // null = ещё не считалось (см. ensureUnlockedSlots в slots.js).
+    // Number(null) === 0, поэтому пустое значение проверяется отдельно.
+    unlockedSlots:
+      profile?.unlockedSlots != null && Number.isFinite(Number(profile.unlockedSlots))
+        ? Math.max(0, Math.floor(Number(profile.unlockedSlots)))
+        : null,
+    spend: Array.isArray(profile?.spend) ? profile.spend.map((record) => cloneRecord(record)) : [],
     withdrawals: Array.isArray(profile?.withdrawals)
       ? profile.withdrawals.map((record) => cloneRecord(record))
       : [],
