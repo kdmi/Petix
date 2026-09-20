@@ -6,7 +6,7 @@ const {
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { getWalletProfile } = require("../../api/_lib/store");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const { ensurePrepaidCreations, getMaxCharacters } = require("../../api/_lib/slots");
+const { ensureUnlockedSlots, getMaxCharacters } = require("../../api/_lib/slots");
 const { normalizeCurrency } = require("../../api/_lib/currency");
 const { priceForNextPet, resolvePointsPerUsd } = require("../../api/_lib/pet-price");
 const { readQuote } = require("../../api/_lib/price-quote");
@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
   // Вместимость показываем так, как её увидит запись: питомцы, заведённые при
   // трёх бесплатных слотах, зачтены. Считаем на копии — профиль из кэша чужой.
   const slotView = { ...profile };
-  ensurePrepaidCreations(slotView, cfg);
+  ensureUnlockedSlots(slotView, cfg);
 
   // Цена следующего питомца (024): клиент рисует по ней окно покупки и знает,
   // сколько не хватает, ещё до нажатия.
@@ -53,6 +53,7 @@ module.exports = async (req, res) => {
   const missing = pricing.price === null ? 0 : Math.max(0, pricing.price - balance);
   const petPricing = {
     petCount: pricing.petCount,
+    unlockedSlots: pricing.unlockedSlots,
     maxPets: pricing.maxPets,
     nextPetIndex: pricing.index,
     price: pricing.price,

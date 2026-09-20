@@ -17,7 +17,7 @@ test("profileUpdatedAt: stamped on every write and exposed by /api/character/me"
     await store.updateWalletProfile(wallet, async (current) => ({
       ...current,
       characters: [createCompletedCharacter({ id: "char_stamp", name: "Stamp" })],
-      currency: { balance: 5000, totalEarned: 5000 },
+      currency: { balance: 50000, totalEarned: 50000 },
     }));
 
     const first = await invokeJsonHandler(characterActionRoute, {

@@ -26,7 +26,7 @@ test("POST /api/character/burn rejects a character bound to an NFT slot", async 
     await store.updateWalletProfile(wallet, (current) => ({
       ...current,
       characters: [bound],
-      currency: { balance: 5000, totalEarned: 5000 },
+      currency: { balance: 50000, totalEarned: 50000 },
     }));
 
     const response = await invokeJsonHandler(
@@ -40,7 +40,7 @@ test("POST /api/character/burn rejects a character bound to an NFT slot", async 
     // Персонаж и баланс не тронуты.
     const profile = await store.getWalletProfile(wallet);
     assert.equal(profile.characters.length, 1);
-    assert.equal(profile.currency.balance, 5000);
+    assert.equal(profile.currency.balance, 50000);
   });
 });
 
@@ -51,7 +51,7 @@ test("POST /api/character/burn still works for an unbound character", async () =
     await store.updateWalletProfile(wallet, (current) => ({
       ...current,
       characters: [plain],
-      currency: { balance: 5000, totalEarned: 5000 },
+      currency: { balance: 50000, totalEarned: 50000 },
     }));
 
     const response = await invokeJsonHandler(

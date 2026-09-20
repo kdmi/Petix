@@ -1,4 +1,4 @@
-const { countSlotCharacters } = require("./slots");
+const { countSlotCharacters, getFreeSlots, getUnlockedSlots } = require("./slots");
 
 // Цена питомца (feature 024). Чистая логика: сеть и хранилище сюда не заходят,
 // конфиг и профиль передаются аргументами.
@@ -73,11 +73,6 @@ function usdLadder(cfg) {
   return prices.filter((value) => positiveNumber(value) !== null);
 }
 
-function getFreeSlots(cfg) {
-  const n = Math.floor(Number(cfg && cfg.FREE_SLOTS));
-  return Number.isFinite(n) && n >= 1 ? n : 1;
-}
-
 /** Лестница в Points: ступень на каждого питомца после бесплатных. */
 function buildLadder(pointsPerUsd, cfg) {
   const rate = applyBounds(positiveNumber(pointsPerUsd) || 1, cfg);
@@ -91,41 +86,43 @@ function buildLadder(pointsPerUsd, cfg) {
 
 /**
  * Цена следующего питомца для конкретного кошелька.
- * → { index, price, priceUsd, free, freeReason, atMax, petCount, maxPets }
+ * → { index, price, priceUsd, free, freeReason, atMax, petCount, unlockedSlots, maxPets }
  *
  * price === 0 — создание бесплатное, price === null — предел достигнут.
+ *
+ * Цена считается по числу ОТКРЫТЫХ МЕСТ, а не живых питомцев: место, однажды
+ * открытое (бесплатно или за Points), остаётся за кошельком. Сожжённый питомец
+ * освобождает место, и следующий питомец в нём бесплатен.
  */
 function priceForNextPet(profile, cfg, pointsPerUsd) {
   const petCount = countSlotCharacters(profile);
+  const unlockedSlots = getUnlockedSlots(profile, cfg);
   const maxPets = Math.floor(Number(cfg && cfg.MAX_CHARACTER_SLOTS) || 10);
   const index = petCount + 1;
+  const base = { index, petCount, unlockedSlots, maxPets, atMax: false };
 
-  if (petCount >= maxPets) {
-    return { index, price: null, priceUsd: null, free: false, freeReason: null, atMax: true, petCount, maxPets };
+  // Свободное место среди уже открытых — питомец бесплатен.
+  if (petCount < unlockedSlots) {
+    return { ...base, price: 0, priceUsd: 0, free: true, freeReason: "unlocked_slot" };
   }
 
-  const free = getFreeSlots(cfg);
-  const freeUsed = profile && profile.freeCreationUsed === true;
-  const base = { index, atMax: false, petCount, maxPets };
-
-  // Бесплатные места считаются по числу питомцев, но расходуются один раз:
-  // кошелёк, сжёгший единственного питомца, за следующего уже платит.
-  if (petCount < free && !freeUsed) {
-    return { ...base, price: 0, priceUsd: 0, free: true, freeReason: "first_pet" };
-  }
-
-  const prepaid = Math.max(0, Math.floor(Number(profile && profile.prepaidCreations) || 0));
-  if (prepaid > 0) {
-    return { ...base, price: 0, priceUsd: 0, free: true, freeReason: "prepaid" };
+  if (unlockedSlots >= maxPets) {
+    return {
+      ...base,
+      atMax: true,
+      price: null,
+      priceUsd: null,
+      free: false,
+      freeReason: null,
+    };
   }
 
   const ladder = buildLadder(pointsPerUsd, cfg);
-  // Кошелёк без питомцев, но с израсходованным бесплатным созданием платит по
-  // первой платной ступени — иначе сжигание превращалось бы в бесплатную
-  // перегенерацию за наш счёт.
-  const step = ladder[Math.max(0, index - free - 1)] || ladder[ladder.length - 1];
+  // Открываем следующее место: его номер — unlockedSlots + 1, а ступень в
+  // лестнице отсчитывается от бесплатных мест.
+  const step = ladder[unlockedSlots - getFreeSlots(cfg)];
   if (!step) {
-    return { ...base, price: null, priceUsd: null, free: false, freeReason: null, atMax: true };
+    return { ...base, atMax: true, price: null, priceUsd: null, free: false, freeReason: null };
   }
 
   return { ...base, price: step.points, priceUsd: step.usd, free: false, freeReason: null };

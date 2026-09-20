@@ -3,9 +3,10 @@ const assert = require("node:assert/strict");
 
 const {
   countSlotCharacters,
-  ensurePrepaidCreations,
+  ensureUnlockedSlots,
   getFreeSlots,
   getMaxCharacters,
+  getUnlockedSlots,
 } = require("../../api/_lib/slots");
 const { getDefaults } = require("../../api/_lib/economy-config");
 const { makeProfile } = require("./helpers/economy-fixtures");
@@ -38,32 +39,50 @@ test("countSlotCharacters: a pet sealed in a capsule does not occupy a place", (
   assert.equal(countSlotCharacters(null), 0);
 });
 
-test("ensurePrepaidCreations credits unfilled purchased places, once", () => {
-  const profile = makeProfile({ paidSlots: 2 });
-  profile.characters = [{ id: "a" }];
+test("ensureUnlockedSlots counts a place for every pet the wallet already holds", () => {
+  // Old rules gave three free places; the wallet keeps all three.
+  const legacy = makeProfile({ paidSlots: 0 });
+  legacy.characters = [{ id: "a" }, { id: "b" }, { id: "c" }];
 
-  assert.equal(ensurePrepaidCreations(profile, cfg), true);
-  assert.equal(profile.prepaidCreations, 2, "both purchased places are still unused");
+  assert.equal(ensureUnlockedSlots(legacy, cfg), true);
+  assert.equal(legacy.unlockedSlots, 3, "nothing is taken away");
 
-  profile.paidSlots = 5;
-  assert.equal(ensurePrepaidCreations(profile, cfg), false, "second call is a no-op");
-  assert.equal(profile.prepaidCreations, 2);
+  legacy.characters.push({ id: "d" });
+  assert.equal(ensureUnlockedSlots(legacy, cfg), false, "second call is a no-op");
+  assert.equal(legacy.unlockedSlots, 3);
 });
 
-test("ensurePrepaidCreations gives no credit for pets that already fill the purchase", () => {
-  const filled = makeProfile({ paidSlots: 2 });
-  filled.characters = [{ id: "a" }, { id: "b" }, { id: "c" }];
-  ensurePrepaidCreations(filled, cfg);
-  assert.equal(filled.prepaidCreations, 0, "one free place plus two paid ones are all taken");
+test("ensureUnlockedSlots credits places bought under the old slot rules", () => {
+  const bought = makeProfile({ paidSlots: 2 });
+  bought.characters = [{ id: "a" }];
 
-  // The three free places of the old rule are not a paid entitlement.
-  const legacyFree = makeProfile({ paidSlots: 0 });
-  legacyFree.characters = [{ id: "a" }, { id: "b" }];
-  ensurePrepaidCreations(legacyFree, cfg);
-  assert.equal(legacyFree.prepaidCreations, 0);
+  ensureUnlockedSlots(bought, cfg);
+  assert.equal(bought.unlockedSlots, 3, "one free place plus two purchased ones");
+});
 
-  // Zero is a real answer and must not be recomputed later.
-  legacyFree.paidSlots = 4;
-  assert.equal(ensurePrepaidCreations(legacyFree, cfg), false);
-  assert.equal(legacyFree.prepaidCreations, 0);
+test("ensureUnlockedSlots ignores pets sealed in capsules and respects the cap", () => {
+  const sealed = makeProfile({ paidSlots: 0 });
+  sealed.characters = [{ id: "a" }, { id: "b", nft: { tokenId: 7 } }];
+  ensureUnlockedSlots(sealed, cfg);
+  assert.equal(sealed.unlockedSlots, 1, "a capsule pet opens no place");
+
+  const overflowing = makeProfile({ paidSlots: 99 });
+  ensureUnlockedSlots(overflowing, cfg);
+  assert.equal(overflowing.unlockedSlots, 10, "never above MAX_CHARACTER_SLOTS");
+});
+
+test("getUnlockedSlots derives a missing value and never drops below the free place", () => {
+  const untouched = makeProfile({ paidSlots: 1 });
+  untouched.characters = [{ id: "a" }];
+  untouched.unlockedSlots = null;
+  assert.equal(getUnlockedSlots(untouched, cfg), 2, "derived on the fly");
+
+  // A broken or under-counted value must not lock a wallet out of creation.
+  const broken = makeProfile();
+  broken.unlockedSlots = 0;
+  assert.equal(getUnlockedSlots(broken, cfg), 1);
+
+  const overflowing = makeProfile();
+  overflowing.unlockedSlots = 99;
+  assert.equal(getUnlockedSlots(overflowing, cfg), 10);
 });

@@ -90,8 +90,8 @@ test("validateConfigPatch rejects non-object patch", () => {
   assert.equal(validateConfigPatch([]).ok, false);
 });
 
-test("BURN_COST: default is 500, override merges, negative rejected", () => {
-  assert.equal(getDefaults().BURN_COST, 1000);
+test("BURN_COST: default is 10000, override merges, negative rejected", () => {
+  assert.equal(getDefaults().BURN_COST, 10000);
   assert.equal(mergeConfig({ BURN_COST: 750 }).BURN_COST, 750);
   const bad = validateConfigPatch({ BURN_COST: -1 });
   assert.equal(bad.ok, false);

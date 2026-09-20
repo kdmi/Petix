@@ -16,7 +16,7 @@ const { createImageStore, getWalletProfile, updateWalletProfile } = require("../
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { priceForNextPet, resolvePointsPerUsd } = require("../../api/_lib/pet-price");
 const { readQuote } = require("../../api/_lib/price-quote");
-const { ensurePrepaidCreations } = require("../../api/_lib/slots");
+const { ensureUnlockedSlots } = require("../../api/_lib/slots");
 const { addSpend, withTokenState } = require("../../api/_lib/token-store");
 
 function fail(status, message, code, extra) {
@@ -88,7 +88,7 @@ module.exports = async (req, res) => {
     const profile = await getWalletProfile(session.wallet);
     const cfg = await getEconomyConfig();
     const isAdmin = isAdminWallet(session.wallet);
-    ensurePrepaidCreations(profile, cfg);
+    ensureUnlockedSlots(profile, cfg);
 
     const pointsPerUsd = resolvePointsPerUsd(await readQuote(), cfg);
     const pricing = priceForNextPet(profile, cfg, pointsPerUsd);
@@ -137,7 +137,7 @@ module.exports = async (req, res) => {
     // другой вкладке.
     let charged = 0;
     const nextProfile = await updateWalletProfile(session.wallet, (current) => {
-      ensurePrepaidCreations(current, cfg);
+      ensureUnlockedSlots(current, cfg);
       const freshPricing = priceForNextPet(current, cfg, pointsPerUsd);
 
       if (!isAdmin) {
@@ -146,12 +146,10 @@ module.exports = async (req, res) => {
         if (freshPricing.price > 0) {
           charged = debitCurrency(current, freshPricing.price);
           recordSpend(current, { points: charged, reason: "pet_creation", ref: draft.id });
-        } else if (freshPricing.freeReason === "prepaid") {
-          current.prepaidCreations = Math.max(0, Number(current.prepaidCreations) - 1);
+          // Место открывается навсегда: сожжённый питомец освободит его, и
+          // следующий в этом месте будет бесплатным.
+          current.unlockedSlots = Number(current.unlockedSlots) + 1;
         }
-        // Бесплатное создание помечается израсходованным при завершении
-        // питомца (create.js), а не здесь: иначе игрок, бросивший первого
-        // питомца на полпути, остался бы и без него, и без бесплатной попытки.
       }
 
       current.draft = {

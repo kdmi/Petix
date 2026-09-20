@@ -16,8 +16,7 @@ function profile(overrides = {}) {
   return {
     characters: [],
     paidSlots: 0,
-    prepaidCreations: 0,
-    freeCreationUsed: false,
+    unlockedSlots: 1,
     currency: { balance: 0, totalEarned: 0 },
     ...overrides,
   };
@@ -87,64 +86,66 @@ test("buildLadder halves the Points price when the coin doubles", () => {
   }
 });
 
-test("priceForNextPet: the first pet is free once per wallet", () => {
+test("priceForNextPet: a place that is already unlocked costs nothing", () => {
   const fresh = priceForNextPet(profile(), cfg, 20920);
   assert.equal(fresh.index, 1);
   assert.equal(fresh.price, 0);
   assert.equal(fresh.free, true);
-  assert.equal(fresh.freeReason, "first_pet");
-
-  // A wallet that already spent its free creation pays even with no pets left.
-  const burned = priceForNextPet(profile({ freeCreationUsed: true }), cfg, 20920);
-  assert.equal(burned.free, false);
-  assert.equal(burned.index, 1);
-  assert.equal(burned.price, buildLadder(20920, cfg)[0].points, "falls back to the first paid step");
+  assert.equal(fresh.freeReason, "unlocked_slot");
 });
 
-test("priceForNextPet: prepaid creations are spent before money", () => {
-  const result = priceForNextPet(
-    profile({ characters: pets(1), freeCreationUsed: true, prepaidCreations: 2 }),
-    cfg,
-    20920
-  );
-  assert.equal(result.price, 0);
-  assert.equal(result.free, true);
-  assert.equal(result.freeReason, "prepaid");
+test("priceForNextPet: a burned pet leaves its place open, so the next one is free", () => {
+  // Three places opened, one pet burned — the wallet refills a place it owns.
+  const afterBurn = priceForNextPet(profile({ characters: pets(2), unlockedSlots: 3 }), cfg, 20920);
+  assert.equal(afterBurn.price, 0);
+  assert.equal(afterBurn.free, true);
+  assert.equal(afterBurn.freeReason, "unlocked_slot");
+  assert.equal(afterBurn.index, 3);
+
+  // The same holds for a wallet that burned its only pet.
+  const lonely = priceForNextPet(profile({ characters: [], unlockedSlots: 1 }), cfg, 20920);
+  assert.equal(lonely.price, 0);
+  assert.equal(lonely.free, true);
 });
 
-test("priceForNextPet: price follows the current pet count", () => {
+test("priceForNextPet: opening the next place follows the ladder", () => {
   const ladder = buildLadder(20920, cfg);
 
   for (const owned of [1, 2, 5, 9]) {
+    // Every open place is taken, so the next pet opens a new one.
     const result = priceForNextPet(
-      profile({ characters: pets(owned), freeCreationUsed: true }),
+      profile({ characters: pets(owned), unlockedSlots: owned }),
       cfg,
       20920
     );
     assert.equal(result.index, owned + 1);
-    assert.equal(result.price, ladder[owned - 1].points, `pet #${owned + 1}`);
+    assert.equal(result.price, ladder[owned - 1].points, `place #${owned + 1}`);
     assert.equal(result.free, false);
   }
 });
 
-test("priceForNextPet: pets sealed in capsules do not count", () => {
+test("priceForNextPet: pets sealed in capsules live outside the places", () => {
   const sealed = [{ id: "a" }, { id: "b", nft: { tokenId: 7 } }, { id: "c", nft: { tokenId: 8 } }];
-  const result = priceForNextPet(
-    profile({ characters: sealed, freeCreationUsed: true }),
-    cfg,
-    20920
+  const result = priceForNextPet(profile({ characters: sealed, unlockedSlots: 1 }), cfg, 20920);
+
+  assert.equal(result.petCount, 1, "two sealed pets occupy no places");
+  assert.equal(result.index, 2);
+  assert.equal(
+    result.price,
+    buildLadder(20920, cfg)[0].points,
+    "the wallet opens its second place"
   );
-  assert.equal(result.index, 2, "only the unsealed pet occupies a place");
 });
 
 test("priceForNextPet: the cap is reported instead of a price", () => {
-  const result = priceForNextPet(
-    profile({ characters: pets(10), freeCreationUsed: true }),
-    cfg,
-    20920
-  );
-  assert.equal(result.price, null);
-  assert.equal(result.atMax, true);
+  const full = priceForNextPet(profile({ characters: pets(10), unlockedSlots: 10 }), cfg, 20920);
+  assert.equal(full.price, null);
+  assert.equal(full.atMax, true);
+
+  // All ten places opened, two pets burned: refilling them stays free.
+  const refill = priceForNextPet(profile({ characters: pets(8), unlockedSlots: 10 }), cfg, 20920);
+  assert.equal(refill.price, 0);
+  assert.equal(refill.atMax, false);
 });
 
 test("resolvePointsPerUsd falls back to the bootstrap rate without a quote", () => {
