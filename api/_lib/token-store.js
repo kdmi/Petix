@@ -50,9 +50,15 @@ const EMPTY_STATE = {
   // Сожжено за всё время и последние костры (id, сумма, хеш, статус).
   burnedTotalPoints: 0,
   burns: [],
+  // Депозиты, которые синк увидел в цепи, но не смог зачислить (сбой хранилища,
+  // RPC): курсор уезжает вперёд и сам их больше не увидит, поэтому они ждут
+  // повтора здесь. 20.09.2026 так потерялись 80 000 у игрока.
+  pendingDeposits: [],
   lastRunAt: null,
   lastError: null,
 };
+
+const MAX_PENDING_DEPOSITS = 100;
 
 const SPEND_REASONS = ["pet_creation", "energy", "pet_burn", "capsule_unbind"];
 const MAX_BURNS = 50;
@@ -129,6 +135,9 @@ function normalizeState(parsed) {
     burnQueue: normalizeBurnQueue(parsed.burnQueue),
     burnedTotalPoints: nonNegativeInt(parsed.burnedTotalPoints),
     burns: Array.isArray(parsed.burns) ? parsed.burns.slice(-MAX_BURNS).map(normalizeBurn) : [],
+    pendingDeposits: Array.isArray(parsed.pendingDeposits)
+      ? parsed.pendingDeposits.slice(-MAX_PENDING_DEPOSITS).map(normalizePendingDeposit).filter(Boolean)
+      : [],
     lastRunAt: parsed.lastRunAt ? String(parsed.lastRunAt) : null,
     lastError: parsed.lastError ? String(parsed.lastError) : null,
   };
@@ -272,6 +281,60 @@ function addSpend(state, { points, reason, at }) {
 
 function hasKey(state, key) {
   return state.recentKeys.includes(String(key));
+}
+
+// A transfer the chain scan already saw but the credit failed on. Kept verbatim
+// so the retry does not need to re-scan the chain for it.
+function normalizePendingDeposit(parsed) {
+  const key = String(parsed?.key || "");
+  const txHash = String(parsed?.txHash || "");
+  const from = normalizeAddress(parsed?.from);
+  if (!key || !txHash || !from) return null;
+  return {
+    key,
+    from,
+    txHash,
+    logIndex: nonNegativeInt(parsed?.logIndex),
+    blockNumber: nonNegativeInt(parsed?.blockNumber),
+    amountRaw: String(parsed?.amountRaw || "0"),
+    attempts: nonNegativeInt(parsed?.attempts),
+    firstSeenAt: parsed?.firstSeenAt ? String(parsed.firstSeenAt) : null,
+    lastError: parsed?.lastError ? String(parsed.lastError) : null,
+  };
+}
+
+/** Queue a transfer whose credit failed; same key twice only bumps the counter. */
+function rememberPendingDeposit(state, transfer, { at = null, error = null } = {}) {
+  if (!Array.isArray(state.pendingDeposits)) state.pendingDeposits = [];
+  const key = String(transfer?.key || "");
+  if (!key) return state;
+
+  const existing = state.pendingDeposits.find((entry) => entry.key === key);
+  if (existing) {
+    existing.attempts += 1;
+    existing.lastError = error ? String(error) : existing.lastError;
+    return state;
+  }
+
+  const normalized = normalizePendingDeposit({
+    ...transfer,
+    attempts: 1,
+    firstSeenAt: at ? String(at) : null,
+    lastError: error ? String(error) : null,
+  });
+  if (!normalized) return state;
+
+  state.pendingDeposits.push(normalized);
+  if (state.pendingDeposits.length > MAX_PENDING_DEPOSITS) {
+    state.pendingDeposits = state.pendingDeposits.slice(-MAX_PENDING_DEPOSITS);
+  }
+  return state;
+}
+
+function forgetPendingDeposit(state, key) {
+  if (!Array.isArray(state.pendingDeposits)) return state;
+  state.pendingDeposits = state.pendingDeposits.filter((entry) => entry.key !== String(key));
+  return state;
 }
 
 function rememberKeys(state, keys) {
@@ -504,6 +567,7 @@ module.exports = {
   recordBurn,
   settleBurn,
   normalizePriceQuote,
+  MAX_PENDING_DEPOSITS,
   MAX_RECENT_KEYS,
   MAX_RECENT_WALLETS,
   acquireSendLock,
@@ -513,7 +577,9 @@ module.exports = {
   normalizeState,
   readTokenState,
   releaseSendLock,
+  forgetPendingDeposit,
   rememberKeys,
+  rememberPendingDeposit,
   rememberWallet,
   resetIfChanged,
   withTokenState,
