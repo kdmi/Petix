@@ -77,17 +77,6 @@ function clearRosterCache() {
   rosterCache = null;
 }
 
-function emptyRosterDocument() {
-  return {
-    version: ROSTER_VERSION,
-    builtAt: null,
-    watermark: null,
-    fullSyncAt: null,
-    syncCount: 0,
-    entries: [],
-  };
-}
-
 /**
  * Compact projection of a character record: a pruned record that still walks
  * through `serializeCharacterRecord` the same way the full one does, so
@@ -273,6 +262,7 @@ function latestUploadedAt(blobs) {
 
 async function buildFullRosterDocument() {
   const characters = await listAllCharacters();
+  let walletsScanned = 0;
   const entries = characters
     .map(({ wallet, character }) => buildRosterEntry(wallet, character))
     .filter(Boolean);
@@ -280,6 +270,7 @@ async function buildFullRosterDocument() {
   let watermark = null;
   if (isBlobDbEnabled()) {
     const blobs = await listLatestWalletProfileBlobs();
+    walletsScanned = blobs.length;
     const latest = latestUploadedAt(blobs);
     if (latest) {
       // listAllCharacters() may serve a snapshot up to the scan TTL old, so the
@@ -292,12 +283,15 @@ async function buildFullRosterDocument() {
 
   const now = new Date().toISOString();
   return {
-    version: ROSTER_VERSION,
-    builtAt: now,
-    watermark,
-    fullSyncAt: now,
-    syncCount: 0,
-    entries,
+    document: {
+      version: ROSTER_VERSION,
+      builtAt: now,
+      watermark,
+      fullSyncAt: now,
+      syncCount: 0,
+      entries,
+    },
+    walletsScanned,
   };
 }
 
@@ -315,7 +309,7 @@ async function refreshRoster({ force = false } = {}) {
 
   // Dev storage is a single local JSON file — a full build costs nothing.
   if (!isBlobDbEnabled()) {
-    const document = await buildFullRosterDocument();
+    const { document } = await buildFullRosterDocument();
     await writeRosterDocument(document);
     clearRosterCache();
     return {
@@ -337,14 +331,17 @@ async function refreshRoster({ force = false } = {}) {
     current.syncCount >= getFullSyncEvery();
 
   if (needsFull) {
-    const document = await buildFullRosterDocument();
+    const { document, walletsScanned } = await buildFullRosterDocument();
     await writeRosterDocument(document);
     clearRosterCache();
     return {
       mode: "full",
       entries: document.entries.length,
+      // Wallets that actually hold an indexed pet vs. every wallet in storage
+      // (drafts and empty profiles are listed but never indexed).
       wallets: new Set(document.entries.map((entry) => entry.wallet)).size,
-      profilesRead: document.entries.length,
+      walletsInStore: walletsScanned,
+      profilesRead: walletsScanned,
       removedWallets: 0,
       watermark: document.watermark,
       durationMs: Date.now() - startedAt,
@@ -406,7 +403,8 @@ async function refreshRoster({ force = false } = {}) {
   return {
     mode: "incremental",
     entries: entries.length,
-    wallets: knownWallets.size,
+    wallets: new Set(entries.map((entry) => entry.wallet)).size,
+    walletsInStore: knownWallets.size,
     profilesRead: changed.length,
     removedWallets,
     watermark: document.watermark,
@@ -423,7 +421,7 @@ async function resolveRosterEntries() {
   // Missing, unreadable or too old: rebuild from the full scan so the player
   // still gets a fight, and persist the result best-effort.
   try {
-    const document = await buildFullRosterDocument();
+    const { document } = await buildFullRosterDocument();
     void writeRosterDocument(document).catch(() => null);
     return document.entries;
   } catch (error) {
