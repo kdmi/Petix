@@ -78,6 +78,9 @@ Minimum recommended variables:
 | `GEMINI_IMAGE_MODEL` | Optional | Image model id, default `gemini-3.1-flash-image` (Nano Banana 2) |
 | `GEMINI_IMAGE_SIZE` | Optional | Pet image size requested from the model: `512` (default) or `1K`. Existing images are never regenerated; on Vercel a change needs a Redeploy |
 | `GEMINI_TEXT_MODEL` | Optional | Text model for names/powers/narration, default `gemini-2.5-flash` |
+| `GEMINI_POWERS_THINKING_BUDGET` | Optional | Thinking tokens for the powers prompt, default `256`. `0` turns thinking off, `-1` restores the API default |
+| `GEMINI_NAME_THINKING_BUDGET` | Optional | Thinking tokens for the name prompt, default `0` (off) |
+| `GEMINI_NARRATION_THINKING_BUDGET` | Optional | Thinking tokens for battle narration, default `512` |
 | `BLOB_READ_WRITE_TOKEN` | Production only | Enables Vercel Blob persistence |
 | `ADMIN_WALLETS` or `ADMIN_WALLET` | Optional | Admin wallets, comma-separated. EVM `0x…` addresses are matched case-insensitively (e.g. `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`); legacy base58 entries still match exactly |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated allowed origins |

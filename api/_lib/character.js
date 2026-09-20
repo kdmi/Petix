@@ -8,6 +8,7 @@ const {
   normalizeProgression,
 } = require("./battle-progression");
 const { computeFarmEarned, farmBonusPctFor, normalizeFarmState } = require("./farm");
+const { resolveMaxOutputTokens, resolveThinkingBudget } = require("./gemini-thinking");
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const TOTAL_ATTRIBUTE_POINTS = 15;
@@ -49,6 +50,15 @@ const IMAGE_GENERATION_ERROR_MESSAGE =
 const SHEET_FETCH_TIMEOUT_MS = 6000;
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
 const GEMINI_IMAGE_TIMEOUT_MS = 45000;
+// Both text prompts are one-shot formatting jobs, so they run on an explicit
+// thinking budget instead of the API default (see gemini-thinking.js). The
+// powers prompt keeps a small budget on purpose: with thinking fully off the
+// model slides into the "Title: description" shape the prompt forbids. The
+// name prompt needs none — it answers in three tokens.
+const DEFAULT_POWERS_THINKING_BUDGET = 256;
+const DEFAULT_NAME_THINKING_BUDGET = 0;
+const POWERS_ANSWER_RESERVE = 512;
+const NAME_ANSWER_RESERVE = 128;
 // Stable model id — the "-preview" alias is no longer listed in the Gemini docs.
 const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 // Pets are pixel art shown in boxes of at most 248 CSS px (≤ 496 device px on
@@ -699,7 +709,7 @@ function parseNameFromText(text, context) {
   return buildFallbackName(context);
 }
 
-async function requestGeminiText(prompt) {
+async function requestGeminiText(prompt, { thinkingBudget, answerReserve }) {
   if (!shouldUseLiveCharacterGeneration()) {
     return null;
   }
@@ -724,6 +734,10 @@ async function requestGeminiText(prompt) {
             parts: [{ text: prompt }],
           },
         ],
+        generationConfig: {
+          maxOutputTokens: resolveMaxOutputTokens(thinkingBudget, answerReserve),
+          thinkingConfig: { thinkingBudget },
+        },
       }),
     },
     GEMINI_TEXT_TIMEOUT_MS,
@@ -887,7 +901,13 @@ async function generateCharacterImage(prompt, characterId, imageStore, reference
 
 async function generatePowerOptions(prompt, context) {
   try {
-    const text = await requestGeminiText(prompt);
+    const text = await requestGeminiText(prompt, {
+      thinkingBudget: resolveThinkingBudget(
+        "GEMINI_POWERS_THINKING_BUDGET",
+        DEFAULT_POWERS_THINKING_BUDGET
+      ),
+      answerReserve: POWERS_ANSWER_RESERVE,
+    });
     const lines = parsePowerLinesFromText(text, context);
     return {
       provider: text ? "gemini" : "fallback",
@@ -907,7 +927,13 @@ async function generatePowerOptions(prompt, context) {
 
 async function generateCharacterName(prompt, context) {
   try {
-    const text = await requestGeminiText(prompt);
+    const text = await requestGeminiText(prompt, {
+      thinkingBudget: resolveThinkingBudget(
+        "GEMINI_NAME_THINKING_BUDGET",
+        DEFAULT_NAME_THINKING_BUDGET
+      ),
+      answerReserve: NAME_ANSWER_RESERVE,
+    });
     const name = parseNameFromText(text, context);
     return {
       provider: text ? "gemini" : "fallback",
@@ -1177,7 +1203,10 @@ module.exports = {
   createPromptContext,
   getImageExtension,
   loadShapeReferenceImage,
+  generateCharacterName,
+  generatePowerOptions,
   requestGeminiImage,
+  requestGeminiText,
   resolveGeminiImageSize,
   getAttributeIncrementSpend,
   getAttributePointBudget,
