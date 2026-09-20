@@ -26,14 +26,24 @@ const DEFAULTS = Object.freeze({
   // Три бесплатных приводили к тому, что 78% кошельков заводили ровно 2-3 пета
   // и ставили их на ферму, а каждая генерация стоит нам денег.
   FREE_SLOTS: 1,
-  // Лестница считается от окупаемости: питомец печатает ~263 Points в сутки,
-  // поэтому второй стоит примерно три месяца его собственной фермы, а десятый —
-  // одиннадцать лет. Фармом такую коллекцию не собрать, это выбор в пользу
-  // покупки токена; цены пересматриваются, когда капитализация меняется втрое.
-  SLOT_PRICES: Object.freeze([
-    25000, 40000, 65000, 100000, 160000, 260000, 420000, 670000, 1070000,
-  ]),
+  // Лестница в долларах, а не в Points: она считается от окупаемости питомца
+  // собственной фермой (второй окупается примерно за три месяца, десятый — за
+  // одиннадцать лет) и раз в час пересчитывается в Points по курсу монеты,
+  // чтобы при движении курса цена в деньгах оставалась предсказуемой.
+  PET_PRICES_USD: Object.freeze([1.2, 1.91, 3.11, 4.78, 7.65, 12.43, 20.08, 32.03, 51.15]),
   MAX_CHARACTER_SLOTS: 10,
+  // Пересчёт доллара в Points. Защита одна на всю лестницу: ограничиваем сам
+  // курс, а не девять цен. Пул монеты тонкий (~$21k), поэтому скачок за один
+  // пересчёт ограничен, а границы не дают экономике уехать при обвале или
+  // разгоне цены.
+  PRICE_MAX_STEP_PCT: 25,
+  PRICE_MIN_POINTS_PER_USD: 1000,
+  PRICE_MAX_POINTS_PER_USD: 2000000,
+  // Курс на момент выката: $0.0000478 за монету. Действует, пока не получена
+  // первая живая котировка.
+  PRICE_BOOTSTRAP_POINTS_PER_USD: 20920,
+  PRICE_TTL_MINUTES: 60,
+  PRICE_MIN_LIQUIDITY_USD: 1000,
   BURN_COST: 1000, // цена сжигания персонажа (feature 014)
   MIN_WITHDRAW: 1000, // порог вывода (решение владельца 2026-09-17; было 200)
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
@@ -95,7 +105,7 @@ function deepCloneDefaults() {
   return {
     ...DEFAULTS,
     rarityMult: { ...DEFAULTS.rarityMult },
-    SLOT_PRICES: [...DEFAULTS.SLOT_PRICES],
+    PET_PRICES_USD: [...DEFAULTS.PET_PRICES_USD],
     ENERGY_PACKS: cloneEnergyPacks(DEFAULTS.ENERGY_PACKS),
     NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
     NFT_TIER_FARM_BONUS_PCT: { ...DEFAULTS.NFT_TIER_FARM_BONUS_PCT },
@@ -126,8 +136,8 @@ function mergeConfig(overrides) {
     } else if (TIER_MAP_KEYS.includes(key) && overrides[key] && typeof overrides[key] === "object") {
       // Карты по тирам капсул: частичный патч дополняет дефолты, а не заменяет их.
       base[key] = { ...base[key], ...overrides[key] };
-    } else if (key === "SLOT_PRICES" && Array.isArray(overrides.SLOT_PRICES)) {
-      base.SLOT_PRICES = [...overrides.SLOT_PRICES];
+    } else if (key === "PET_PRICES_USD" && Array.isArray(overrides.PET_PRICES_USD)) {
+      base.PET_PRICES_USD = [...overrides.PET_PRICES_USD];
     } else if (key === "ENERGY_PACKS" && Array.isArray(overrides.ENERGY_PACKS)) {
       base.ENERGY_PACKS = cloneEnergyPacks(overrides.ENERGY_PACKS);
     } else if (typeof overrides[key] === "number" && Number.isFinite(overrides[key])) {
@@ -155,6 +165,12 @@ function validateConfigPatch(patch) {
     "BATTLE_LEVEL_K",
     "MAX_CHARACTER_SLOTS",
     "FREE_SLOTS",
+    "PRICE_MAX_STEP_PCT",
+    "PRICE_MIN_POINTS_PER_USD",
+    "PRICE_MAX_POINTS_PER_USD",
+    "PRICE_BOOTSTRAP_POINTS_PER_USD",
+    "PRICE_TTL_MINUTES",
+    "PRICE_MIN_LIQUIDITY_USD",
     "BURN_COST",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
@@ -239,28 +255,35 @@ function validateConfigPatch(patch) {
     });
   }
 
-  const prices = effective.SLOT_PRICES;
-  if ("SLOT_PRICES" in patch) {
+  const prices = effective.PET_PRICES_USD;
+  if ("PET_PRICES_USD" in patch || "FREE_SLOTS" in patch || "MAX_CHARACTER_SLOTS" in patch) {
     if (!Array.isArray(prices)) {
-      errors.push({ field: "SLOT_PRICES", message: "SLOT_PRICES must be an array" });
+      errors.push({ field: "PET_PRICES_USD", message: "PET_PRICES_USD must be an array" });
     } else {
       const expectedLen = effective.MAX_CHARACTER_SLOTS - effective.FREE_SLOTS;
       if (prices.length !== expectedLen) {
         errors.push({
-          field: "SLOT_PRICES",
-          message: `SLOT_PRICES length must equal MAX_CHARACTER_SLOTS-FREE_SLOTS (${expectedLen})`,
+          field: "PET_PRICES_USD",
+          message: `PET_PRICES_USD length must equal MAX_CHARACTER_SLOTS-FREE_SLOTS (${expectedLen})`,
         });
       }
       for (let i = 0; i < prices.length; i += 1) {
-        if (typeof prices[i] !== "number" || !Number.isFinite(prices[i]) || prices[i] < 0) {
-          errors.push({ field: "SLOT_PRICES", message: `SLOT_PRICES[${i}] must be a number ≥ 0` });
+        if (typeof prices[i] !== "number" || !Number.isFinite(prices[i]) || prices[i] <= 0) {
+          errors.push({ field: "PET_PRICES_USD", message: `PET_PRICES_USD[${i}] must be a number > 0` });
         }
         if (i > 0 && prices[i] <= prices[i - 1]) {
-          errors.push({ field: "SLOT_PRICES", message: "SLOT_PRICES must be strictly increasing" });
+          errors.push({ field: "PET_PRICES_USD", message: "PET_PRICES_USD must be strictly increasing" });
           break;
         }
       }
     }
+  }
+
+  if (effective.PRICE_MIN_POINTS_PER_USD >= effective.PRICE_MAX_POINTS_PER_USD) {
+    errors.push({
+      field: "PRICE_MIN_POINTS_PER_USD",
+      message: "PRICE_MIN_POINTS_PER_USD must be below PRICE_MAX_POINTS_PER_USD",
+    });
   }
 
   return { ok: errors.length === 0, errors };

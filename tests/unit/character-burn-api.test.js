@@ -52,7 +52,7 @@ test("POST /api/character/burn debits the cost, deletes the pet, and keeps paid 
     assert.equal(response.body.pricePaid, BURN_COST);
     assert.equal(response.body.balance, 1200 - BURN_COST);
     assert.equal(response.body.paidSlots, 2);
-    assert.equal(response.body.maxCharacters, 3);
+    assert.equal(response.body.maxCharacters, 10, "the cap no longer depends on purchased places");
 
     const profile = await store.getWalletProfile(wallet);
     assert.deepEqual(

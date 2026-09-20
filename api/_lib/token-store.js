@@ -42,9 +42,16 @@ const EMPTY_STATE = {
   recentWallets: [],
   sendLock: null,
   dailyOut: { day: 0, points: 0 },
+  // Котировка монеты (024): одно число под защитой, из него выводится вся
+  // лестница цен на питомцев.
+  price: null,
+  // Сколько Points потрачено внутри игры с момента последнего сжигания.
+  burnQueue: { points: 0, byReason: {}, since: null, lastBurnAt: null },
   lastRunAt: null,
   lastError: null,
 };
+
+const SPEND_REASONS = ["pet_creation", "energy", "pet_burn", "capsule_unbind"];
 
 let writeQueue = Promise.resolve();
 
@@ -114,9 +121,66 @@ function normalizeState(parsed) {
       day: nonNegativeInt(parsed.dailyOut?.day),
       points: nonNegativeInt(parsed.dailyOut?.points),
     },
+    price: normalizePriceQuote(parsed.price),
+    burnQueue: normalizeBurnQueue(parsed.burnQueue),
     lastRunAt: parsed.lastRunAt ? String(parsed.lastRunAt) : null,
     lastError: parsed.lastError ? String(parsed.lastError) : null,
   };
+}
+
+function positiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function normalizePriceQuote(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  const pointsPerUsd = positiveNumber(parsed.pointsPerUsd);
+  if (pointsPerUsd === null) return null;
+  return {
+    usd: positiveNumber(parsed.usd),
+    pointsPerUsd,
+    fetchedAt: parsed.fetchedAt ? String(parsed.fetchedAt) : null,
+    source: parsed.source ? String(parsed.source) : null,
+    previousPointsPerUsd: positiveNumber(parsed.previousPointsPerUsd),
+    rejections: nonNegativeInt(parsed.rejections),
+    lastError: parsed.lastError ? String(parsed.lastError) : null,
+    clamped: parsed.clamped === true,
+  };
+}
+
+function normalizeBurnQueue(parsed) {
+  const byReason = {};
+  for (const reason of SPEND_REASONS) {
+    const value = nonNegativeInt(parsed?.byReason?.[reason]);
+    if (value > 0) byReason[reason] = value;
+  }
+  return {
+    points: nonNegativeInt(parsed?.points),
+    byReason,
+    since: parsed?.since ? String(parsed.since) : null,
+    lastBurnAt: parsed?.lastBurnAt ? String(parsed.lastBurnAt) : null,
+  };
+}
+
+/**
+ * Учёт траты в очереди на сжигание. Возврат приходит отрицательной суммой и
+ * уменьшает очередь, но не уводит её ниже нуля: сжечь больше, чем потрачено,
+ * нельзя ни при каком стечении обстоятельств.
+ */
+function addSpend(state, { points, reason, at }) {
+  const amount = Math.floor(Number(points) || 0);
+  if (!amount) return state;
+  const key = SPEND_REASONS.includes(reason) ? reason : "other";
+
+  const queue = normalizeBurnQueue(state.burnQueue);
+  queue.points = Math.max(0, queue.points + amount);
+  queue.byReason[key] = Math.max(0, (queue.byReason[key] || 0) + amount);
+  if (queue.byReason[key] === 0) delete queue.byReason[key];
+  if (!queue.since) queue.since = at || new Date().toISOString();
+
+  state.burnQueue = queue;
+  return state;
 }
 
 // ---- pure helpers (operate on a state object inside a mutator) -------------
@@ -346,6 +410,10 @@ async function releaseSendLock(owner) {
 
 module.exports = {
   EMPTY_STATE,
+  SPEND_REASONS,
+  addSpend,
+  normalizeBurnQueue,
+  normalizePriceQuote,
   MAX_RECENT_KEYS,
   MAX_RECENT_WALLETS,
   acquireSendLock,

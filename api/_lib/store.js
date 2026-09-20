@@ -55,6 +55,11 @@ const EMPTY_WALLET_PROFILE = {
   battleState: normalizeBattleState(null),
   currency: { balance: 0, totalEarned: 0 },
   paidSlots: 0,
+  // Платное создание питомцев (024): израсходовано ли бесплатное создание,
+  // сколько созданий оплачено по прежним правилам и журнал списаний.
+  freeCreationUsed: false,
+  prepaidCreations: null,
+  spend: [],
   withdrawals: [],
   deposits: [],
   profileUpdatedAt: null,
@@ -165,6 +170,16 @@ function cloneWalletProfile(profile) {
     battleState: normalizeBattleState(profile?.battleState),
     currency: normalizeCurrency(profile?.currency),
     paidSlots: normalizePaidSlots(profile?.paidSlots),
+    // Бесплатное создание считается израсходованным, если у кошелька уже есть
+    // питомцы: миграция старым профилям не нужна.
+    freeCreationUsed:
+      profile?.freeCreationUsed === true ||
+      (Array.isArray(profile?.characters) && profile.characters.length > 0),
+    // null = зачёт ещё не считался (см. ensurePrepaidCreations); 0 — уже посчитан.
+    prepaidCreations: Number.isFinite(Number(profile?.prepaidCreations))
+      ? Math.max(0, Math.floor(Number(profile.prepaidCreations)))
+      : null,
+    spend: Array.isArray(profile?.spend) ? profile.spend.map((record) => cloneRecord(record)) : [],
     withdrawals: Array.isArray(profile?.withdrawals)
       ? profile.withdrawals.map((record) => cloneRecord(record))
       : [],

@@ -88,6 +88,10 @@ module.exports = async (req, res) => {
         return {
           ...current,
           draft: null,
+          // Бесплатное создание расходуется здесь, на завершённом питомце, а не
+          // на черновике (024): брошенный на полпути первый питомец не должен
+          // лишать кошелёк бесплатной попытки.
+          freeCreationUsed: true,
           characters: [...current.characters, completedCharacter],
         };
       });

@@ -13,10 +13,10 @@ test("getDefaults returns the ×10 defaults", () => {
   assert.equal(d.BATTLE_REWARD_BASE, 100);
   assert.equal(d.MAX_CHARACTER_SLOTS, 10);
   assert.equal(d.FREE_SLOTS, 1);
-  assert.equal(d.SLOT_PRICES.length, 9);
+  assert.equal(d.PET_PRICES_USD.length, 9);
   assert.deepEqual(
-    d.SLOT_PRICES,
-    [25000, 40000, 65000, 100000, 160000, 260000, 420000, 670000, 1070000]
+    d.PET_PRICES_USD,
+    [1.2, 1.91, 3.11, 4.78, 7.65, 12.43, 20.08, 32.03, 51.15]
   );
   assert.deepEqual(d.rarityMult, { Common: 1.0, Rare: 1.2, Epic: 1.4, Legendary: 1.6 });
 });
@@ -25,11 +25,11 @@ test("getDefaults returns a fresh deep copy (not frozen internals)", () => {
   const a = getDefaults();
   a.FARM_BASE = 999;
   a.rarityMult.Common = 999;
-  a.SLOT_PRICES.push(1);
+  a.PET_PRICES_USD.push(1);
   const b = getDefaults();
   assert.equal(b.FARM_BASE, 10);
   assert.equal(b.rarityMult.Common, 1.0);
-  assert.equal(b.SLOT_PRICES.length, 9);
+  assert.equal(b.PET_PRICES_USD.length, 9);
 });
 
 test("mergeConfig overlays numeric override", () => {
@@ -44,9 +44,9 @@ test("mergeConfig merges rarityMult partially", () => {
   assert.equal(cfg.rarityMult.Common, 1.0); // preserved
 });
 
-test("mergeConfig replaces SLOT_PRICES wholesale", () => {
-  const cfg = mergeConfig({ SLOT_PRICES: [1, 2, 3, 4, 5, 6, 7] });
-  assert.deepEqual(cfg.SLOT_PRICES, [1, 2, 3, 4, 5, 6, 7]);
+test("mergeConfig replaces PET_PRICES_USD wholesale", () => {
+  const cfg = mergeConfig({ PET_PRICES_USD: [1, 2, 3, 4, 5, 6, 7] });
+  assert.deepEqual(cfg.PET_PRICES_USD, [1, 2, 3, 4, 5, 6, 7]);
 });
 
 test("mergeConfig ignores unknown keys and bad types", () => {
@@ -73,16 +73,16 @@ test("validateConfigPatch rejects rarityMult missing a tier", () => {
   assert.ok(r.errors.some((e) => e.field === "rarityMult"));
 });
 
-test("validateConfigPatch rejects non-increasing SLOT_PRICES", () => {
-  const r = validateConfigPatch({ SLOT_PRICES: [5000, 5000, 6000, 7000, 8000, 9000, 10000] });
+test("validateConfigPatch rejects non-increasing PET_PRICES_USD", () => {
+  const r = validateConfigPatch({ PET_PRICES_USD: [5000, 5000, 6000, 7000, 8000, 9000, 10000] });
   assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => e.field === "SLOT_PRICES"));
+  assert.ok(r.errors.some((e) => e.field === "PET_PRICES_USD"));
 });
 
-test("validateConfigPatch rejects wrong-length SLOT_PRICES", () => {
-  const r = validateConfigPatch({ SLOT_PRICES: [5000, 10000] });
+test("validateConfigPatch rejects wrong-length PET_PRICES_USD", () => {
+  const r = validateConfigPatch({ PET_PRICES_USD: [5000, 10000] });
   assert.equal(r.ok, false);
-  assert.ok(r.errors.some((e) => e.field === "SLOT_PRICES"));
+  assert.ok(r.errors.some((e) => e.field === "PET_PRICES_USD"));
 });
 
 test("validateConfigPatch rejects non-object patch", () => {

@@ -6,11 +6,10 @@ const {
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { getWalletProfile } = require("../../api/_lib/store");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const {
-  getMaxCharacters,
-  getNextSlotPrice,
-  grandfatherFreeSlots,
-} = require("../../api/_lib/slots");
+const { ensurePrepaidCreations, getMaxCharacters } = require("../../api/_lib/slots");
+const { normalizeCurrency } = require("../../api/_lib/currency");
+const { priceForNextPet, resolvePointsPerUsd } = require("../../api/_lib/pet-price");
+const { readQuote } = require("../../api/_lib/price-quote");
 const { getWalletCapsuleBonus } = require("../../api/_lib/nft");
 const { buildEnergyShopView } = require("../../api/_lib/energy-shop");
 
@@ -45,7 +44,26 @@ module.exports = async (req, res) => {
   // Вместимость показываем так, как её увидит запись: питомцы, заведённые при
   // трёх бесплатных слотах, зачтены. Считаем на копии — профиль из кэша чужой.
   const slotView = { ...profile };
-  grandfatherFreeSlots(slotView, cfg);
+  ensurePrepaidCreations(slotView, cfg);
+
+  // Цена следующего питомца (024): клиент рисует по ней окно покупки и знает,
+  // сколько не хватает, ещё до нажатия.
+  const pricing = priceForNextPet(slotView, cfg, resolvePointsPerUsd(await readQuote(), cfg));
+  const balance = normalizeCurrency(profile.currency).balance;
+  const missing = pricing.price === null ? 0 : Math.max(0, pricing.price - balance);
+  const petPricing = {
+    petCount: pricing.petCount,
+    maxPets: pricing.maxPets,
+    nextPetIndex: pricing.index,
+    price: pricing.price,
+    free: pricing.free,
+    freeReason: pricing.freeReason,
+    priceUsd: pricing.priceUsd,
+    balance,
+    missing,
+    canCreate: !pricing.atMax && (pricing.free || missing === 0),
+    blockedReason: pricing.atMax ? "max_pets" : missing > 0 ? "insufficient_funds" : null,
+  };
 
   json(res, 200, {
     hasDraft: Boolean(profile.draft),
@@ -63,7 +81,7 @@ module.exports = async (req, res) => {
     currency: profile.currency || { balance: 0, totalEarned: 0 },
     paidSlots: slotView.paidSlots || 0,
     maxCharacters: getMaxCharacters(slotView, cfg),
-    nextSlotPrice: getNextSlotPrice(slotView, cfg),
+    petPricing,
     burnCost: cfg.BURN_COST,
     profileUpdatedAt: profile.profileUpdatedAt || null,
   });

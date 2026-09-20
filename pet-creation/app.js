@@ -1064,6 +1064,8 @@ const state = {
   paidSlots: 0,
   maxCharacters: MAX_CHARACTERS_PER_WALLET,
   nextSlotPrice: null,
+  // Цена следующего питомца (024): приезжает из /api/character/me.
+  petPricing: null,
   burnCost: null,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
@@ -3288,6 +3290,9 @@ function syncStateWithPayload(payload = {}) {
   if ("nextSlotPrice" in payload) {
     state.nextSlotPrice =
       typeof payload.nextSlotPrice === "number" ? payload.nextSlotPrice : null;
+  }
+  if (payload.petPricing && typeof payload.petPricing === "object") {
+    state.petPricing = payload.petPricing;
   }
   if (typeof payload.burnCost === "number") {
     state.burnCost = Math.max(0, Math.floor(payload.burnCost));
@@ -11215,6 +11220,159 @@ function moveTo(step, { replace = true } = {}) {
   resetStepScroll();
 }
 
+
+// --- Окно покупки питомца (024) -------------------------------------------
+// Второй и последующие питомцы платные. Цена приезжает в профиле, здесь она
+// только показывается: подтверждение уходит на сервер вместе с ценой, которую
+// увидел игрок, и сервер сверяет её со своей.
+
+const petBuyState = { built: false, refs: null, resolve: null, pricing: null };
+
+function formatPetPrice(value) {
+  return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
+}
+
+function ensurePetBuyModal() {
+  if (petBuyState.built) return petBuyState.refs;
+
+  const closeIcon =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">' +
+    '<path d="M1.5 1.5 L10.5 10.5 M10.5 1.5 L1.5 10.5" stroke="#344054" stroke-width="2" stroke-linecap="round"></path></svg>';
+
+  const overlay = document.createElement("div");
+  overlay.className = "petbuy-overlay hidden";
+  overlay.id = "petBuyOverlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML =
+    '<section class="petbuy-modal" role="dialog" aria-modal="true" aria-labelledby="petBuyTitle">' +
+      '<div class="petbuy-header">' +
+        '<span class="petbuy-title" id="petBuyTitle">New pet</span>' +
+        '<button class="petbuy-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
+      '</div>' +
+      '<div class="petbuy-price"><span data-role="price">0</span> <span class="petbuy-price-unit">Points</span></div>' +
+      '<div class="petbuy-sub" data-role="sub">Pet #2</div>' +
+      '<div class="petbuy-rows">' +
+        '<div class="petbuy-row"><span>Your balance</span><strong data-role="balance">0</strong></div>' +
+        '<div class="petbuy-row petbuy-row--missing hidden" data-role="missing-row"><span>Not enough</span><strong data-role="missing">0</strong></div>' +
+      '</div>' +
+      '<button class="petbuy-submit" type="button" data-role="confirm">Create for <span data-role="confirm-price">0</span> Points</button>' +
+      '<button class="petbuy-secondary hidden" type="button" data-role="topup">Top up Points</button>' +
+      '<div class="petbuy-note" data-role="note"></div>' +
+      '<div class="petbuy-error hidden" data-role="error" role="alert"></div>' +
+    '</section>';
+
+  document.body.appendChild(overlay);
+
+  const refs = {
+    overlay,
+    close: overlay.querySelector('[data-role="close"]'),
+    price: overlay.querySelector('[data-role="price"]'),
+    sub: overlay.querySelector('[data-role="sub"]'),
+    balance: overlay.querySelector('[data-role="balance"]'),
+    missingRow: overlay.querySelector('[data-role="missing-row"]'),
+    missing: overlay.querySelector('[data-role="missing"]'),
+    confirm: overlay.querySelector('[data-role="confirm"]'),
+    confirmPrice: overlay.querySelector('[data-role="confirm-price"]'),
+    topup: overlay.querySelector('[data-role="topup"]'),
+    note: overlay.querySelector('[data-role="note"]'),
+    error: overlay.querySelector('[data-role="error"]'),
+  };
+
+  refs.close.addEventListener("click", () => closePetBuyModal(false));
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closePetBuyModal(false);
+  });
+  refs.confirm.addEventListener("click", () => {
+    if (refs.confirm.disabled) return;
+    closePetBuyModal(true);
+  });
+  refs.topup.addEventListener("click", () => {
+    const missing = Math.max(0, Number(petBuyState.pricing?.missing) || 0);
+    closePetBuyModal(false);
+    openDepositModal(missing);
+  });
+
+  petBuyState.built = true;
+  petBuyState.refs = refs;
+  return refs;
+}
+
+function renderPetBuyModal(pricing) {
+  const refs = ensurePetBuyModal();
+  const price = Math.max(0, Math.floor(Number(pricing.price) || 0));
+  const balance = Math.max(0, Math.floor(Number(pricing.balance) || 0));
+  const missing = Math.max(0, Math.floor(Number(pricing.missing) || 0));
+
+  refs.price.textContent = formatPetPrice(price);
+  refs.sub.textContent =
+    "Pet #" +
+    pricing.nextPetIndex +
+    (pricing.priceUsd ? " · about $" + Number(pricing.priceUsd).toFixed(2) : "");
+  refs.balance.textContent = formatPetPrice(balance);
+  refs.missing.textContent = formatPetPrice(missing);
+  refs.missingRow.classList.toggle("hidden", missing <= 0);
+  refs.confirmPrice.textContent = formatPetPrice(price);
+  refs.confirm.disabled = missing > 0;
+  refs.topup.classList.toggle("hidden", missing <= 0);
+  refs.note.textContent =
+    missing > 0
+      ? "Farm more Points or deposit $PETIX — the price follows the coin, so it stays about the same in dollars."
+      : "Points are spent at creation. Each next pet costs more than the last.";
+  refs.error.classList.add("hidden");
+  refs.error.textContent = "";
+}
+
+function openPetBuyModal(pricing) {
+  const refs = ensurePetBuyModal();
+  petBuyState.pricing = pricing;
+  renderPetBuyModal(pricing);
+  refs.overlay.classList.remove("hidden");
+  refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+
+  return new Promise((resolve) => {
+    petBuyState.resolve = resolve;
+  });
+}
+
+function closePetBuyModal(confirmed) {
+  const refs = petBuyState.refs;
+  if (refs) {
+    refs.overlay.classList.add("hidden");
+    refs.overlay.setAttribute("aria-hidden", "true");
+  }
+  document.body.classList.remove("withdraw-modal-open");
+  const resolve = petBuyState.resolve;
+  petBuyState.resolve = null;
+  if (resolve) resolve(Boolean(confirmed));
+}
+
+function showPetBuyError(message, pricing) {
+  const refs = ensurePetBuyModal();
+  if (pricing) {
+    petBuyState.pricing = pricing;
+    renderPetBuyModal(pricing);
+  }
+  refs.error.textContent = message;
+  refs.error.classList.remove("hidden");
+}
+
+/** Депозит с заранее подставленной суммой — вход из окна покупки. */
+function openDepositModal(amount) {
+  ensureWithdrawModal();
+  hideWalletMenu();
+  withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
+  const missing = Math.max(0, Math.floor(Number(amount) || 0));
+  if (missing > 0) withdrawState.depositAmountText = String(missing);
+  withdrawState.view = "deposit";
+  withdrawState.open = true;
+  showWithdrawView();
+  void refreshWithdrawConfig();
+  withdrawState.refs.overlay.classList.remove("hidden");
+  withdrawState.refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("withdraw-modal-open");
+}
+
 async function startCharacterCreation() {
   if (state.isStarting) return;
 
@@ -11237,6 +11395,20 @@ async function startCharacterCreation() {
     return;
   }
 
+  // Второй и последующие питомцы платные (024): сперва окно покупки, и только
+  // после подтверждения — генерация.
+  const pricing = state.petPricing;
+  let expectedPrice = 0;
+  if (pricing && !pricing.free && Number(pricing.price) > 0) {
+    if (pricing.blockedReason === "max_pets") {
+      window.alert(`Character limit reached. Maximum is ${pricing.maxPets}.`);
+      return;
+    }
+    const confirmed = await openPetBuyModal(pricing);
+    if (!confirmed) return;
+    expectedPrice = Number(pricing.price);
+  }
+
   state.pendingStartAfterAuth = false;
   state.isStarting = true;
   resetCharacterState({ keepTypeSelection: true, keepCharacters: true });
@@ -11246,7 +11418,10 @@ async function startCharacterCreation() {
 
   try {
     const [data] = await Promise.all([
-      apiRequest("/api/character/start", { creatureType }),
+      apiRequest(
+        "/api/character/start",
+        expectedPrice > 0 ? { creatureType, expectedPrice } : { creatureType }
+      ),
       wait(1200),
     ]);
 
@@ -11255,6 +11430,17 @@ async function startCharacterCreation() {
     moveTo("powers");
   } catch (error) {
     moveTo("type");
+    // Цена уехала или денег не хватило: возвращаем игрока в окно покупки с
+    // актуальными числами, а не в общий экран ошибки.
+    if (/price changed/i.test(error.message) || /not enough points/i.test(error.message)) {
+      await restoreCharacterState();
+      const fresh = state.petPricing;
+      if (fresh && !fresh.free && Number(fresh.price) > 0) {
+        const retry = await openPetBuyModal(fresh);
+        if (retry) void startCharacterCreation();
+      }
+      return;
+    }
     if (/already exists/i.test(error.message)) {
       await restoreCharacterState();
       return;

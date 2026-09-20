@@ -8780,6 +8780,7 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 .energy-shop-modal .withdraw-error {
   margin-top: 14px;
   text-align: center;
+}
 
 .withdraw-admin-preview {
   color: #667085;
@@ -8804,4 +8805,174 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 
 .admin-stat-value {
   overflow-wrap: anywhere;
+}
+
+/* Окно покупки питомца (024). Визуально — та же карточка, что у вывода. */
+.petbuy-overlay {
+  align-items: center;
+  background: rgba(16, 24, 40, 0.6);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 96;
+}
+
+.petbuy-overlay.hidden {
+  display: none;
+}
+
+.petbuy-modal {
+  animation: withdraw-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 32px 64px -12px rgba(16, 24, 40, 0.24);
+  box-sizing: border-box;
+  max-width: 360px;
+  padding: 24px;
+  width: 100%;
+}
+
+.petbuy-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.petbuy-title {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.petbuy-close {
+  align-items: center;
+  background: #f2f4f7;
+  border: none;
+  border-radius: 99px;
+  cursor: pointer;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.petbuy-price {
+  color: #101828;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 44px;
+  margin-top: 16px;
+}
+
+.petbuy-price-unit {
+  color: #667085;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.petbuy-sub {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.petbuy-rows {
+  border-top: 1px solid #eaecf0;
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.petbuy-row {
+  color: #475467;
+  display: flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 14px;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.petbuy-row strong {
+  color: #101828;
+}
+
+.petbuy-row--missing strong {
+  color: #d92d20;
+}
+
+.petbuy-row.hidden {
+  display: none;
+}
+
+.petbuy-submit {
+  background: #101828;
+  border: none;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  height: 48px;
+  margin-top: 20px;
+  transition: background 0.15s, opacity 0.15s;
+  width: 100%;
+}
+
+.petbuy-submit:hover:not(:disabled) {
+  background: #1d2939;
+}
+
+.petbuy-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.petbuy-secondary {
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 99px;
+  color: #101828;
+  cursor: pointer;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  height: 48px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.petbuy-secondary:hover {
+  background: #f9fafb;
+}
+
+.petbuy-secondary.hidden {
+  display: none;
+}
+
+.petbuy-note {
+  color: #667085;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.petbuy-error {
+  background: #fef3f2;
+  border-radius: 12px;
+  color: #b42318;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 13px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.petbuy-error.hidden {
+  display: none;
 }
