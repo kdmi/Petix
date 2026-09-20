@@ -5842,14 +5842,17 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
     width: 100%;
   }
 
+  /* Растягиваем кнопку по краям вместо центрирования через transform: ховер
+     ставит свой transform и снёс бы центрирование, уводя кнопку за экран.
+     Заодно уходит горизонтальный скролл от 100vw, в которые входит полоса
+     прокрутки. */
   .type-continue-btn {
     bottom: 24px;
-    left: 50%;
+    left: 16px;
     margin-top: 0;
     position: fixed;
-    right: auto;
-    transform: translateX(-50%);
-    width: calc(100vw - 32px);
+    right: 16px;
+    width: auto;
     z-index: 20;
   }
 
