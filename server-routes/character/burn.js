@@ -7,7 +7,7 @@ const {
 const { debitCurrency, normalizeCurrency } = require("../../api/_lib/currency");
 const { computeFarmEarned, normalizeFarmState } = require("../../api/_lib/farm");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const { getMaxCharacters } = require("../../api/_lib/slots");
+const { getMaxCharacters, grandfatherFreeSlots } = require("../../api/_lib/slots");
 const { deleteStoredImage, updateWalletProfile } = require("../../api/_lib/store");
 
 function fail(status, message, code, extra) {
@@ -44,6 +44,10 @@ module.exports = async (req, res) => {
     let burned = null;
 
     const profile = await updateWalletProfile(session.wallet, (current) => {
+      // Считаем питомцев в слоты до сжигания: иначе кошелёк со старыми тремя
+      // бесплатными слотами потерял бы место, которое у него уже было.
+      grandfatherFreeSlots(current, cfg);
+
       const characters = current.characters || [];
       const index = characters.findIndex((record) => record.id === petId);
       if (index === -1) throw fail(404, "Character not found.", "NOT_FOUND");

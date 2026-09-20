@@ -189,7 +189,8 @@ const ADMIN_WALLETS = [
   "AwtqC9r5Wgvjfhqw5DrtzC5W73QRVF14DZVop8caECi9",
   "0x0e8caf9eca5e45df0e6f50f58a5bf664db1740c1",
 ];
-const MAX_CHARACTERS_PER_WALLET = 3;
+// Fallback until /api/character/me delivers the runtime capacity (FREE_SLOTS + paid slots).
+const MAX_CHARACTERS_PER_WALLET = 1;
 const CUSTOM_CREATURE_TYPE_MAX_LENGTH = 24;
 const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
@@ -10789,7 +10790,8 @@ function renderAdminEconomy() {
     body = `
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Slots</h3>
-        ${textRow(`Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - 3} values, increasing)`, "SLOT_PRICES", slotPrices)}
+        ${grid([ecoNumberRow("Free slots", "FREE_SLOTS", cfg.FREE_SLOTS)])}
+        ${textRow(`Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - (cfg.FREE_SLOTS || 1)} values, increasing)`, "SLOT_PRICES", slotPrices)}
       </section>
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Energy shop</h3>
@@ -10837,7 +10839,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "FREE_SLOTS", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });

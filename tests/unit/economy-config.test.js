@@ -12,8 +12,12 @@ test("getDefaults returns the ×10 defaults", () => {
   assert.equal(d.FARM_BASE, 10);
   assert.equal(d.BATTLE_REWARD_BASE, 100);
   assert.equal(d.MAX_CHARACTER_SLOTS, 10);
-  assert.equal(d.SLOT_PRICES.length, 7);
-  assert.deepEqual(d.SLOT_PRICES, [5000, 10000, 20000, 35000, 60000, 100000, 160000]);
+  assert.equal(d.FREE_SLOTS, 1);
+  assert.equal(d.SLOT_PRICES.length, 9);
+  assert.deepEqual(
+    d.SLOT_PRICES,
+    [25000, 40000, 65000, 100000, 160000, 260000, 420000, 670000, 1070000]
+  );
   assert.deepEqual(d.rarityMult, { Common: 1.0, Rare: 1.2, Epic: 1.4, Legendary: 1.6 });
 });
 
@@ -25,7 +29,7 @@ test("getDefaults returns a fresh deep copy (not frozen internals)", () => {
   const b = getDefaults();
   assert.equal(b.FARM_BASE, 10);
   assert.equal(b.rarityMult.Common, 1.0);
-  assert.equal(b.SLOT_PRICES.length, 7);
+  assert.equal(b.SLOT_PRICES.length, 9);
 });
 
 test("mergeConfig overlays numeric override", () => {

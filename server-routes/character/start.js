@@ -13,7 +13,11 @@ const {
 const { isCharacterProxyEnabled, proxyCharacterJson } = require("../../api/_lib/character-proxy");
 const { createImageStore, getWalletProfile, saveWalletProfile } = require("../../api/_lib/store");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const { countSlotCharacters, getMaxCharacters } = require("../../api/_lib/slots");
+const {
+  countSlotCharacters,
+  getMaxCharacters,
+  grandfatherFreeSlots,
+} = require("../../api/_lib/slots");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -42,6 +46,7 @@ module.exports = async (req, res) => {
 
     const profile = await getWalletProfile(session.wallet);
     const cfg = await getEconomyConfig();
+    grandfatherFreeSlots(profile, cfg);
     const maxCharacters = getMaxCharacters(profile, cfg);
     if (!isAdminWallet(session.wallet) && countSlotCharacters(profile) >= maxCharacters) {
       json(res, 409, {

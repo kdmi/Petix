@@ -1,9 +1,16 @@
 const { normalizeCurrency } = require("./currency");
 
 // Pure slot logic (Farm-экономика, feature 013). No network/FS — config + profile passed in.
-// 3 free slots + up to (MAX_CHARACTER_SLOTS - 3) paid slots. Price escalates per SLOT_PRICES.
+// cfg.FREE_SLOTS free slots + up to (MAX_CHARACTER_SLOTS - FREE_SLOTS) paid ones.
+// Price escalates per SLOT_PRICES, indexed by how many paid slots the wallet holds.
 
-const FREE_SLOTS = 3;
+// Fallback for the pre-020 profiles and tests that pass a config without the key.
+const DEFAULT_FREE_SLOTS = 1;
+
+function getFreeSlots(cfg) {
+  const n = Math.floor(Number(cfg && cfg.FREE_SLOTS));
+  return Number.isFinite(n) && n >= 1 ? n : DEFAULT_FREE_SLOTS;
+}
 
 function getPaidSlots(profile) {
   const n = Math.floor(Number(profile && profile.paidSlots) || 0);
@@ -12,8 +19,9 @@ function getPaidSlots(profile) {
 
 /** Total character capacity for this wallet (free + purchased), capped at MAX_CHARACTER_SLOTS. */
 function getMaxCharacters(profile, cfg) {
-  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || FREE_SLOTS);
-  return Math.min(cap, FREE_SLOTS + getPaidSlots(profile));
+  const free = getFreeSlots(cfg);
+  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || free);
+  return Math.min(cap, free + getPaidSlots(profile));
 }
 
 /**
@@ -22,16 +30,17 @@ function getMaxCharacters(profile, cfg) {
  */
 function getNextSlotPrice(profile, cfg) {
   const paid = getPaidSlots(profile);
-  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || FREE_SLOTS);
-  if (FREE_SLOTS + paid >= cap) return null;
+  const free = getFreeSlots(cfg);
+  const cap = Math.floor(Number(cfg.MAX_CHARACTER_SLOTS) || free);
+  if (free + paid >= cap) return null;
   const prices = Array.isArray(cfg.SLOT_PRICES) ? cfg.SLOT_PRICES : [];
   const price = prices[paid];
   return typeof price === "number" && Number.isFinite(price) ? price : null;
 }
 
-/** 1-based index of the next character slot to unlock (e.g. 4 for the first paid slot). */
-function getNextSlotIndex(profile) {
-  return FREE_SLOTS + getPaidSlots(profile) + 1;
+/** 1-based index of the next character slot to unlock (e.g. 2 for the first paid slot). */
+function getNextSlotIndex(profile, cfg) {
+  return getFreeSlots(cfg) + getPaidSlots(profile) + 1;
 }
 
 /**
@@ -48,7 +57,22 @@ function canBuySlot(profile, cfg) {
   if (balance < price) {
     return { ok: false, reason: "INSUFFICIENT_FUNDS", required: price, balance };
   }
-  return { ok: true, price, slotIndex: getNextSlotIndex(profile) };
+  return { ok: true, price, slotIndex: getNextSlotIndex(profile, cfg) };
+}
+
+/**
+ * Кошельки, заведённые при трёх бесплатных слотах, ничего не теряют: при первой
+ * же проверке вместимости разница засчитывается как оплаченные слоты. Иначе
+ * игрок с тремя питомцами был бы вынужден выкупать уже имеющихся, а его
+ * следующая покупка ничего бы не открыла. Возвращает true, если профиль изменён
+ * (вызывающий код сохраняет его как часть своей записи).
+ */
+function grandfatherFreeSlots(profile, cfg) {
+  if (!profile) return false;
+  const missing = countSlotCharacters(profile) - getFreeSlots(cfg) - getPaidSlots(profile);
+  if (missing <= 0) return false;
+  profile.paidSlots = getPaidSlots(profile) + missing;
+  return true;
 }
 
 /**
@@ -63,8 +87,10 @@ function countSlotCharacters(profile) {
 }
 
 module.exports = {
-  FREE_SLOTS,
+  DEFAULT_FREE_SLOTS,
   countSlotCharacters,
+  getFreeSlots,
+  grandfatherFreeSlots,
   getPaidSlots,
   getMaxCharacters,
   getNextSlotPrice,

@@ -5,7 +5,13 @@ const {
 } = require("../../api/_lib/auth");
 const { debitCurrency } = require("../../api/_lib/currency");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
-const { canBuySlot, getMaxCharacters, getNextSlotPrice } = require("../../api/_lib/slots");
+const {
+  canBuySlot,
+  getMaxCharacters,
+  getNextSlotIndex,
+  getNextSlotPrice,
+  grandfatherFreeSlots,
+} = require("../../api/_lib/slots");
 const { updateWalletProfile } = require("../../api/_lib/store");
 
 function fail(status, message, code, extra) {
@@ -33,6 +39,9 @@ module.exports = async (req, res) => {
     let purchase = null;
 
     const profile = await updateWalletProfile(session.wallet, (current) => {
+      // Кошельки со старыми тремя бесплатными слотами сперва получают свои
+      // питомцы как оплаченные, иначе покупка не открыла бы ничего нового.
+      grandfatherFreeSlots(current, cfg);
       const check = canBuySlot(current, cfg);
       if (!check.ok) {
         if (check.reason === "MAX_SLOTS") {
@@ -61,7 +70,7 @@ module.exports = async (req, res) => {
       nextSlot:
         getNextSlotPrice(profile, cfg) === null
           ? null
-          : { index: profile.paidSlots + 4, price: getNextSlotPrice(profile, cfg) },
+          : { index: getNextSlotIndex(profile, cfg), price: getNextSlotPrice(profile, cfg) },
     });
   } catch (error) {
     if (error.httpStatus) {

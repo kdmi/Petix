@@ -22,7 +22,17 @@ const DEFAULTS = Object.freeze({
   FARM_CAP_HOURS: 24,
   BATTLE_REWARD_BASE: 100,
   BATTLE_LEVEL_K: 0.05,
-  SLOT_PRICES: Object.freeze([5000, 10000, 20000, 35000, 60000, 100000, 160000]),
+  // Один бесплатный питомец на кошелёк (решение владельца 2026-09-20; было 3).
+  // Три бесплатных приводили к тому, что 78% кошельков заводили ровно 2-3 пета
+  // и ставили их на ферму, а каждая генерация стоит нам денег.
+  FREE_SLOTS: 1,
+  // Лестница считается от окупаемости: питомец печатает ~263 Points в сутки,
+  // поэтому второй стоит примерно три месяца его собственной фермы, а десятый —
+  // одиннадцать лет. Фармом такую коллекцию не собрать, это выбор в пользу
+  // покупки токена; цены пересматриваются, когда капитализация меняется втрое.
+  SLOT_PRICES: Object.freeze([
+    25000, 40000, 65000, 100000, 160000, 260000, 420000, 670000, 1070000,
+  ]),
   MAX_CHARACTER_SLOTS: 10,
   BURN_COST: 1000, // цена сжигания персонажа (feature 014)
   MIN_WITHDRAW: 1000, // порог вывода (решение владельца 2026-09-17; было 200)
@@ -144,6 +154,7 @@ function validateConfigPatch(patch) {
     "BATTLE_REWARD_BASE",
     "BATTLE_LEVEL_K",
     "MAX_CHARACTER_SLOTS",
+    "FREE_SLOTS",
     "BURN_COST",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
@@ -220,16 +231,24 @@ function validateConfigPatch(patch) {
 
   // Evaluate effective config for cross-field invariants.
   const effective = mergeConfig(patch);
+
+  if (effective.FREE_SLOTS < 1 || effective.FREE_SLOTS > effective.MAX_CHARACTER_SLOTS) {
+    errors.push({
+      field: "FREE_SLOTS",
+      message: "FREE_SLOTS must be between 1 and MAX_CHARACTER_SLOTS",
+    });
+  }
+
   const prices = effective.SLOT_PRICES;
   if ("SLOT_PRICES" in patch) {
     if (!Array.isArray(prices)) {
       errors.push({ field: "SLOT_PRICES", message: "SLOT_PRICES must be an array" });
     } else {
-      const expectedLen = effective.MAX_CHARACTER_SLOTS - 3;
+      const expectedLen = effective.MAX_CHARACTER_SLOTS - effective.FREE_SLOTS;
       if (prices.length !== expectedLen) {
         errors.push({
           field: "SLOT_PRICES",
-          message: `SLOT_PRICES length must equal MAX_CHARACTER_SLOTS-3 (${expectedLen})`,
+          message: `SLOT_PRICES length must equal MAX_CHARACTER_SLOTS-FREE_SLOTS (${expectedLen})`,
         });
       }
       for (let i = 0; i < prices.length; i += 1) {
