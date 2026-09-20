@@ -1066,6 +1066,8 @@ const state = {
   nextSlotPrice: null,
   // Цена следующего питомца (024): приезжает из /api/character/me.
   petPricing: null,
+  // Курс монеты и лестница для админки (024).
+  adminPrice: null,
   burnCost: null,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
@@ -10521,6 +10523,7 @@ async function loadAdminEconomy({ force = false } = {}) {
   state.adminEconomyError = "";
   renderAdminTable();
   try {
+    void loadAdminPrice({ force });
     const [cfgRes, statsRes, tokenRes] = await Promise.all([
       apiRequest("/api/admin/economy-config", {}, "GET"),
       apiRequest("/api/admin/farm-stats", {}, "GET"),
@@ -10681,7 +10684,7 @@ function renderAdminEconomy() {
   const cfg = state.adminEconomyConfig || {};
   const stats = state.adminEconomyStats || {};
   const rarity = cfg.rarityMult || {};
-  const slotPrices = Array.isArray(cfg.SLOT_PRICES) ? cfg.SLOT_PRICES.join(", ") : "";
+  const petPricesUsd = Array.isArray(cfg.PET_PRICES_USD) ? cfg.PET_PRICES_USD.join(", ") : "";
 
   const statCard = (label, value) => `
     <article class="admin-stat-card">
@@ -10796,7 +10799,8 @@ function renderAdminEconomy() {
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Slots</h3>
         ${grid([ecoNumberRow("Free slots", "FREE_SLOTS", cfg.FREE_SLOTS)])}
-        ${textRow(`Slot prices (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - (cfg.FREE_SLOTS || 1)} values, increasing)`, "SLOT_PRICES", slotPrices)}
+        ${textRow(`Pet prices in USD (comma-separated, ${(cfg.MAX_CHARACTER_SLOTS || 10) - (cfg.FREE_SLOTS || 1)} values, increasing)`, "PET_PRICES_USD", petPricesUsd)}
+        ${renderAdminPriceBlock()}
       </section>
       <section>
         <h3 style="margin:0 0 10px;font-size:15px;">Energy shop</h3>
@@ -10820,6 +10824,87 @@ function renderAdminEconomy() {
       <nav class="admin-nav admin-subnav" aria-label="Economy sections">${subnav}</nav>
       ${body}
     </div>`;
+}
+
+// Курс монеты и действующая лестница цен на питомцев (024). Долларовая
+// лестница задаётся в конфиге выше, а здесь видно, во что она превращается по
+// текущей котировке — и можно обновить котировку руками, не дожидаясь крона.
+function renderAdminPriceBlock() {
+  const price = state.adminPrice;
+  if (!price) {
+    return `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Coin price</h3>
+        <p style="font-size:13px;color:#6b7280;margin:0;">Loading the quote…</p>
+      </section>`;
+  }
+
+  const quote = price.quote || {};
+  const age =
+    quote.ageMinutes === null || quote.ageMinutes === undefined
+      ? "never"
+      : quote.ageMinutes < 60
+        ? `${quote.ageMinutes} min ago`
+        : `${Math.round(quote.ageMinutes / 60)} h ago`;
+  const flags = [
+    quote.stale ? "stale" : "",
+    quote.bootstrap ? "bootstrap rate" : "",
+    quote.clamped ? "clamped" : "",
+    quote.rejections ? `${quote.rejections} rejected` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const ladder = Array.isArray(price.ladder) ? price.ladder : [];
+  const rows = ladder
+    .map(
+      (step) =>
+        `<tr><td style="padding:2px 10px 2px 0;">Pet #${step.index}</td>` +
+        `<td style="padding:2px 10px 2px 0;color:#6b7280;">$${Number(step.usd).toFixed(2)}</td>` +
+        `<td style="padding:2px 0;font-weight:600;">${formatPoints(step.points)}</td></tr>`
+    )
+    .join("");
+
+  const burn = price.burnQueue || {};
+  const byReason = Object.entries(burn.byReason || {})
+    .map(([reason, points]) => `${reason}: ${formatPoints(points)}`)
+    .join(" · ");
+
+  return `
+    <section>
+      <h3 style="margin:0 0 10px;font-size:15px;">Coin price</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:13px;margin-bottom:10px;">
+        <span>1 $PETIX = <strong>${quote.usd ? Number(quote.usd).toPrecision(3) : "—"}</strong> USD</span>
+        <span style="color:#6b7280;">${formatPoints(quote.pointsPerUsd)} Points per $1</span>
+        <span style="color:#6b7280;">${escapeHtml(quote.source || "—")} · ${escapeHtml(age)}</span>
+        ${flags ? `<span style="color:#b42318;">${escapeHtml(flags)}</span>` : ""}
+        <button type="button" class="admin-nav-btn" data-role="price-refresh">Refresh now</button>
+      </div>
+      <table style="font-size:13px;border-collapse:collapse;">${rows}</table>
+      <p style="font-size:13px;color:#6b7280;margin:10px 0 0;">
+        Queued for burning: <strong>${formatPoints(burn.points || 0)}</strong> Points${byReason ? ` (${escapeHtml(byReason)})` : ""}
+      </p>
+    </section>`;
+}
+
+async function loadAdminPrice({ force = false } = {}) {
+  if (state.adminPrice && !force) return;
+  try {
+    state.adminPrice = await apiRequest("/api/admin/price", {}, "GET");
+  } catch (error) {
+    state.adminPrice = { quote: {}, ladder: [], burnQueue: {}, error: error.message };
+  }
+  renderAdminTable();
+}
+
+async function refreshAdminPrice() {
+  try {
+    state.adminPrice = await apiRequest("/api/admin/price", {});
+    showToast("Quote refreshed.");
+  } catch (error) {
+    showToast(error.message || "Could not refresh the quote.");
+  }
+  renderAdminTable();
 }
 
 function readEcoNumberInput(key) {
@@ -10858,13 +10943,13 @@ async function saveAdminEconomy() {
   });
   if (hasRarity) patch.rarityMult = rarityMult;
 
-  const slotsInput = adminEconomyPanel.querySelector('[data-eco-key="SLOT_PRICES"]');
-  if (slotsInput && String(slotsInput.value || "").trim()) {
-    const prices = String(slotsInput.value)
+  const pricesInput = adminEconomyPanel.querySelector('[data-eco-key="PET_PRICES_USD"]');
+  if (pricesInput && String(pricesInput.value || "").trim()) {
+    const prices = String(pricesInput.value)
       .split(",")
       .map((part) => Number(part.trim()))
       .filter((n) => Number.isFinite(n));
-    patch.SLOT_PRICES = prices;
+    patch.PET_PRICES_USD = prices;
   }
 
   const packsInput = adminEconomyPanel.querySelector('[data-eco-key="ENERGY_PACKS"]');
@@ -11984,6 +12069,12 @@ function init() {
         event.preventDefault();
         state.adminEconomyTab = tabButton.getAttribute("data-eco-tab") || "overview";
         renderAdminEconomy();
+        return;
+      }
+      const refreshPrice = event.target.closest('[data-role="price-refresh"]');
+      if (refreshPrice) {
+        event.preventDefault();
+        void refreshAdminPrice();
         return;
       }
       const saveButton = event.target.closest('[data-action="save-economy"]');
