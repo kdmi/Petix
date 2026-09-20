@@ -11399,7 +11399,7 @@ function moveTo(step, { replace = true } = {}) {
 // только показывается: подтверждение уходит на сервер вместе с ценой, которую
 // увидел игрок, и сервер сверяет её со своей.
 
-const petBuyState = { built: false, refs: null, resolve: null, pricing: null };
+const petBuyState = { built: false, refs: null, resolve: null, pricing: null, timer: null };
 
 // Та же монета Points, что в шапке: в окне покупки суммы подписаны иконкой, а
 // не словом.
@@ -11502,6 +11502,31 @@ function renderPetBuyModal(pricing) {
   refs.error.textContent = "";
 }
 
+/**
+ * Свежая цена и баланс с сервера. Депозит зачисляется асинхронно, и открытое
+ * окно должно само увидеть пополнение, а не ждать перезагрузки страницы.
+ */
+async function refreshPetPricing() {
+  try {
+    const data = await apiRequest("/api/character/me", {}, "GET");
+    if (data && data.petPricing) state.petPricing = data.petPricing;
+    if (data && data.currency) {
+      state.currency = data.currency;
+      updateDashboardPointsUi();
+    }
+  } catch (error) {
+    // Сеть моргнула — остаёмся на том, что знаем.
+  }
+  return state.petPricing;
+}
+
+function stopPetBuyPolling() {
+  if (petBuyState.timer) {
+    window.clearInterval(petBuyState.timer);
+    petBuyState.timer = null;
+  }
+}
+
 function openPetBuyModal(pricing) {
   const refs = ensurePetBuyModal();
   petBuyState.pricing = pricing;
@@ -11510,12 +11535,26 @@ function openPetBuyModal(pricing) {
   refs.overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("withdraw-modal-open");
 
+  // Пока окно открыто, следим за балансом: пополнение должно разблокировать
+  // кнопку само, без закрытия и повторного захода.
+  stopPetBuyPolling();
+  const sync = async () => {
+    if (!petBuyState.resolve) return;
+    const fresh = await refreshPetPricing();
+    if (!petBuyState.resolve || !fresh) return;
+    petBuyState.pricing = fresh;
+    renderPetBuyModal(fresh);
+  };
+  void sync();
+  petBuyState.timer = window.setInterval(sync, 5000);
+
   return new Promise((resolve) => {
     petBuyState.resolve = resolve;
   });
 }
 
 function closePetBuyModal(confirmed) {
+  stopPetBuyPolling();
   const refs = petBuyState.refs;
   if (refs) {
     refs.overlay.classList.add("hidden");
@@ -11577,7 +11616,10 @@ async function startCharacterCreation() {
 
   // Второй и последующие питомцы платные (024): сперва окно покупки, и только
   // после подтверждения — генерация.
-  const pricing = state.petPricing;
+  // Цена должна быть известна до решения. Если профиль ещё не приехал (переход
+  // с дашборда, медленная сеть), спрашиваем сервер — иначе платное создание
+  // ушло бы без окна подтверждения.
+  const pricing = state.petPricing || (await refreshPetPricing());
   let expectedPrice = 0;
   if (pricing && !pricing.free && Number(pricing.price) > 0) {
     if (pricing.blockedReason === "max_pets") {
@@ -11586,7 +11628,8 @@ async function startCharacterCreation() {
     }
     const confirmed = await openPetBuyModal(pricing);
     if (!confirmed) return;
-    expectedPrice = Number(pricing.price);
+    // Подтверждаем ту цену, которую игрок видел в последний момент.
+    expectedPrice = Number((petBuyState.pricing || pricing).price);
   }
 
   state.pendingStartAfterAuth = false;
@@ -11612,7 +11655,11 @@ async function startCharacterCreation() {
     moveTo("type");
     // Цена уехала или денег не хватило: возвращаем игрока в окно покупки с
     // актуальными числами, а не в общий экран ошибки.
-    if (/price changed/i.test(error.message) || /not enough points/i.test(error.message)) {
+    if (
+      /price changed/i.test(error.message) ||
+      /not enough points/i.test(error.message) ||
+      /confirm the price/i.test(error.message)
+    ) {
       await restoreCharacterState();
       const fresh = state.petPricing;
       if (fresh && !fresh.free && Number(fresh.price) > 0) {

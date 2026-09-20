@@ -291,7 +291,10 @@ test("wallets from the old rules keep their pets and pay the price of the next p
     // Three pets created for free under the old rules, no purchases, no balance.
     await seedWallet(store, wallet, { pets: 3, balance: 0 });
 
-    const refused = await invokeJsonHandler(characterActionRoute, startRequest(auth, wallet));
+    const refused = await invokeJsonHandler(
+      characterActionRoute,
+      startRequest(auth, wallet, { expectedPrice: LADDER[2].points })
+    );
 
     assert.equal(refused.statusCode, 402);
     assert.equal(refused.body.required, LADDER[2].points, "the fourth place costs the fourth step");
@@ -348,5 +351,39 @@ test("admin wallets create without paying", async () => {
       if (savedAdmins === undefined) delete process.env.ADMIN_WALLETS;
       else process.env.ADMIN_WALLETS = savedAdmins;
     }
+  });
+});
+
+test("a paid creation without a confirmed price is refused, not charged silently", async () => {
+  forgetStartRoute();
+  await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store, tempDir }) => {
+    await seedGenerationAssets(tempDir);
+    const wallet = createWallet("n");
+    // The wallet can easily afford it — the point is that nobody confirmed.
+    await seedWallet(store, wallet, { pets: 1, balance: SECOND_PLACE * 3 });
+
+    const response = await invokeJsonHandler(characterActionRoute, startRequest(auth, wallet));
+
+    assert.equal(response.statusCode, 409);
+    assert.equal(response.body.code, "CONFIRMATION_REQUIRED");
+    assert.equal(response.body.price, SECOND_PLACE, "the client is told what to confirm");
+
+    const profile = await store.getWalletProfile(wallet);
+    assert.equal(profile.currency.balance, SECOND_PLACE * 3, "not a single Point moved");
+    assert.equal(profile.draft, null, "and no generation was paid for");
+  });
+});
+
+test("a free creation needs no confirmation", async () => {
+  forgetStartRoute();
+  await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store, tempDir }) => {
+    await seedGenerationAssets(tempDir);
+    const wallet = createWallet("p");
+    await seedWallet(store, wallet, { pets: 0, balance: 0 });
+
+    const response = await invokeJsonHandler(characterActionRoute, startRequest(auth, wallet));
+
+    assert.equal(response.statusCode, 200, JSON.stringify(response.body));
+    assert.equal(response.body.charged, 0);
   });
 });
