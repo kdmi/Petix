@@ -1,4 +1,14 @@
+const { resolveMaxOutputTokens, resolveThinkingBudget } = require("./gemini-thinking");
+
 const GEMINI_TEXT_TIMEOUT_MS = 20000;
+// Narration is the one prompt where thinking earns part of its keep, but the
+// API default spent ~1400 thought tokens on a ~480 token answer. See
+// gemini-thinking.js for the measurements behind the explicit budget.
+const DEFAULT_NARRATION_THINKING_BUDGET = 512;
+// The answer is one or two short sentences per round plus a final summary, so
+// the room reserved for it follows the length of the fight.
+const NARRATION_TOKENS_PER_ROUND = 80;
+const NARRATION_SUMMARY_RESERVE = 512;
 
 const SYSTEM_PROMPT = [
   "You write battle narration for a cartoony sci-fi pet battleground game.",
@@ -311,6 +321,12 @@ async function requestAiNarration(battle) {
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   const model = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
+  const thinkingBudget = resolveThinkingBudget(
+    "GEMINI_NARRATION_THINKING_BUDGET",
+    DEFAULT_NARRATION_THINKING_BUDGET
+  );
+  const answerReserve =
+    (battle?.rounds || []).length * NARRATION_TOKENS_PER_ROUND + NARRATION_SUMMARY_RESERVE;
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -330,6 +346,8 @@ async function requestAiNarration(battle) {
         ],
         generationConfig: {
           responseMimeType: "application/json",
+          maxOutputTokens: resolveMaxOutputTokens(thinkingBudget, answerReserve),
+          thinkingConfig: { thinkingBudget },
         },
       }),
     },
