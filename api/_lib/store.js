@@ -476,7 +476,11 @@ async function loadBlobWalletProfile(wallet) {
   return profile;
 }
 
-async function loadAllBlobWalletProfiles() {
+// One entry per wallet — the newest profile blob it has, with the `uploadedAt`
+// the listing reports. The roster index (feature 023) uses those timestamps to
+// re-read only the profiles that changed since its watermark, so this listing
+// is shared instead of duplicated there.
+async function listLatestWalletProfileBlobs() {
   const blobs = await listBlobPathnames(`${WALLET_PROFILE_BLOB_PREFIX}/`);
   const latestByWallet = new Map();
 
@@ -489,6 +493,18 @@ async function loadAllBlobWalletProfiles() {
       latestByWallet.set(wallet, blob);
     }
   });
+
+  return [...latestByWallet.entries()].map(([wallet, blob]) => ({
+    wallet,
+    pathname: blob.pathname,
+    uploadedAt: blob.uploadedAt || null,
+  }));
+}
+
+async function loadAllBlobWalletProfiles() {
+  const latestByWallet = new Map(
+    (await listLatestWalletProfileBlobs()).map((blob) => [blob.wallet, blob])
+  );
 
   // Bounded fan-out: one Promise.all over every wallet opens a socket and a
   // DNS lookup per profile at once. Past ~1000 wallets that exhausts the
@@ -980,8 +996,12 @@ module.exports = {
   deleteStoredImage,
   findCharacterRecordById,
   getWalletProfile,
+  isBlobDbEnabled,
   isBlobImageStoreEnabled,
   listAllCharacters,
+  listLatestWalletProfileBlobs,
+  loadWalletProfileFromBlobPath,
+  mapWithConcurrency,
   readDb,
   saveWalletProfile,
   updateWalletProfile,

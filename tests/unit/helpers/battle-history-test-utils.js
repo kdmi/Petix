@@ -19,6 +19,7 @@ const CHARACTER_BUY_ENERGY_ROUTE_PATH = path.resolve(__dirname, "../../../server
 const CHARACTER_ME_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/character/me.js");
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
+const ROSTER_PATH = path.resolve(__dirname, "../../../api/_lib/roster.js");
 
 function clearModule(modulePath) {
   delete require.cache[require.resolve(modulePath)];
@@ -61,6 +62,9 @@ async function withIsolatedBattleHistoryEnv(run, options = {}) {
       await options.beforeRoutes({ battleStore, store, auth });
     }
 
+    // Roster index shares store.js state; it must be re-required with the
+    // freshly loaded store, otherwise it keeps reading a previous temp dir.
+    freshRequire(ROSTER_PATH);
     const battlesRoute = freshRequire(BATTLES_ROUTE_PATH);
     const battleByIdRoute = freshRequire(BATTLE_BY_ID_ROUTE_PATH);
     const opponentsRoute = freshRequire(OPPONENTS_ROUTE_PATH);
@@ -94,6 +98,7 @@ async function withIsolatedBattleHistoryEnv(run, options = {}) {
     clearModule(BATTLES_ROUTE_PATH);
     clearModule(AUTH_PATH);
     clearModule(BATTLE_STORE_PATH);
+    clearModule(ROSTER_PATH);
     clearModule(STORE_PATH);
     process.chdir(originalCwd);
 

@@ -7,6 +7,10 @@
     {
       "path": "/api/token/sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/roster/sync",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {

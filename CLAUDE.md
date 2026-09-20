@@ -72,6 +72,7 @@ All persistence, auth, and game logic lives here and is imported by both the `ap
 - `battle-store.js` — battle record storage with the same dev/prod dual backend. Records have lifecycle states (`generating` → `ready`/`failed`) and support paginated history queries per wallet.
 - `battle.js` — battle simulation (deterministic given a seed), reveal bundle construction, and progression application to character records.
 - `battle-matchmaking.js` — opponent selection and reveal carousel candidate shortlisting.
+- `roster.js` — roster index (feature 023): a compact blob with one entry per battle-ready character, refreshed incrementally from the `uploadedAt` timestamps `list()` reports (cron `/api/roster/sync`, once a minute). Matchmaking and `/api/battles/opponents` read it instead of every wallet profile; the chosen opponent's full record still comes from its owner's profile. `ROSTER_ENABLED=0` falls back to the old full scan, which the admin roster still uses.
 - `battle-progression.js` — XP/level/upgrade-point math.
 - `battle-energy.js` — daily battle-energy state normalization and refill logic.
 - `battle-narration.js` — Gemini-backed narration with template fallback; respects `BATTLE_NARRATION_BUDGET_MS`.
@@ -123,9 +124,15 @@ The root `app.js`, `index.html`, `styles.css`, and `prod-root-styles.css` at the
 - Economy coefficients (farm rate, battle reward, slot prices, withdrawal params) live in the runtime-tunable `economy-config.js` (defaults ⊕ overrides via `economy-config-store.js`), not hard-coded — read with `getEconomyConfig()`, change via admin `economy-config`. Farm accrual is lazy from timestamps (`farm.js`), no cron. Points→$PETIX withdrawal and deposit are built as feature 019 (custodial on Robinhood Chain: `api/_lib/token*.js`, `api/token/[action].js` → `server-routes/token/*`, cron `/api/token/sync`, env `TOKEN_*`, flag `TOKEN_ENABLED`, runtime `WITHDRAW_ENABLED`/`WITHDRAW_MAX_PER_TX`); balance reset before launch is still a separate Phase 2 decision — see [specs/019-petix-token-evm/](specs/019-petix-token-evm/) and [specs/013-farm-economy/](specs/013-farm-economy/).
 
 <!-- SPECKIT START -->
-Current plan: [specs/019-petix-token-evm/plan.md](specs/019-petix-token-evm/plan.md)
+Current plan: [specs/023-roster-index/plan.md](specs/023-roster-index/plan.md)
+
+Previous plan: [specs/019-petix-token-evm/plan.md](specs/019-petix-token-evm/plan.md)
 
 See also:
+- [specs/023-roster-index/spec.md](specs/023-roster-index/spec.md) — feature spec: индекс ростера для матчмейкинга; бой читает один компактный блоб вместо профилей всех кошельков (инцидент 20.09.2026 «fetch failed» на 1123 кошельках), полные статы соперника — из его профиля после выбора
+- [specs/023-roster-index/research.md](specs/023-roster-index/research.md) — Phase 0: инкремент по `uploadedAt` из `list()` + крон вместо записи-насквозь, проекция вместо полных записей, content-addressed версии для писателя, окно перекрытия водяного знака
+- [specs/023-roster-index/contracts/roster.md](specs/023-roster-index/contracts/roster.md) — контракт `api/_lib/roster.js`, `GET /api/roster/sync`, блок `roster` в admin farm-stats, переменные `ROSTER_*`
+- [specs/023-roster-index/quickstart.md](specs/023-roster-index/quickstart.md) — локальная проверка, сценарии спеки, порядок выкатки и откат
 - [specs/019-petix-token-evm/spec.md](specs/019-petix-token-evm/spec.md) — feature spec: $PETIX на Robinhood Chain через Pons; вывод по custodial-схеме (сервер шлёт ERC-20 с раздатчика и платит газ, игрок ничего не подписывает), ввод обычным переводом на адрес раздатчика; тихий тест на проде под TOKEN_ENABLED, адреса только в env; смарт-контрактов нет (решение владельца 2026-09-12)
 - [specs/019-petix-token-evm/research.md](specs/019-petix-token-evm/research.md) — Phase 0: параметры кривой Pons v2 (P=1,68 ETH, T=4,2 ETH, dev buy 10% ≈ 0,19 ETH), nonce-lock через CAS, реконсиляция по receipt/nonce вместо blockhash-expiry, индексация Transfer(to=treasury)
 - [specs/019-petix-token-evm/contracts/token-api.md](specs/019-petix-token-evm/contracts/token-api.md) — /api/token/* (config, withdraw-request/status, deposit-prepare/confirm, sync, history) + admin token-stats

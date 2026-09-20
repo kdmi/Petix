@@ -19,6 +19,7 @@ const BLOB_MODULE_ID = require.resolve("@vercel/blob");
 const BLOB_READ_PATH = path.resolve(__dirname, "../../../api/_lib/blob-read.js");
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
 const BATTLE_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/battle-store.js");
+const ROSTER_PATH = path.resolve(__dirname, "../../../api/_lib/roster.js");
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
 const BATTLE_LIB_PATH = path.resolve(__dirname, "../../../api/_lib/battle.js");
 const BATTLE_MATCHMAKING_PATH = path.resolve(__dirname, "../../../api/_lib/battle-matchmaking.js");
@@ -242,13 +243,16 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
     clearModule(BLOB_READ_PATH);
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
+    clearModule(ROSTER_PATH);
 
     const store = require(STORE_PATH);
     const battleStore = require(BATTLE_STORE_PATH);
+    const roster = require(ROSTER_PATH);
 
     return await run({
       store,
       battleStore,
+      roster,
       counts: handle.counts,
       concurrency: handle.concurrency,
       state: handle.state,
@@ -262,6 +266,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
     clearModule(BLOB_READ_PATH);
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
+    clearModule(ROSTER_PATH);
 
     if (originalCachedBlob) {
       require.cache[BLOB_MODULE_ID] = originalCachedBlob;
@@ -296,6 +301,7 @@ async function withFakeBlobIntegrationEnv(run, { initialState = {} } = {}) {
     BLOB_READ_PATH,
     STORE_PATH,
     BATTLE_STORE_PATH,
+    ROSTER_PATH,
     AUTH_PATH,
     BATTLE_LIB_PATH,
     BATTLE_MATCHMAKING_PATH,
@@ -331,12 +337,14 @@ async function withFakeBlobIntegrationEnv(run, { initialState = {} } = {}) {
     require(CHARACTER_LIB_PATH);
     require(NOTIFICATION_PATH);
     require(BATTLE_NARRATION_PATH);
+    const roster = require(ROSTER_PATH);
     const battlesRoute = require(BATTLES_ROUTE_PATH);
 
     return await run({
       store,
       battleStore,
       auth,
+      roster,
       battlesRoute,
       counts: handle.counts,
       concurrency: handle.concurrency,
