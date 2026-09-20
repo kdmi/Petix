@@ -41,8 +41,17 @@ function assertAffordable(pricing, profile, expectedPrice) {
 
   if (pricing.price <= 0) return;
 
+  // Платное создание подтверждается явно: клиент присылает цену, которую видел
+  // игрок. Без неё покупку не проводим — иначе устаревший или сбойный клиент
+  // спишет Points молча, а игрок этого не выбирал.
   const expected = Math.floor(Number(expectedPrice));
-  if (Number.isFinite(expected) && expected !== pricing.price) {
+  if (!Number.isFinite(expected)) {
+    throw fail(409, "Confirm the price before creating a pet.", "CONFIRMATION_REQUIRED", {
+      price: pricing.price,
+      priceUsd: pricing.priceUsd,
+    });
+  }
+  if (expected !== pricing.price) {
     throw fail(409, "The price changed while you were deciding.", "PRICE_CHANGED", {
       price: pricing.price,
       priceUsd: pricing.priceUsd,
@@ -141,7 +150,7 @@ module.exports = async (req, res) => {
       const freshPricing = priceForNextPet(current, cfg, pointsPerUsd);
 
       if (!isAdmin) {
-        assertAffordable(freshPricing, current, undefined);
+        assertAffordable(freshPricing, current, freshPricing.price);
 
         if (freshPricing.price > 0) {
           charged = debitCurrency(current, freshPricing.price);
