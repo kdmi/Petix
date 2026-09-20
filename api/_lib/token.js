@@ -845,6 +845,8 @@ async function syncDeposits(depOverrides) {
     skippedInternal: 0,
     skippedContract: 0,
     skippedDuplicate: 0,
+    retriedDeposits: 0,
+    pendingDeposits: 0,
     revertedContractDeposits: 0,
     reconciled: 0,
     errors: [],
@@ -862,6 +864,35 @@ async function syncDeposits(depOverrides) {
     if (!current.startBlock && env.startBlock) current.startBlock = env.startBlock;
     return current;
   });
+
+  // Deposits an earlier run saw in the chain but could not credit (storage or
+  // RPC hiccup) are retried first: the cursor has long moved past their block,
+  // so nothing else would ever look at them again. This is how 80 000 $PETIX
+  // went missing on 2026-09-20.
+  for (const entry of Array.isArray(state.pendingDeposits) ? [...state.pendingDeposits] : []) {
+    try {
+      const outcome = await creditDeposit(entry.from, entry, "retry", deps);
+      await deps.tokenStore.withTokenState((current) =>
+        deps.tokenStore.forgetPendingDeposit(current, entry.key)
+      );
+      if (outcome.credited) {
+        result.retriedDeposits += 1;
+        result.credited.push({ wallet: entry.from, points: outcome.points, txHash: entry.txHash });
+      }
+    } catch (error) {
+      if (error?.httpCode === "BAD_REQUEST") {
+        // Sub-token dust can never become creditable — stop carrying it.
+        await deps.tokenStore.withTokenState((current) =>
+          deps.tokenStore.forgetPendingDeposit(current, entry.key)
+        );
+        continue;
+      }
+      await deps.tokenStore.withTokenState((current) =>
+        deps.tokenStore.rememberPendingDeposit(current, entry, { error: error.message })
+      );
+      result.errors.push(`retry ${entry.txHash}: ${error.message}`);
+    }
+  }
 
   let fromBlock;
   if (state.lastSyncedBlock) fromBlock = state.lastSyncedBlock + 1;
@@ -920,6 +951,17 @@ async function syncDeposits(depOverrides) {
       }
     } catch (error) {
       if (error?.httpCode === "BAD_REQUEST") continue; // sub-token dust: ignore silently
+      // The cursor moves on regardless, so park the transfer for the next run
+      // instead of losing the player's money to a transient failure.
+      await deps.tokenStore
+        .withTokenState((current) =>
+          deps.tokenStore.rememberPendingDeposit(
+            current,
+            { ...transfer, key: depositKey(transfer) },
+            { at: new Date(deps.now()).toISOString(), error: error.message }
+          )
+        )
+        .catch(() => null);
       result.errors.push(`${transfer.txHash}: ${error.message}`);
     }
   }
@@ -942,12 +984,15 @@ async function syncDeposits(depOverrides) {
     }
   }
 
-  await deps.tokenStore.withTokenState((current) => {
+  const finalState = await deps.tokenStore.withTokenState((current) => {
     if (scan.toBlock >= fromBlock - 1) current.lastSyncedBlock = Math.max(current.lastSyncedBlock, scan.toBlock);
     current.lastRunAt = new Date(deps.now()).toISOString();
     current.lastError = result.errors.length ? result.errors[0] : null;
     return current;
   });
+  result.pendingDeposits = Array.isArray(finalState?.pendingDeposits)
+    ? finalState.pendingDeposits.length
+    : 0;
   return result;
 }
 
@@ -1107,6 +1152,9 @@ async function adminStats(depOverrides) {
       lastRunAt: state.lastRunAt,
       lastError: state.lastError,
       sendLock: state.sendLock,
+      // Deposits seen in the chain but not credited yet — anything stuck here
+      // is a player waiting for their money.
+      pendingDeposits: Array.isArray(state.pendingDeposits) ? state.pendingDeposits.length : 0,
     },
     config: {
       chainId: env.chainId,

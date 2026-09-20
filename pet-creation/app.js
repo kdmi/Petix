@@ -991,6 +991,9 @@ const state = {
   withdrawPublic: false, // вывод открыт всем (WITHDRAW_ENABLED=1); иначе попап только у админа
   withdrawEnabled: false, // /api/token/config.enabled — может ли ИМЕННО этот кошелёк выводить сейчас
   withdrawReason: null, // почему нельзя: TOKEN_DISABLED | EVM_ONLY | TOKEN_NOT_CONFIGURED | ADMIN_ONLY
+  // Ввод не зависит от права на вывод: сервер присылает deposit.address всем,
+  // кому депозит открыт, даже когда вывод закрыт правилом капсулы или рубильником.
+  depositAvailable: false,
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
@@ -1892,6 +1895,7 @@ async function refreshWithdrawConfig() {
     state.withdrawPublic = Boolean(res && res.public);
     state.withdrawEnabled = Boolean(res && res.enabled);
     state.withdrawReason = (res && res.reason) || null;
+    state.depositAvailable = Boolean(res && res.deposit && res.deposit.address);
   } catch (error) {
     // 404 TOKEN_DISABLED (feature flag off) or any failure: hide the entry point.
     withdrawState.enabled = false;
@@ -1901,6 +1905,7 @@ async function refreshWithdrawConfig() {
     state.withdrawPublic = false;
     state.withdrawEnabled = false;
     state.withdrawReason = withdrawState.reason;
+    state.depositAvailable = false;
   }
   updateDashboardPointsUi();
   if (withdrawState.open && withdrawState.view === "form") {
@@ -2457,7 +2462,10 @@ async function onWithdrawSubmit() {
 // === Deposit view (plain ERC-20 transfer to the treasury address) ===
 
 function openDepositView() {
-  if (!withdrawState.enabled || !withdrawState.depositAddress) return;
+  // Никакой проверки withdrawState.enabled: депозит не зависит от права на
+  // вывод. Сервер присылает адрес только тем, кому ввод открыт, и сам его
+  // проверяет — этого достаточно (confirmDeposit капсулу не спрашивает).
+  if (!withdrawState.depositAddress) return;
   stopWithdrawPolling();
   withdrawState.view = "deposit";
   withdrawState.depositError = "";
@@ -2678,7 +2686,11 @@ function startDepositPolling(txHash, { immediate = false } = {}) {
 }
 
 function openWithdrawModal() {
-  if (!state.withdrawEnabled && !state.isAdmin && !WITHDRAW_NFT_REASONS.includes(state.withdrawReason)) return;
+  const canWithdrawHere =
+    state.withdrawEnabled || state.isAdmin || WITHDRAW_NFT_REASONS.includes(state.withdrawReason);
+  // Тем, кому вывод закрыт, окно всё равно открывается — ради ввода; они
+  // попадают сразу на экран депозита, минуя форму вывода.
+  if (!canWithdrawHere && !state.depositAvailable) return;
   ensureWithdrawModal();
   hideWalletMenu();
   withdrawState.balance = Math.max(0, Math.floor(state.currency?.balance ?? 0));
@@ -2697,6 +2709,7 @@ function openWithdrawModal() {
   withdrawState.open = true;
   showWithdrawView();
   renderWithdrawForm();
+  if (!canWithdrawHere) openDepositView();
   void refreshWithdrawConfig();
   withdrawState.refs.overlay.classList.remove("hidden");
   withdrawState.refs.overlay.setAttribute("aria-hidden", "false");
@@ -2915,6 +2928,7 @@ function showWalletAuthState() {
   state.withdrawPublic = false;
   state.withdrawEnabled = false;
   state.withdrawReason = null;
+  state.depositAvailable = false;
   state.walletAddress = "";
   resetUpgradeSession();
   clearArenaOpponentCache();
@@ -5663,14 +5677,19 @@ function updateDashboardPointsUi() {
   // для этого кошелька (флаг включён, EVM-сессия, настроено, админ или вывод открыт всем).
   // До ответа конфига админ считается допущенным, чтобы не мигала кнопка.
   const explainable = WITHDRAW_NFT_REASONS.includes(state.withdrawReason);
-  const withdrawable =
+  const canWithdrawHere =
     state.isAuthenticated &&
     (state.withdrawEnabled || explainable || (state.isAdmin && state.withdrawReason === null));
+  // Ввод — отдельное право. Игрок без капсулы (или пока идут 36 часов) вывести
+  // не может, но положить токены может всегда, и попасть в этот экран ему больше
+  // неоткуда: адрес казны и поле «проверить по хешу» живут только здесь.
+  const canDepositHere = state.isAuthenticated && state.depositAvailable;
+  const withdrawable = canWithdrawHere || canDepositHere;
   dashboardPoints.classList.toggle("is-withdrawable", withdrawable);
   if (withdrawable) {
     dashboardPoints.setAttribute("role", "button");
     dashboardPoints.setAttribute("tabindex", "0");
-    dashboardPoints.setAttribute("title", "Withdraw");
+    dashboardPoints.setAttribute("title", canWithdrawHere ? "Withdraw" : "Deposit");
   } else {
     dashboardPoints.removeAttribute("role");
     dashboardPoints.removeAttribute("tabindex");
