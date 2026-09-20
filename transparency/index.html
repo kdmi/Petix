@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Petix - Treasury transparency</title>
+    <meta
+      name="description"
+      content="Every $PETIX payout and deposit that moved through the Petix pool wallet, with a link to the chain for each one."
+    />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="canonical" href="https://petix.fun/transparency/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://petix.fun/transparency/" />
+    <meta property="og:title" content="Petix - Treasury transparency" />
+    <meta
+      property="og:description"
+      content="Every $PETIX payout and deposit that moved through the Petix pool wallet, with a link to the chain for each one."
+    />
+    <meta property="og:image" content="https://petix.fun/assets/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #101828;
+        --muted: #667085;
+        --faint: #98a2b3;
+        --line: #eaecf0;
+        --bg: #fafbfc;
+        --card: #ffffff;
+        --out: #027a48;
+        --in: #026aa2;
+        --warn: #b54708;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Figtree", Arial, sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .topbar {
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        background: var(--card);
+        display: flex;
+        gap: 24px;
+        justify-content: space-between;
+        padding: 16px clamp(20px, 6vw, 64px);
+      }
+
+      .brand img {
+        display: block;
+        height: 32px;
+        width: auto;
+      }
+
+      .topbar-link {
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 500;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .topbar-link:hover {
+        color: var(--ink);
+      }
+
+      .wrap {
+        margin: 0 auto;
+        max-width: 960px;
+        padding: 48px clamp(20px, 6vw, 40px) 80px;
+      }
+
+      .pill {
+        align-items: center;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        display: inline-flex;
+        font-size: 14px;
+        font-weight: 500;
+        gap: 8px;
+        line-height: 20px;
+        padding: 6px 14px 6px 12px;
+      }
+
+      .dot {
+        background: #12b76a;
+        border-radius: 999px;
+        box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.16);
+        height: 8px;
+        width: 8px;
+      }
+
+      h1 {
+        font-size: clamp(32px, 5vw, 44px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.12;
+        margin: 20px 0 0;
+      }
+
+      .lede {
+        color: var(--muted);
+        margin: 14px 0 0;
+        max-width: 620px;
+      }
+
+      section {
+        margin-top: 40px;
+      }
+
+      h2 {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin: 0 0 14px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px 20px;
+      }
+
+      .stat-label {
+        color: var(--muted);
+        display: block;
+        font-size: 14px;
+        line-height: 20px;
+      }
+
+      .stat-value {
+        display: block;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 36px;
+        margin-top: 6px;
+      }
+
+      .stat-note {
+        color: var(--faint);
+        display: block;
+        font-size: 13px;
+        line-height: 18px;
+      }
+
+      .wallet-card {
+        display: grid;
+        gap: 20px 40px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .addr {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+      }
+
+      .addr code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px;
+        word-break: break-all;
+      }
+
+      .ghost-btn {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 18px;
+        padding: 4px 10px;
+      }
+
+      .ghost-btn:hover {
+        border-color: #d0d5dd;
+        color: var(--ink);
+      }
+
+      .link {
+        color: var(--in);
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .link:hover {
+        text-decoration: underline;
+      }
+
+      .rules {
+        color: var(--muted);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 10px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .rules li {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 14px;
+        line-height: 20px;
+        padding: 5px 12px;
+      }
+
+      .rules b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .ledger {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        list-style: none;
+        margin: 0;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      .row {
+        align-items: center;
+        border-top: 1px solid var(--line);
+        display: grid;
+        gap: 12px 16px;
+        grid-template-columns: 116px minmax(0, 1fr) 150px 110px 32px;
+        padding: 14px 20px;
+      }
+
+      .row:first-child {
+        border-top: none;
+      }
+
+      .row-head {
+        background: #fcfcfd;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        line-height: 18px;
+        padding: 10px 20px;
+        text-transform: uppercase;
+      }
+
+      .kind {
+        align-items: center;
+        display: inline-flex;
+        font-size: 15px;
+        font-weight: 600;
+        gap: 8px;
+        white-space: nowrap;
+      }
+
+      .kind-out {
+        color: var(--out);
+      }
+
+      .kind-in {
+        color: var(--in);
+      }
+
+      .kind-pending {
+        color: var(--warn);
+      }
+
+      .amount {
+        align-items: center;
+        display: flex;
+        font-size: 15px;
+        font-weight: 600;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .amount img {
+        display: block;
+        height: 18px;
+        width: 18px;
+      }
+
+      .amount span {
+        color: var(--faint);
+        font-weight: 400;
+      }
+
+      .who {
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .when {
+        color: var(--muted);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .tx {
+        color: var(--in);
+        font-size: 14px;
+        justify-self: end;
+        text-decoration: none;
+      }
+
+      .tx:hover {
+        color: var(--ink);
+      }
+
+      .note {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 20px;
+        margin: 14px 0 0;
+      }
+
+      .state {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        color: var(--muted);
+        padding: 32px 20px;
+        text-align: center;
+      }
+
+      .state b {
+        color: var(--ink);
+        display: block;
+        font-size: 18px;
+        margin-bottom: 6px;
+      }
+
+      .page-footer {
+        border-top: 1px solid var(--line);
+        color: var(--faint);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        font-size: 14px;
+        justify-content: space-between;
+        padding: 24px clamp(20px, 6vw, 64px) 40px;
+      }
+
+      .page-footer a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .page-footer a:hover {
+        color: var(--ink);
+      }
+
+      @media (max-width: 720px) {
+        .row-head {
+          display: none;
+        }
+
+        .row {
+          grid-template-columns: minmax(0, 1fr) auto;
+          row-gap: 6px;
+        }
+
+        .kind {
+          grid-column: 1;
+        }
+
+        .amount {
+          grid-column: 2;
+          justify-self: end;
+        }
+
+        .who {
+          grid-column: 1;
+        }
+
+        .when {
+          grid-column: 2;
+          justify-self: end;
+          text-align: right;
+        }
+
+        .tx {
+          grid-column: 1 / -1;
+          justify-self: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Petix home">
+        <img src="/assets/petix-logo.svg" alt="Petix" width="118" height="40" />
+      </a>
+      <a class="topbar-link" href="/dashboard/">Open the game</a>
+    </header>
+
+    <main class="wrap">
+      <span class="pill"><span class="dot" aria-hidden="true"></span>Live from the chain</span>
+      <h1>Where the $PETIX goes</h1>
+      <p class="lede">
+        Players farm Points in Petix and withdraw them as $PETIX at 1:1. Every payout leaves the same
+        wallet that holds the pool, and every deposit lands on it. This page lists that traffic, with a
+        link to the transaction for each line.
+      </p>
+
+      <div id="content">
+        <section>
+          <div class="state" id="loading">Loading the ledger…</div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <span id="updated">Numbers come straight from the wallet and the game's payout journal.</span>
+      <span><a href="/">petix.fun</a> · <a href="https://x.com/petixfun" target="_blank" rel="noopener noreferrer">@petixfun</a></span>
+    </footer>
+
+    <script>
+      (() => {
+        const content = document.getElementById("content");
+        const updated = document.getElementById("updated");
+        const numbers = new Intl.NumberFormat("en-US");
+
+        const escapeHtml = (value) =>
+          String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[char]);
+
+        const points = (value) => numbers.format(Math.max(0, Math.floor(Number(value) || 0)));
+
+        const utc = (iso) => {
+          const stamp = Date.parse(iso || "");
+          if (!Number.isFinite(stamp)) return "";
+          return `${new Date(stamp).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+        };
+
+        // Fresh lines read better as an age, older ones as a date.
+        const when = (iso) => {
+          const stamp = Date.parse(iso || "");
+          if (!Number.isFinite(stamp)) return "—";
+          const minutes = Math.round((Date.now() - stamp) / 60000);
+          if (minutes < 1) return "just now";
+          if (minutes < 60) return `${minutes} min ago`;
+          const hours = Math.round(minutes / 60);
+          if (hours < 24) return `${hours} h ago`;
+          return new Date(stamp).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            timeZone: "UTC",
+          });
+        };
+
+        const statCard = (label, value, note) => `
+          <article class="card">
+            <span class="stat-label">${escapeHtml(label)}</span>
+            <strong class="stat-value">${escapeHtml(value)}</strong>
+            ${note ? `<span class="stat-note">${escapeHtml(note)}</span>` : ""}
+          </article>`;
+
+        const state = (title, text) => `
+          <section>
+            <div class="state"><b>${escapeHtml(title)}</b>${escapeHtml(text)}</div>
+          </section>`;
+
+        const walletBlock = (label, address, url, linkText) => {
+          if (!address) return "";
+          const link = url
+            ? `<a class="link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkText)} ↗</a>`
+            : "";
+          return `
+            <div class="wallet-block">
+              <span class="stat-label">${escapeHtml(label)}</span>
+              <div class="addr">
+                <code>${escapeHtml(address)}</code>
+                <button class="ghost-btn" type="button" data-copy="${escapeHtml(address)}">Copy</button>
+                ${link}
+              </div>
+            </div>`;
+        };
+
+        const ledgerRow = (entry) => {
+          const isOut = entry.kind === "withdrawal";
+          const pending = entry.status === "pending";
+          const label = isOut ? (pending ? "Payout, sending" : "Payout") : "Deposit";
+          const kindClass = pending ? "kind-pending" : isOut ? "kind-out" : "kind-in";
+          const arrow = isOut ? "↑" : "↓";
+          const tx = entry.explorerUrl
+            ? `<a class="tx" href="${escapeHtml(entry.explorerUrl)}" target="_blank" rel="noopener noreferrer" title="Open the transaction">tx ↗</a>`
+            : '<span class="tx" title="No transaction yet">—</span>';
+          return `
+            <li class="row">
+              <span class="kind ${kindClass}"><span aria-hidden="true">${arrow}</span>${escapeHtml(label)}</span>
+              <span class="amount">
+                <img src="/assets/dashboard/points-coin.svg" alt="" width="18" height="18" />
+                ${escapeHtml(points(entry.points))} <span>$PETIX</span>
+              </span>
+              <span class="who" title="${escapeHtml(entry.wallet || "")}">${escapeHtml(entry.wallet || "")}</span>
+              <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
+              ${tx}
+            </li>`;
+        };
+
+        const render = (data) => {
+          const totals = data.totals || {};
+          const today = data.today || {};
+          const week = data.last7Days || {};
+          const pending = data.pending || {};
+          const pool = data.pool || {};
+          const token = data.token || {};
+          const rules = data.rules || {};
+          const entries = Array.isArray(data.entries) ? data.entries : [];
+
+          const rules_html = [
+            "<li><b>1 Point = 1 $PETIX</b> — always</li>",
+            `<li>Withdrawal fee <b>${escapeHtml(String(rules.feePct || 0))}%</b></li>`,
+            rules.minWithdraw ? `<li>Minimum withdrawal <b>${escapeHtml(points(rules.minWithdraw))}</b> Points</li>` : "",
+            rules.capsuleHoldHours
+              ? `<li>Withdrawals for wallets holding a capsule over <b>${escapeHtml(String(rules.capsuleHoldHours))} h</b></li>`
+              : "",
+            data.open ? "" : "<li>Withdrawals are <b>paused</b> right now</li>",
+          ]
+            .filter(Boolean)
+            .join("");
+
+          content.innerHTML = `
+            <section>
+              <h2>Money out to players</h2>
+              <div class="grid">
+                ${statCard("Paid out, all time", points(totals.withdrawnPoints), `${points(totals.withdrawnCount)} payouts to ${points(totals.walletsPaid)} wallets`)}
+                ${statCard("Paid out, last 7 days", points(week.outPoints), `${points(today.outPoints)} today`)}
+                ${statCard("Payouts in flight", points(pending.points), `${points(pending.count)} waiting for the chain`)}
+                ${statCard(
+                  "In the pool now",
+                  pool.tokens == null ? "—" : points(pool.tokens),
+                  pool.tokens == null ? "The chain did not answer — retry in a minute" : "$PETIX held by the wallet below"
+                )}
+              </div>
+            </section>
+
+            <section>
+              <h2>Money back in</h2>
+              <div class="grid">
+                ${statCard("Deposited, all time", points(totals.depositedPoints), `${points(totals.depositedCount)} transfers`)}
+                ${statCard("Deposited, last 7 days", points(week.inPoints), `${points(today.inPoints)} today`)}
+                ${statCard("Net out to players", points(Math.max(0, (Number(totals.withdrawnPoints) || 0) - (Number(totals.depositedPoints) || 0))), "Paid out minus deposited")}
+              </div>
+            </section>
+
+            <section>
+              <h2>The wallet</h2>
+              <div class="card wallet-card">
+                ${walletBlock("Pool and deposits", pool.address, pool.addressUrl, "Explorer")}
+                ${walletBlock(`${token.symbol || "$PETIX"} contract`, token.contract, token.contractUrl, "Explorer")}
+              </div>
+              <p class="note">
+                Payouts are sent by an operator wallet that only pays the gas and may move the amount a
+                player asked for — the coins never leave the wallet above for anything else.
+                ${token.chainName ? `Chain: ${escapeHtml(token.chainName)}.` : ""}
+              </p>
+            </section>
+
+            <section>
+              <h2>Rules</h2>
+              <ul class="rules">${rules_html}</ul>
+            </section>
+
+            <section>
+              <h2>Last movements</h2>
+              ${
+                entries.length
+                  ? `<ul class="ledger">
+                      <li class="row row-head" aria-hidden="true">
+                        <span>Direction</span><span>Amount</span><span>Wallet</span><span>When</span><span></span>
+                      </li>
+                      ${entries.map(ledgerRow).join("")}
+                    </ul>`
+                  : '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>'
+              }
+              <p class="note">
+                Player wallets are shortened; the transaction link carries the full address. Failed
+                requests are not listed — those Points go straight back to the player and nothing
+                leaves the wallet. Numbers can lag the chain by a couple of minutes.
+              </p>
+            </section>`;
+
+          if (data.updatedAt) {
+            updated.textContent = `Last updated ${utc(data.updatedAt)}. Data comes from the wallet and the game's payout journal.`;
+          }
+        };
+
+        content.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-copy]");
+          if (!button) return;
+          const value = button.getAttribute("data-copy");
+          const done = () => {
+            button.textContent = "Copied";
+            setTimeout(() => {
+              button.textContent = "Copy";
+            }, 1600);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(value).then(done, () => {});
+            return;
+          }
+          const helper = document.createElement("textarea");
+          helper.value = value;
+          document.body.appendChild(helper);
+          helper.select();
+          try {
+            document.execCommand("copy");
+            done();
+          } catch (error) {
+            /* clipboard unavailable — the address is selectable anyway */
+          }
+          helper.remove();
+        });
+
+        fetch("/api/token/ledger", { headers: { Accept: "application/json" } })
+          .then(async (response) => {
+            if (response.status === 404) {
+              content.innerHTML = state(
+                "Not open yet",
+                "$PETIX withdrawals and deposits are not running on this site yet. Once they are, every movement shows up here."
+              );
+              return;
+            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            render(await response.json());
+          })
+          .catch(() => {
+            content.innerHTML = state("Could not load the ledger", "Refresh the page in a minute.");
+          });
+      })();
+    </script>
+  </body>
+</html>

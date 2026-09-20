@@ -1119,6 +1119,155 @@ async function adminStats(depOverrides) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Public ledger (transparency page, no session)
+// ---------------------------------------------------------------------------
+
+const PUBLIC_ENTRIES = 50;
+
+function maskWallet(wallet) {
+  const text = String(wallet || "");
+  return text.length > 12 ? `${text.slice(0, 6)}…${text.slice(-4)}` : text;
+}
+
+function explorerAddressUrl(env, address) {
+  return env.explorerUrl && address ? `${env.explorerUrl}/address/${address}` : null;
+}
+
+/**
+ * What the public transparency page shows: how much left the pool wallet for
+ * players, how much came back, and the last movements with links to the chain.
+ * Player wallets are masked (the tx link carries the full address anyway) and
+ * the ops numbers stay out — no operator address, allowance or gas balance.
+ * Only money that actually moved is listed: confirmed payouts, payouts in
+ * flight and credited deposits; refunded (failed/dropped) requests never
+ * touched the wallet, so they would only add noise.
+ * One profile read per wallet with token history — the route caches the result.
+ */
+async function publicLedger(depOverrides) {
+  const deps = resolveDeps(depOverrides);
+  const env = tokenChain.getTokenEnv();
+  if (!env.enabled) throw fail(404, "Token features are disabled.", "TOKEN_DISABLED");
+  const cfg = await deps.getConfig();
+  const now = deps.now();
+  const todayIndex = Math.floor(now / DAY_MS);
+  const weekAgo = now - 7 * DAY_MS;
+
+  const state = await deps.tokenStore.readTokenState();
+  const entries = [];
+  const totals = {
+    withdrawnPoints: 0,
+    withdrawnCount: 0,
+    walletsPaid: 0,
+    depositedPoints: 0,
+    depositedCount: 0,
+  };
+  const today = { outPoints: 0, inPoints: 0 };
+  const last7Days = { outPoints: 0, inPoints: 0 };
+  const pending = { count: 0, points: 0 };
+
+  for (const wallet of state.recentWallets) {
+    let profile;
+    try {
+      profile = await deps.profiles.getWalletProfile(wallet);
+    } catch (error) {
+      // One unreadable profile must not take the whole page down.
+      continue;
+    }
+    const masked = maskWallet(wallet);
+    let paidThisWallet = false;
+
+    for (const record of profile.withdrawals || []) {
+      if (record.chain !== "evm") continue;
+      const settled = record.status === "confirmed";
+      const inFlight = record.status === "reserved" || record.status === "sent";
+      if (!settled && !inFlight) continue;
+      const points = Number(record.petixSent) || 0;
+      const at = record.updatedAt || record.createdAt || null;
+      const stamp = Date.parse(at || "") || 0;
+      if (settled) {
+        totals.withdrawnPoints += points;
+        totals.withdrawnCount += 1;
+        paidThisWallet = true;
+        if (Math.floor(stamp / DAY_MS) === todayIndex) today.outPoints += points;
+        if (stamp >= weekAgo) last7Days.outPoints += points;
+      } else {
+        pending.count += 1;
+        pending.points += points;
+      }
+      entries.push({
+        kind: "withdrawal",
+        wallet: masked,
+        points,
+        status: settled ? "confirmed" : "pending",
+        txHash: record.txHash || null,
+        explorerUrl: explorerTxUrl(env, record.txHash),
+        at,
+      });
+    }
+    if (paidThisWallet) totals.walletsPaid += 1;
+
+    for (const record of profile.deposits || []) {
+      if (record.reverted) continue;
+      const points = Number(record.points) || 0;
+      const at = record.creditedAt || null;
+      const stamp = Date.parse(at || "") || 0;
+      totals.depositedPoints += points;
+      totals.depositedCount += 1;
+      if (Math.floor(stamp / DAY_MS) === todayIndex) today.inPoints += points;
+      if (stamp >= weekAgo) last7Days.inPoints += points;
+      entries.push({
+        kind: "deposit",
+        wallet: masked,
+        points,
+        status: "credited",
+        txHash: record.txHash || null,
+        explorerUrl: explorerTxUrl(env, record.txHash),
+        at,
+      });
+    }
+  }
+  entries.sort((a, b) => (Date.parse(b.at || "") || 0) - (Date.parse(a.at || "") || 0));
+
+  let poolTokens = null;
+  let rpcDegraded = false;
+  try {
+    const snapshot = await deps.chain.getTreasurySnapshot();
+    poolTokens = fromBaseUnits(snapshot.tokensRaw, env.decimals);
+  } catch (error) {
+    rpcDegraded = true;
+  }
+
+  const requiresCapsule = Number(cfg.WITHDRAW_REQUIRE_NFT) === 1;
+  return {
+    updatedAt: new Date(now).toISOString(),
+    open: Boolean(Number(cfg.WITHDRAW_ENABLED)),
+    token: {
+      symbol: env.tokenSymbol,
+      contract: env.contract,
+      contractUrl: explorerAddressUrl(env, env.contract),
+      chainName: env.chainName,
+    },
+    pool: {
+      address: env.depositAddress,
+      addressUrl: explorerAddressUrl(env, env.depositAddress),
+      tokens: poolTokens,
+    },
+    rules: {
+      minWithdraw: Math.max(0, Math.floor(Number(cfg.MIN_WITHDRAW) || 0)),
+      feePct: Math.max(0, Number(cfg.WITHDRAW_FEE_PCT) || 0),
+      capsuleHoldHours: requiresCapsule ? Math.max(0, Number(cfg.WITHDRAW_NFT_HOLD_HOURS) || 0) : null,
+      confirmations: env.confirmations,
+    },
+    totals,
+    today,
+    last7Days,
+    pending,
+    entries: entries.slice(0, PUBLIC_ENTRIES),
+    ...(rpcDegraded ? { rpcDegraded: true } : {}),
+  };
+}
+
 module.exports = {
   DEFAULTS,
   NFT_GATE_MESSAGES,
@@ -1129,6 +1278,7 @@ module.exports = {
   creditDeposit,
   getWalletHistory,
   prepareDeposit,
+  publicLedger,
   syncDeposits,
   explorerTxUrl,
   fail,
