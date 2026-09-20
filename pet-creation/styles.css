@@ -8860,18 +8860,34 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 }
 
 .petbuy-price {
+  align-items: center;
   color: #101828;
+  display: flex;
   font-family: "Figtree", Arial, sans-serif;
   font-size: 36px;
   font-weight: 800;
+  gap: 8px;
   line-height: 44px;
   margin-top: 16px;
 }
 
-.petbuy-price-unit {
-  color: #667085;
-  font-size: 18px;
-  font-weight: 700;
+/* Монета Points вместо слова: та же иконка, что в шапке. */
+.petbuy-coin {
+  display: inline-block;
+  height: 16px;
+  vertical-align: -2px;
+  width: 16px;
+}
+
+.petbuy-coin--lg {
+  height: 28px;
+  vertical-align: 0;
+  width: 28px;
+}
+
+.petbuy-coin--btn {
+  margin: 0 4px 0 2px;
+  vertical-align: -3px;
 }
 
 .petbuy-sub {
@@ -8897,7 +8913,10 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 }
 
 .petbuy-row strong {
+  align-items: center;
   color: #101828;
+  display: inline-flex;
+  gap: 5px;
 }
 
 .petbuy-row--missing strong {

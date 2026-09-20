@@ -11313,6 +11313,12 @@ function moveTo(step, { replace = true } = {}) {
 
 const petBuyState = { built: false, refs: null, resolve: null, pricing: null };
 
+// Та же монета Points, что в шапке: в окне покупки суммы подписаны иконкой, а
+// не словом.
+function petBuyCoin(className) {
+  return '<img class="' + className + '" src="/assets/dashboard/points-coin.svg" alt="Points" />';
+}
+
 function formatPetPrice(value) {
   return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
 }
@@ -11331,16 +11337,20 @@ function ensurePetBuyModal() {
   overlay.innerHTML =
     '<section class="petbuy-modal" role="dialog" aria-modal="true" aria-labelledby="petBuyTitle">' +
       '<div class="petbuy-header">' +
-        '<span class="petbuy-title" id="petBuyTitle">New pet</span>' +
+        '<span class="petbuy-title" id="petBuyTitle">Unlock another pet</span>' +
         '<button class="petbuy-close" type="button" aria-label="Close" data-role="close">' + closeIcon + '</button>' +
       '</div>' +
-      '<div class="petbuy-price"><span data-role="price">0</span> <span class="petbuy-price-unit">Points</span></div>' +
-      '<div class="petbuy-sub" data-role="sub">Pet #2</div>' +
+      '<div class="petbuy-price">' + petBuyCoin("petbuy-coin petbuy-coin--lg") + '<span data-role="price">0</span></div>' +
+      '<div class="petbuy-sub" data-role="sub">Pet 2 of 10</div>' +
       '<div class="petbuy-rows">' +
-        '<div class="petbuy-row"><span>Your balance</span><strong data-role="balance">0</strong></div>' +
-        '<div class="petbuy-row petbuy-row--missing hidden" data-role="missing-row"><span>Not enough</span><strong data-role="missing">0</strong></div>' +
+        '<div class="petbuy-row"><span>Your balance</span>' +
+          '<strong>' + petBuyCoin("petbuy-coin") + '<span data-role="balance">0</span></strong></div>' +
+        '<div class="petbuy-row petbuy-row--missing hidden" data-role="missing-row"><span>Not enough</span>' +
+          '<strong>' + petBuyCoin("petbuy-coin") + '<span data-role="missing">0</span></strong></div>' +
       '</div>' +
-      '<button class="petbuy-submit" type="button" data-role="confirm">Create for <span data-role="confirm-price">0</span> Points</button>' +
+      '<button class="petbuy-submit" type="button" data-role="confirm">' +
+        'Unlock for ' + petBuyCoin("petbuy-coin petbuy-coin--btn") + '<span data-role="confirm-price">0</span>' +
+      '</button>' +
       '<button class="petbuy-secondary hidden" type="button" data-role="topup">Top up Points</button>' +
       '<div class="petbuy-note" data-role="note"></div>' +
       '<div class="petbuy-error hidden" data-role="error" role="alert"></div>' +
@@ -11389,7 +11399,7 @@ function renderPetBuyModal(pricing) {
   const missing = Math.max(0, Math.floor(Number(pricing.missing) || 0));
 
   refs.price.textContent = formatPetPrice(price);
-  refs.sub.textContent = "Pet #" + pricing.nextPetIndex;
+  refs.sub.textContent = `Pet ${pricing.nextPetIndex} of ${pricing.maxPets || 10}`;
   refs.balance.textContent = formatPetPrice(balance);
   refs.missing.textContent = formatPetPrice(missing);
   refs.missingRow.classList.toggle("hidden", missing <= 0);
