@@ -1123,7 +1123,10 @@ async function adminStats(depOverrides) {
 // Public ledger (transparency page, no session)
 // ---------------------------------------------------------------------------
 
-const PUBLIC_ENTRIES = 50;
+// How much journal the public feed keeps in one build. The route pages over it,
+// so this is the depth of history the page can reach — older movements stay on
+// the chain (and the wallet list itself rotates after MAX_RECENT_WALLETS).
+const PUBLIC_ENTRIES = 500;
 
 function maskWallet(wallet) {
   const text = String(wallet || "");
@@ -1142,7 +1145,8 @@ function explorerAddressUrl(env, address) {
  * Only money that actually moved is listed: confirmed payouts, payouts in
  * flight and credited deposits; refunded (failed/dropped) requests never
  * touched the wallet, so they would only add noise.
- * One profile read per wallet with token history — the route caches the result.
+ * One profile read per wallet with token history — the route caches the result
+ * and pages over `entries`, so every page costs one build, not one per page.
  */
 async function publicLedger(depOverrides) {
   const deps = resolveDeps(depOverrides);
@@ -1264,6 +1268,8 @@ async function publicLedger(depOverrides) {
     last7Days,
     pending,
     entries: entries.slice(0, PUBLIC_ENTRIES),
+    totalEntries: Math.min(entries.length, PUBLIC_ENTRIES),
+    ...(entries.length > PUBLIC_ENTRIES ? { capped: true } : {}),
     ...(rpcDegraded ? { rpcDegraded: true } : {}),
   };
 }

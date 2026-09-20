@@ -210,9 +210,40 @@
         padding: 4px 10px;
       }
 
-      .ghost-btn:hover {
+      .ghost-btn:hover:not([disabled]) {
         border-color: #d0d5dd;
         color: var(--ink);
+      }
+
+      .ghost-btn[disabled] {
+        color: var(--faint);
+        cursor: default;
+        opacity: 0.6;
+      }
+
+      .pager {
+        align-items: center;
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        margin-top: 12px;
+      }
+
+      .pager .ghost-btn {
+        font-size: 14px;
+        line-height: 20px;
+        padding: 6px 14px;
+      }
+
+      .pager-info {
+        color: var(--muted);
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #ledger.is-loading {
+        opacity: 0.55;
+        pointer-events: none;
       }
 
       .link {
@@ -548,6 +579,58 @@
             </li>`;
         };
 
+        // The journal is paged server-side and swapped in place, so the page
+        // keeps a fixed height however long the history gets.
+        const renderLedger = (data) => {
+          const box = document.getElementById("ledger");
+          if (!box) return;
+          const entries = Array.isArray(data.entries) ? data.entries : [];
+          if (!entries.length) {
+            box.innerHTML =
+              '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>';
+            return;
+          }
+          const page = Number(data.page) || 1;
+          const pageCount = Number(data.pageCount) || 1;
+          const pager =
+            pageCount > 1
+              ? `<div class="pager">
+                  <button class="ghost-btn" type="button" data-page="${page - 1}"${page <= 1 ? " disabled" : ""}>← Newer</button>
+                  <span class="pager-info">${escapeHtml(points(data.from))}–${escapeHtml(points(data.to))} of ${escapeHtml(points(data.totalEntries))}</span>
+                  <button class="ghost-btn" type="button" data-page="${page + 1}"${page >= pageCount ? " disabled" : ""}>Older →</button>
+                </div>`
+              : "";
+          box.innerHTML = `
+            <ul class="ledger">
+              <li class="row row-head" aria-hidden="true">
+                <span>Direction</span><span>Amount</span><span>Wallet</span><span>When</span><span></span>
+              </li>
+              ${entries.map(ledgerRow).join("")}
+            </ul>
+            ${pager}`;
+        };
+
+        let loadingPage = false;
+
+        const loadPage = async (page) => {
+          if (loadingPage) return;
+          loadingPage = true;
+          const box = document.getElementById("ledger");
+          if (box) box.classList.add("is-loading");
+          try {
+            const response = await fetch(`/api/token/ledger?page=${encodeURIComponent(page)}`, {
+              headers: { Accept: "application/json" },
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            renderLedger(await response.json());
+          } catch (error) {
+            // Keep the page the viewer already has — the pager stays usable.
+          } finally {
+            loadingPage = false;
+            if (box) box.classList.remove("is-loading");
+          }
+        };
+
         const render = (data) => {
           const totals = data.totals || {};
           const today = data.today || {};
@@ -557,6 +640,8 @@
           const token = data.token || {};
           const rules = data.rules || {};
           const entries = Array.isArray(data.entries) ? data.entries : [];
+          // Deposits can outweigh payouts, and a clamped "net out: 0" would hide that.
+          const netFlow = (Number(totals.withdrawnPoints) || 0) - (Number(totals.depositedPoints) || 0);
 
           const rules_html = [
             "<li><b>1 Point = 1 $PETIX</b> — always</li>",
@@ -590,7 +675,11 @@
               <div class="grid">
                 ${statCard("Deposited, all time", points(totals.depositedPoints), `${points(totals.depositedCount)} transfers`)}
                 ${statCard("Deposited, last 7 days", points(week.inPoints), `${points(today.inPoints)} today`)}
-                ${statCard("Net out to players", points(Math.max(0, (Number(totals.withdrawnPoints) || 0) - (Number(totals.depositedPoints) || 0))), "Paid out minus deposited")}
+                ${
+                  netFlow >= 0
+                    ? statCard("Net out to players", points(netFlow), "Paid out minus deposited")
+                    : statCard("Net in from players", points(-netFlow), "Deposited minus paid out")
+                }
               </div>
             </section>
 
@@ -613,23 +702,17 @@
             </section>
 
             <section>
-              <h2>Last movements</h2>
-              ${
-                entries.length
-                  ? `<ul class="ledger">
-                      <li class="row row-head" aria-hidden="true">
-                        <span>Direction</span><span>Amount</span><span>Wallet</span><span>When</span><span></span>
-                      </li>
-                      ${entries.map(ledgerRow).join("")}
-                    </ul>`
-                  : '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>'
-              }
+              <h2>Movements</h2>
+              <div id="ledger"></div>
               <p class="note">
                 Player wallets are shortened; the transaction link carries the full address. Failed
                 requests are not listed — those Points go straight back to the player and nothing
                 leaves the wallet. Numbers can lag the chain by a couple of minutes.
+                ${data.capped ? `Only the last ${escapeHtml(points(data.totalEntries))} movements are kept here — older ones stay on the chain.` : ""}
               </p>
             </section>`;
+
+          renderLedger(data);
 
           if (data.updatedAt) {
             updated.textContent = `Last updated ${utc(data.updatedAt)}. Data comes from the wallet and the game's payout journal.`;
@@ -637,6 +720,11 @@
         };
 
         content.addEventListener("click", (event) => {
+          const pageButton = event.target.closest("[data-page]");
+          if (pageButton && !pageButton.disabled) {
+            loadPage(Number(pageButton.getAttribute("data-page")) || 1);
+            return;
+          }
           const button = event.target.closest("[data-copy]");
           if (!button) return;
           const value = button.getAttribute("data-copy");
