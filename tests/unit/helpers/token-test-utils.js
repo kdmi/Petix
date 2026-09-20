@@ -339,6 +339,7 @@ async function withTokenEnv(run, { env: envOverrides = {}, chain: chainOptions =
     "TOKEN_MIN_GAS_ETH",
     "TOKEN_PAYOUT_SOURCE",
     "ECONOMY_CONFIG_CACHE_TTL_MS",
+    "TOKEN_LEDGER_CACHE_MS",
   ];
   const originalEnv = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "petix-token-"));
@@ -366,6 +367,7 @@ async function withTokenEnv(run, { env: envOverrides = {}, chain: chainOptions =
     process.env.TOKEN_START_BLOCK = "10";
     process.env.TOKEN_INTERNAL_WALLETS = evmWallet("e");
     process.env.TOKEN_MIN_GAS_ETH = "0.001";
+    delete process.env.TOKEN_LEDGER_CACHE_MS;
     delete process.env.TOKEN_PAYOUT_SOURCE;
     for (const [key, value] of Object.entries(envOverrides)) {
       if (value === undefined || value === null) delete process.env[key];
