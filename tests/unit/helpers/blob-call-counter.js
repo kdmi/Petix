@@ -58,6 +58,9 @@ function blobPreconditionFailed() {
 function createFakeBlob({ initialState = {} } = {}) {
   const state = new Map(Object.entries(initialState));
   const counts = { get: 0, put: 0, list: 0, del: 0, head: 0, copy: 0 };
+  // Peak number of get() calls in flight at the same moment — real blob reads
+  // cost a socket each, so tests can assert that a bulk scan stays bounded.
+  const concurrency = { get: 0, peakGet: 0 };
   const staleReadsByPath = new Map(); // pathname → how many next get()s serve the previous version
   let etagCounter = 0;
 
@@ -91,24 +94,35 @@ function createFakeBlob({ initialState = {} } = {}) {
   const fake = {
     async get(pathname) {
       counts.get += 1;
-      // Real blob storage ignores the query string (cache-busting `?fresh=`
-      // from api/_lib/blob-read.js) — the fake must too.
-      const cleanPath = String(pathname).split("?")[0];
-      let entry = state.get(cleanPath);
-      if (!entry) {
-        // The real get() returns null on 404 — it never throws BlobNotFoundError.
-        return null;
+      concurrency.get += 1;
+      concurrency.peakGet = Math.max(concurrency.peakGet, concurrency.get);
+
+      try {
+        // A real read spans at least one turn of the event loop; without it
+        // every call would look sequential and peakGet would always be 1.
+        await Promise.resolve();
+
+        // Real blob storage ignores the query string (cache-busting `?fresh=`
+        // from api/_lib/blob-read.js) — the fake must too.
+        const cleanPath = String(pathname).split("?")[0];
+        let entry = state.get(cleanPath);
+        if (!entry) {
+          // The real get() returns null on 404 — it never throws BlobNotFoundError.
+          return null;
+        }
+        const staleLeft = staleReadsByPath.get(cleanPath) || 0;
+        if (staleLeft > 0 && entry.previous) {
+          staleReadsByPath.set(cleanPath, staleLeft - 1);
+          entry = entry.previous;
+        }
+        return {
+          statusCode: 200,
+          stream: makeReadableStream(entry.content),
+          blob: { etag: entry.etag || entry.uploadedAt },
+        };
+      } finally {
+        concurrency.get -= 1;
       }
-      const staleLeft = staleReadsByPath.get(cleanPath) || 0;
-      if (staleLeft > 0 && entry.previous) {
-        staleReadsByPath.set(cleanPath, staleLeft - 1);
-        entry = entry.previous;
-      }
-      return {
-        statusCode: 200,
-        stream: makeReadableStream(entry.content),
-        blob: { etag: entry.etag || entry.uploadedAt },
-      };
     },
     async put(pathname, content, opts = {}) {
       counts.put += 1;
@@ -185,12 +199,14 @@ function createFakeBlob({ initialState = {} } = {}) {
   return {
     fake,
     counts,
+    concurrency,
     state,
     setEntry,
     primeStaleReads,
     failConditionalPuts,
     resetCounts() {
       for (const key of Object.keys(counts)) counts[key] = 0;
+      concurrency.peakGet = 0;
     },
   };
 }
@@ -234,6 +250,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
       store,
       battleStore,
       counts: handle.counts,
+      concurrency: handle.concurrency,
       state: handle.state,
       setEntry: handle.setEntry,
       primeStaleReads: handle.primeStaleReads,
@@ -322,6 +339,7 @@ async function withFakeBlobIntegrationEnv(run, { initialState = {} } = {}) {
       auth,
       battlesRoute,
       counts: handle.counts,
+      concurrency: handle.concurrency,
       state: handle.state,
       setEntry: handle.setEntry,
       resetCounts: handle.resetCounts,

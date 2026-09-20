@@ -82,6 +82,8 @@ Minimum recommended variables:
 | `ADMIN_WALLETS` or `ADMIN_WALLET` | Optional | Admin wallets, comma-separated. EVM `0x…` addresses are matched case-insensitively (e.g. `0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1`); legacy base58 entries still match exactly |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated allowed origins |
 | `BATTLE_NARRATION_BUDGET_MS` | Optional | Timeout budget for battle narration |
+| `WALLET_PROFILE_SCAN_CONCURRENCY` | Optional | How many wallet profiles the full-store scan reads in parallel, default `24`. Unbounded fan-out exhausts the function instance (`EMFILE`/`EBUSY` surfacing as `TypeError: fetch failed`) once the roster passes ~1000 wallets |
+| `WALLET_PROFILE_SCAN_TTL_MS` | Optional | How long a scanned roster snapshot is reused inside one function instance, default `60000`. The instance's own writes are patched into it immediately; `0` disables reuse |
 
 #### NFT slots demo (feature 016)
 

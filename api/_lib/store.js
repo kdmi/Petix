@@ -64,7 +64,43 @@ let writeQueue = Promise.resolve();
 const walletWriteQueues = new Map();
 const walletProfileReadCache = new Map();
 const WALLET_PROFILE_READ_CACHE_TTL_MS = 100;
-let dbReadCache = null;
+
+function readIntEnv(name, fallback, minimum) {
+  const raw = Number.parseInt(process.env[name] || "", 10);
+  return Number.isFinite(raw) ? Math.max(minimum, raw) : fallback;
+}
+
+// How many profile blobs the full-store scan reads at once. Everything above
+// a few dozen only queues sockets inside the same function instance, while
+// the unbounded version dies on EMFILE/EBUSY once the roster passes ~1000.
+const WALLET_PROFILE_SCAN_CONCURRENCY = readIntEnv("WALLET_PROFILE_SCAN_CONCURRENCY", 24, 1);
+
+// The scan is the single most expensive read we have (one blob GET per
+// wallet), and its consumers — matchmaking, the arena opponent list and the
+// admin roster — tolerate a slightly old snapshot. Writes made by THIS
+// instance are patched into the snapshot instead of dropping it, so a player
+// always sees their own battle/farm result immediately; the TTL only bounds
+// how long another instance's write can stay invisible.
+const DB_SNAPSHOT_TTL_MS = readIntEnv("WALLET_PROFILE_SCAN_TTL_MS", 60000, 0);
+
+let dbReadCache = null; // { promise, expiresAt } | null
+
+// Runs `mapper` over `items` with at most `limit` in flight, results in order.
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
 
 function clearWalletProfileCache(wallet) {
   if (wallet === undefined || wallet === null) {
@@ -74,6 +110,35 @@ function clearWalletProfileCache(wallet) {
   }
   walletProfileReadCache.delete(wallet);
   dbReadCache = null;
+}
+
+// Keep the cached snapshot usable after a write instead of forcing the next
+// reader to re-scan every profile blob: we already know the new value.
+// `profile === null` removes the wallet (character deletion / wipe).
+function patchDbSnapshot(wallet, profile) {
+  const entry = dbReadCache;
+  const key = String(wallet || "").trim();
+  if (!entry || !key) return;
+
+  entry.promise = entry.promise.then((db) => {
+    if (!db || !db.records) return db;
+
+    if (profile === null) {
+      delete db.records[key];
+    } else {
+      db.records[key] = normalizeWalletProfile(profile);
+    }
+
+    return db;
+  });
+
+  // A rejected snapshot must not stay cached (readDb clears it on the initial
+  // failure; this covers a rejection observed only through the patch chain).
+  entry.promise.catch(() => {
+    if (dbReadCache === entry) {
+      dbReadCache = null;
+    }
+  });
 }
 
 async function ensureStorage() {
@@ -328,8 +393,8 @@ async function loadWalletProfileBlobWithEtag(pathname, { fresh = true } = {}) {
   };
 }
 
-async function loadWalletProfileFromBlobPath(pathname) {
-  const loaded = await loadWalletProfileBlobWithEtag(pathname);
+async function loadWalletProfileFromBlobPath(pathname, options = {}) {
+  const loaded = await loadWalletProfileBlobWithEtag(pathname, options);
   return loaded ? loaded.profile : null;
 }
 
@@ -425,11 +490,23 @@ async function loadAllBlobWalletProfiles() {
     }
   });
 
-  const entries = await Promise.all(
-    [...latestByWallet.entries()].map(async ([wallet, blob]) => {
-      const profile = await loadWalletProfileFromBlobPath(blob.pathname);
+  // Bounded fan-out: one Promise.all over every wallet opens a socket and a
+  // DNS lookup per profile at once. Past ~1000 wallets that exhausts the
+  // function instance (connect EMFILE / getaddrinfo EBUSY), and undici turns
+  // both into a bare `TypeError: fetch failed` — which the battle handler
+  // then shows to the player.
+  const entries = await mapWithConcurrency(
+    [...latestByWallet.entries()],
+    WALLET_PROFILE_SCAN_CONCURRENCY,
+    async ([wallet, blob]) => {
+      // Cache-busting every profile read would send the whole scan to origin
+      // storage. The snapshot is already allowed to be a minute old (see
+      // DB_SNAPSHOT_TTL_MS) and its consumers — matchmaking, the opponent
+      // list, the admin roster — tolerate that, while every read-modify-write
+      // path goes through readWalletProfileConsistent instead.
+      const profile = await loadWalletProfileFromBlobPath(blob.pathname, { fresh: false });
       return [wallet, profile];
-    })
+    }
   );
 
   return Object.fromEntries(entries.filter(([, profile]) => profile));
@@ -585,8 +662,8 @@ async function readDb() {
     return snapshot.db;
   }
 
-  if (dbReadCache) {
-    return dbReadCache;
+  if (dbReadCache && dbReadCache.expiresAt > Date.now()) {
+    return dbReadCache.promise;
   }
 
   const pending = (async () => {
@@ -597,12 +674,15 @@ async function readDb() {
     return mergeRecordMaps(legacySnapshot?.db?.records || {}, blobProfiles);
   })();
 
-  dbReadCache = pending;
+  const entry = { promise: pending, expiresAt: Date.now() + DB_SNAPSHOT_TTL_MS };
+  dbReadCache = entry;
 
   try {
     return await pending;
   } catch (error) {
-    dbReadCache = null;
+    if (dbReadCache === entry) {
+      dbReadCache = null;
+    }
     throw error;
   }
 }
@@ -633,7 +713,7 @@ async function saveWalletProfile(wallet, profile) {
     const next = previous.catch(() => null).then(async () => {
       await writeWalletProfileBlob(wallet, normalized);
       walletProfileReadCache.delete(wallet);
-      dbReadCache = null;
+      patchDbSnapshot(wallet, normalized);
       return cloneWalletProfile(normalized);
     });
     walletWriteQueues.set(key, next);
@@ -700,7 +780,7 @@ async function updateWalletProfile(wallet, updater) {
         }
 
         walletProfileReadCache.delete(wallet);
-        dbReadCache = null;
+        patchDbSnapshot(wallet, normalized);
         return cloneWalletProfile(normalized);
       }
 
@@ -738,22 +818,31 @@ async function deleteCharacterById(characterId) {
     const db = await readDb();
 
     for (const [wallet, value] of Object.entries(db.records)) {
-      const profile = normalizeWalletProfile(value);
-      const characterIndex = profile.characters.findIndex((record) => record.id === characterId);
+      const snapshot = normalizeWalletProfile(value);
 
-      if (characterIndex === -1) {
+      if (!snapshot.characters.some((record) => record.id === characterId)) {
         continue;
       }
 
-      const [deletedCharacter] = profile.characters.splice(characterIndex, 1);
-      const nextProfile =
-        !profile.draft && profile.characters.length === 0
-          ? cloneWalletProfile(EMPTY_WALLET_PROFILE)
-          : profile;
+      // The scan snapshot only tells us WHO owns the character; the removal
+      // itself runs through updateWalletProfile so it is computed from a
+      // consistent read and cannot clobber a concurrent battle/farm write.
+      let deletedCharacter = null;
+      await updateWalletProfile(wallet, (profile) => {
+        const characterIndex = profile.characters.findIndex((record) => record.id === characterId);
+        if (characterIndex === -1) {
+          return profile;
+        }
 
-      await saveWalletProfile(wallet, nextProfile);
+        [deletedCharacter] = profile.characters.splice(characterIndex, 1);
+        return !profile.draft && profile.characters.length === 0 ? null : profile;
+      });
 
-      if (deletedCharacter?.image) {
+      if (!deletedCharacter) {
+        return null;
+      }
+
+      if (deletedCharacter.image) {
         await deleteStoredImage(deletedCharacter.image);
       }
 
