@@ -87,6 +87,11 @@ Minimum recommended variables:
 | `BATTLE_NARRATION_BUDGET_MS` | Optional | Timeout budget for battle narration |
 | `WALLET_PROFILE_SCAN_CONCURRENCY` | Optional | How many wallet profiles the full-store scan reads in parallel, default `24`. Unbounded fan-out exhausts the function instance (`EMFILE`/`EBUSY` surfacing as `TypeError: fetch failed`) once the roster passes ~1000 wallets |
 | `WALLET_PROFILE_SCAN_TTL_MS` | Optional | How long a scanned roster snapshot is reused inside one function instance, default `60000`. The instance's own writes are patched into it immediately; `0` disables reuse |
+| `ROSTER_ENABLED` | Optional | `1` (default) makes matchmaking read the roster index instead of every wallet profile; `0` returns to the full scan without a code change |
+| `ROSTER_CACHE_TTL_MS` | Optional | How long one function instance reuses the roster index it loaded, default `60000` |
+| `ROSTER_MAX_AGE_MS` | Optional | Older than this, the next request rebuilds the index from a full scan, default `600000` |
+| `ROSTER_WATERMARK_OVERLAP_MS` | Optional | How far before the stored watermark an incremental sync starts re-reading profiles, default `30000` (blob timestamps have second granularity) |
+| `ROSTER_FULL_EVERY` | Optional | Full reconciliation every N incremental syncs, default `60` (≈hourly with the minute cron) |
 
 #### NFT slots demo (feature 016)
 

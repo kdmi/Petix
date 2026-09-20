@@ -1,6 +1,7 @@
 const { getSessionFromRequest, handleCors, isAdminSession, json } = require("../../api/_lib/auth");
 const { normalizeFarmState } = require("../../api/_lib/farm");
 const { readDb } = require("../../api/_lib/store");
+const { getRosterStatus } = require("../../api/_lib/roster");
 const { listBattleRecords } = require("../../api/_lib/battle-store");
 
 // Reward pool reference (Points = $PETIX 1:1). Решение 2026-09-17: пул = dev buy
@@ -69,7 +70,12 @@ module.exports = async (req, res) => {
 
   earners.sort((a, b) => b.totalEarned - a.totalEarned);
 
+  // Roster index health (feature 023): how old the matchmaking index is and how
+  // much it holds. Never fails the page — the index is a cache, not a source.
+  const roster = await getRosterStatus().catch(() => null);
+
   json(res, 200, {
+    roster,
     totalEmitted,
     totalBalance,
     emittedLast24h,

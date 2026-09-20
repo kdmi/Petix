@@ -4,7 +4,7 @@ const {
   resolveAttackerParticipant,
   serializeBattlePreviewCandidate,
 } = require("../_lib/battle");
-const { listAllCharacters } = require("../_lib/store");
+const { getRoster } = require("../_lib/roster");
 
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
       attackerPetId,
       attackerWallet: session.wallet,
     });
-    const characters = await listAllCharacters();
+    const characters = await getRoster();
     const opponents = getPreviewOpponentCandidates({
       attacker,
       candidates: characters,

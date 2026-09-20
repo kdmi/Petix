@@ -27,10 +27,10 @@ const {
 const { buildPassiveBattleNotification } = require("../_lib/notification");
 const {
   getWalletProfile,
-  listAllCharacters,
   saveWalletProfile,
   updateWalletProfile,
 } = require("../_lib/store");
+const { getRoster } = require("../_lib/roster");
 const {
   listBattleHistoryForWallet,
   saveBattleRecord,
@@ -38,6 +38,10 @@ const {
 } = require("../_lib/battle-store");
 const { computeCoinReward, creditCurrency } = require("../_lib/currency");
 const { getEconomyConfig } = require("../_lib/economy-config");
+
+// How many times a stale roster pick may be discarded before giving up: the
+// index can name a pet that was burned or transferred since the last sync.
+const OPPONENT_RESOLVE_ATTEMPTS = 3;
 
 async function restoreWalletProfile(wallet, profile) {
   if (!wallet || !profile) {
@@ -280,11 +284,40 @@ module.exports = async (req, res) => {
 
     // Farm and Fight are independent (feature 013): farming no longer blocks battles.
     const economyConfig = await getEconomyConfig();
-    const characters = await listAllCharacters();
-    const { opponent, matchmaking } = selectAuthoritativeOpponent({
-      attacker,
-      candidates: characters,
-    });
+    // Roster index (023): compact candidates instead of every wallet profile.
+    // The index may lag by up to a minute, so a pick whose pet is already gone
+    // is dropped and the selection re-runs on the remaining candidates.
+    let characters = await getRoster();
+    let opponent = null;
+    let matchmaking = null;
+    let defenderCharacter = null;
+
+    for (let attempt = 0; attempt < OPPONENT_RESOLVE_ATTEMPTS; attempt += 1) {
+      const selection = selectAuthoritativeOpponent({ attacker, candidates: characters });
+      const candidate = selection.opponent;
+
+      // Authoritative record for the simulation comes from the owner's profile,
+      // never from the index (spec 023, FR-003).
+      const defenderProfile = await getWalletProfile(candidate.wallet);
+      const record = (defenderProfile.characters || []).find(
+        (entry) => entry.id === candidate.character.id
+      );
+
+      if (record) {
+        opponent = candidate;
+        matchmaking = selection.matchmaking;
+        defenderCharacter = record;
+        break;
+      }
+
+      characters = characters.filter((entry) => entry.character?.id !== candidate.character.id);
+    }
+
+    if (!opponent) {
+      const staleError = new Error("No eligible opponent could be assembled.");
+      staleError.code = "NO_ELIGIBLE_OPPONENT";
+      throw staleError;
+    }
     const reveal = buildBattleRevealBundle({
       selectedOpponent: opponent,
       carouselCandidates: buildRevealOpponentCandidates({
@@ -302,7 +335,7 @@ module.exports = async (req, res) => {
       throw revealError;
     }
 
-    defender = buildBattleParticipant(opponent);
+    defender = buildBattleParticipant({ wallet: opponent.wallet, character: defenderCharacter });
     battleId = `battle_${crypto.randomUUID()}`;
 
     const simulation = createBattleSimulation({

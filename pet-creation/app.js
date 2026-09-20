@@ -10550,6 +10550,21 @@ function parseEnergyPacksInput(raw) {
     });
 }
 
+// Матчмейкинг ходит в индекс ростера (023), а не по профилям всех кошельков.
+// Админу важны две вещи: индекс жив и насколько он свежий.
+function formatRosterIndexStatus(roster) {
+  if (!roster) return "n/a";
+  if (roster.enabled === false) return "off (full scan)";
+
+  const entries = Number(roster.entries) || 0;
+  const ageMs = Number(roster.ageMs);
+  if (!Number.isFinite(ageMs)) return `${entries} pets`;
+
+  const ageMin = Math.floor(ageMs / 60000);
+  const age = ageMin >= 60 ? `${Math.floor(ageMin / 60)}h` : `${Math.max(0, ageMin)}m`;
+  return `${entries} pets · ${age} old`;
+}
+
 function ecoNumberRow(label, key, value) {
   return `
     <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#1a1a2e;">
@@ -10726,6 +10741,7 @@ function renderAdminEconomy() {
           ${statCard("Active farmers", stats.activeFarmers ?? 0)}
           ${statCard("Reward pool", formatPointsCompact(stats.poolBudget))}
           ${statCard("Pool used", `${stats.poolBudgetUsedPct ?? 0}%`)}
+          ${statCard("Roster index", formatRosterIndexStatus(stats.roster))}
         </div>
         <ul style="list-style:none;margin:10px 0 0;padding:0;">
           <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Top earners</li>

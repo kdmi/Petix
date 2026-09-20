@@ -123,7 +123,7 @@ async function invokeBattlesRoute(battlesRoute, { headers, body }) {
 const BATTLE_OPS_BUDGET = 19;
 
 test(`a single successful battle stays within Advanced-ops budget (≤ ${BATTLE_OPS_BUDGET} SDK calls)`, async () => {
-  await withFakeBlobIntegrationEnv(async ({ store, battlesRoute, auth, counts, resetCounts, internalSecret }) => {
+  await withFakeBlobIntegrationEnv(async ({ store, battlesRoute, roster, auth, counts, resetCounts, internalSecret }) => {
     const attackerWallet = createWallet("e");
     const defenderWallet = createWallet("f");
     const attacker = createCompletedCharacter({ id: "pet_budget_atk", name: "BudgetAtk" });
@@ -131,6 +131,11 @@ test(`a single successful battle stays within Advanced-ops budget (≤ ${BATTLE_
 
     await store.saveWalletProfile(attackerWallet, buildProfile(attacker));
     await store.saveWalletProfile(defenderWallet, buildProfile(defender));
+
+    // In production the roster index is built by the cron, not by the player's
+    // battle (feature 023) — warm it the same way before measuring.
+    await roster.refreshRoster({ force: true });
+    roster.clearRosterCache();
 
     resetCounts();
 
@@ -158,4 +163,61 @@ test(`a single successful battle stays within Advanced-ops budget (≤ ${BATTLE_
       `expected ≤2 list calls (matchmaking only), got ${counts.list}`
     );
   });
+});
+
+// Feature 023: matchmaking reads one roster index instead of every wallet
+// profile, so the cost of a battle must not depend on how many players exist.
+// Before the index this test was impossible to satisfy: each extra wallet added
+// a blob GET, and past ~1000 of them the function died with "fetch failed".
+async function measureBattleOps(walletCount) {
+  return withFakeBlobIntegrationEnv(
+    async ({ store, battlesRoute, roster, auth, counts, resetCounts, internalSecret }) => {
+      const attackerWallet = createWallet("a");
+      const attacker = createCompletedCharacter({ id: "pet_scale_atk", name: "ScaleAtk" });
+      await store.saveWalletProfile(attackerWallet, buildProfile(attacker));
+
+      for (let index = 0; index < walletCount; index += 1) {
+        await store.saveWalletProfile(
+          createWallet(`r${index}`),
+          buildProfile(createCompletedCharacter({ id: `pet_scale_${index}`, name: `Rival ${index}` }))
+        );
+      }
+
+      await roster.refreshRoster({ force: true });
+      roster.clearRosterCache();
+      resetCounts();
+
+      const { statusCode } = await invokeBattlesRoute(battlesRoute, {
+        headers: {
+          [auth.INTERNAL_AUTH_HEADER]: internalSecret,
+          [auth.INTERNAL_WALLET_HEADER]: attackerWallet,
+          [auth.INTERNAL_WALLET_NAME_HEADER]: "Tester",
+          [auth.INTERNAL_WALLET_TYPE_HEADER]: "internal",
+        },
+        body: { attackerPetId: attacker.id },
+      });
+
+      assert.equal(statusCode, 200, `battle with ${walletCount} rivals must succeed`);
+      return {
+        total: counts.get + counts.put + counts.list + counts.del + counts.head + counts.copy,
+        counts: { ...counts },
+      };
+    }
+  );
+}
+
+test("battle cost does not grow with the number of players", async () => {
+  const small = await measureBattleOps(2);
+  const large = await measureBattleOps(20);
+
+  assert.equal(
+    large.total,
+    small.total,
+    `ops must be flat in roster size: ${small.total} with 2 rivals vs ${large.total} with 20 ` +
+      `(${JSON.stringify(small.counts)} vs ${JSON.stringify(large.counts)})`
+  );
+  assert.ok(
+    large.counts.list === 0,
+    `a warm roster must not list the profile prefix, got ${large.counts.list} list calls`
+  );
 });
