@@ -606,13 +606,14 @@
 
       .framer-105p8lt .framer-15k2rxr,
       .framer-105p8lt .framer-1uxfe5q {
-        gap: 0 !important;
+        gap: 28px !important;
         width: auto !important;
         flex-direction: row !important;
         align-items: center !important;
       }
 
       .framer-105p8lt .framer-n1t8vm,
+      .framer-105p8lt .framer-1ydng6c,
       .framer-105p8lt .framer-16rrykd {
         width: auto !important;
         white-space: nowrap !important;
@@ -621,15 +622,39 @@
       }
 
       .framer-105p8lt .framer-n1t8vm p,
+      .framer-105p8lt .framer-1ydng6c p,
       .framer-105p8lt .framer-16rrykd p {
         white-space: nowrap !important;
       }
 
       .framer-105p8lt .framer-n1t8vm a,
+      .framer-105p8lt .framer-1ydng6c a,
       .framer-105p8lt .framer-16rrykd a {
         color: inherit;
         text-decoration: none;
         white-space: nowrap;
+      }
+
+      /* Three footer links (GitHub / Transparency / @petixfun) next to the logo
+         only fit on a phone with tighter gaps — the bar's height is fixed. */
+      @media (max-width: 809.98px) {
+        .framer-105p8lt[data-border="true"] {
+          gap: 12px !important;
+          padding: 0 16px !important;
+        }
+
+        .framer-105p8lt .framer-12qulzg,
+        .framer-105p8lt .framer-1krhc12,
+        .framer-105p8lt .framer-15k2rxr,
+        .framer-105p8lt .framer-1uxfe5q {
+          gap: 14px !important;
+        }
+
+        .framer-105p8lt .framer-n1t8vm p,
+        .framer-105p8lt .framer-1ydng6c p,
+        .framer-105p8lt .framer-16rrykd p {
+          font-size: 13px !important;
+        }
       }
     </style>
     <!-- End of headEnd -->
@@ -1219,15 +1244,23 @@
 	</script>
 	<script>
 	  (() => {
-	    const linkFooterItem = (selector, href, label) => {
+	    const setFooterText = (node, text) => {
+	      const paragraph = node.querySelector("p");
+	      if (text && paragraph) paragraph.textContent = text;
+	    };
+
+	    const linkFooterItem = (selector, href, label, { text = null, external = true } = {}) => {
 	      const node = document.querySelector(selector);
 
 	      if (!node || node.tagName === "A") {
 	        if (node?.tagName === "A") {
 	          node.href = href;
-	          node.target = "_blank";
-	          node.rel = "noopener noreferrer";
+	          if (external) {
+	            node.target = "_blank";
+	            node.rel = "noopener noreferrer";
+	          }
 	          node.setAttribute("aria-label", label);
+	          setFooterText(node, text);
 	        }
 	        return;
 	      }
@@ -1240,18 +1273,20 @@
 	        link.setAttribute("style", node.getAttribute("style"));
 	      }
 	      link.href = href;
-	      link.target = "_blank";
-	      link.rel = "noopener noreferrer";
+	      if (external) {
+	        link.target = "_blank";
+	        link.rel = "noopener noreferrer";
+	      }
 	      link.setAttribute("aria-label", label);
 	      link.style.textDecoration = "none";
 	      link.innerHTML = node.innerHTML;
+	      setFooterText(link, text);
 	      node.replaceWith(link);
 	    };
 
 	    const pruneLandingFooterClutter = () => {
 	      const trimSelectors = [
 	        ".framer-jb9pr2", // "Company" column header
-	        ".framer-1ydng6c", // Docs link
 	        ".framer-1koapps", // Legal column (header + Privacy + Terms)
 	        ".framer-1l89j6p", // "Social" column header
 	        ".framer-19gajdi", // right column (© Petix + Contact us)
@@ -1264,6 +1299,11 @@
 	    const updateLandingFooterLinks = () => {
 	      pruneLandingFooterClutter();
 	      linkFooterItem(".framer-n1t8vm", "https://github.com/kdmi/Petix", "GitHub");
+	      // The unused "Docs" slot carries the public treasury page (same tab, own site).
+	      linkFooterItem(".framer-1ydng6c", "/transparency/", "Transparency", {
+	        text: "Transparency",
+	        external: false,
+	      });
 	      linkFooterItem(".framer-16rrykd", "https://x.com/petixfun", "@petixfun");
 	    };
 

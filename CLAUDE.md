@@ -103,6 +103,8 @@ There is no build step and no framework. The player dashboard, pet creation, and
 
 The root `app.js`, `index.html`, `styles.css`, and `prod-root-styles.css` at the repo root are the legacy landing page — not the dashboard.
 
+`transparency/index.html` is a fourth, standalone page (`/transparency/`, linked from the landing footer): a public read-only view of the $PETIX money flow. It shares no code with the app — its own inline CSS/JS, one `GET /api/token/ledger` call, no wallet and no session.
+
 ### Storage layout
 
 - Dev: `.data/local-dev/` — JSON files for characters and battles plus a `character-images/` dir. Gitignored.

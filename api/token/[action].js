@@ -12,6 +12,7 @@ const HANDLERS = {
   "deposit-confirm": require("../../server-routes/token/deposit-confirm"),
   sync: require("../../server-routes/token/sync"),
   history: require("../../server-routes/token/history"),
+  ledger: require("../../server-routes/token/ledger"),
 };
 
 module.exports = async (req, res) => {
