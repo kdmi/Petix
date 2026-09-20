@@ -3,6 +3,7 @@ const path = require("path");
 const HANDLERS = {
   "adjust-balance": require("../../server-routes/admin/adjust-balance"),
   battles: require("../../server-routes/admin/battles"),
+  burn: require("../../server-routes/admin/burn"),
   characters: require("../../server-routes/admin/characters"),
   "delete-character": require("../../server-routes/admin/delete-character"),
   "economy-config": require("../../server-routes/admin/economy-config"),

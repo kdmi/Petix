@@ -1068,6 +1068,8 @@ const state = {
   petPricing: null,
   // Курс монеты и лестница для админки (024).
   adminPrice: null,
+  adminBurn: null,
+  adminBurnRunning: false,
   burnCost: null,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
@@ -10865,10 +10867,32 @@ function renderAdminPriceBlock() {
     )
     .join("");
 
-  const burn = price.burnQueue || {};
-  const byReason = Object.entries(burn.byReason || {})
-    .map(([reason, points]) => `${reason}: ${formatPoints(points)}`)
+  const burn = state.adminBurn || {};
+  const queue = burn.queue || price.burnQueue || {};
+  const byReason = Object.entries(queue.byReason || {})
+    .map(([reason, points]) => `${reason.replace(/_/g, " ")}: ${formatPoints(points)}`)
     .join(" · ");
+  const burnBlocked = {
+    TOKEN_DISABLED: "Token operations are off",
+    NOTHING_TO_BURN: "Nothing queued yet",
+    TREASURY_UNREACHABLE: "Treasury is unreachable",
+    LOW_GAS: "Operator is low on gas",
+    NOT_ENOUGH_ALLOWANCE: "Allowance below the queued amount",
+  }[burn.blockedReason] || "";
+  const recentBurns = Array.isArray(burn.burns) ? burn.burns.slice(-5).reverse() : [];
+  const burnRows = recentBurns
+    .map((entry) => {
+      const link =
+        entry.txHash && burn.explorerUrl
+          ? `<a href="${escapeHtml(burn.explorerUrl)}/tx/${escapeHtml(entry.txHash)}" target="_blank" rel="noopener noreferrer">${escapeHtml(entry.txHash.slice(0, 10))}…</a>`
+          : escapeHtml(entry.txHash ? entry.txHash.slice(0, 10) + "…" : "—");
+      const when = entry.at ? new Date(entry.at).toLocaleString() : "";
+      return `<tr><td style="padding:2px 10px 2px 0;">${formatPoints(entry.points)}</td>` +
+        `<td style="padding:2px 10px 2px 0;color:#6b7280;">${escapeHtml(entry.status)}</td>` +
+        `<td style="padding:2px 10px 2px 0;">${link}</td>` +
+        `<td style="padding:2px 0;color:#6b7280;">${escapeHtml(when)}</td></tr>`;
+    })
+    .join("");
 
   return `
     <section>
@@ -10881,9 +10905,23 @@ function renderAdminPriceBlock() {
         <button type="button" class="admin-nav-btn" data-role="price-refresh">Refresh now</button>
       </div>
       <table style="font-size:13px;border-collapse:collapse;">${rows}</table>
+    </section>
+    <section>
+      <h3 style="margin:0 0 10px;font-size:15px;">🔥 Burn</h3>
+      <div class="admin-burn">
+        <div class="admin-burn-counter">
+          <span class="admin-burn-label">Queued for burning</span>
+          <strong class="admin-burn-value">${formatPoints(queue.points || 0)}</strong>
+          ${byReason ? `<span class="admin-burn-reasons">${escapeHtml(byReason)}</span>` : ""}
+        </div>
+        <button type="button" class="admin-burn-btn" data-role="burn-run"${burn.canBurn ? "" : " disabled"}>
+          <span class="admin-burn-flame" aria-hidden="true">🔥</span> BURN
+        </button>
+      </div>
       <p style="font-size:13px;color:#6b7280;margin:10px 0 0;">
-        Queued for burning: <strong>${formatPoints(burn.points || 0)}</strong> Points${byReason ? ` (${escapeHtml(byReason)})` : ""}
+        Burned so far: <strong>${formatPoints(burn.burnedTotalPoints || 0)}</strong> $PETIX${burnBlocked ? ` · <span style="color:#b42318;">${escapeHtml(burnBlocked)}</span>` : ""}
       </p>
+      ${burnRows ? `<table style="font-size:13px;border-collapse:collapse;margin-top:8px;">${burnRows}</table>` : ""}
     </section>`;
 }
 
@@ -10894,7 +10932,57 @@ async function loadAdminPrice({ force = false } = {}) {
   } catch (error) {
     state.adminPrice = { quote: {}, ladder: [], burnQueue: {}, error: error.message };
   }
+  try {
+    state.adminBurn = await apiRequest("/api/admin/burn", {}, "GET");
+  } catch (error) {
+    state.adminBurn = { queue: {}, burns: [], error: error.message };
+  }
   renderAdminTable();
+}
+
+// Костёр необратим, поэтому спрашиваем прямо и показываем, что именно уйдёт.
+async function runAdminBurn() {
+  const queued = Math.max(0, Math.floor(Number(state.adminBurn?.queue?.points) || 0));
+  if (!queued) return;
+  const confirmed = window.confirm(
+    `Burn ${formatPoints(queued)} $PETIX for good?\n\n` +
+      "The coins leave the pool and never come back. This also spends the same allowance that pays player withdrawals."
+  );
+  if (!confirmed) return;
+
+  state.adminBurnRunning = true;
+  renderAdminTable();
+  try {
+    const result = await apiRequest("/api/admin/burn", {});
+    state.adminBurn = result;
+    showToast(
+      result.status === "confirmed"
+        ? `🔥 Burned ${formatPoints(result.points)} $PETIX`
+        : `🔥 Burn sent — ${formatPoints(result.points)} $PETIX on the way`
+    );
+    playBurnEffect();
+  } catch (error) {
+    showToast(error.message || "Burn failed.");
+  }
+  state.adminBurnRunning = false;
+  void loadAdminPrice({ force: true });
+}
+
+/** Короткий огонёк на весь экран: сжигание — событие, его видно. */
+function playBurnEffect() {
+  const layer = document.createElement("div");
+  layer.className = "burn-effect";
+  layer.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 12; i += 1) {
+    const flame = document.createElement("span");
+    flame.textContent = "🔥";
+    flame.style.left = `${Math.round(Math.random() * 90) + 5}%`;
+    flame.style.animationDelay = `${Math.round(Math.random() * 400)}ms`;
+    flame.style.fontSize = `${Math.round(Math.random() * 24) + 20}px`;
+    layer.appendChild(flame);
+  }
+  document.body.appendChild(layer);
+  window.setTimeout(() => layer.remove(), 2200);
 }
 
 async function refreshAdminPrice() {
@@ -12079,6 +12167,12 @@ function init() {
         event.preventDefault();
         state.adminEconomyTab = tabButton.getAttribute("data-eco-tab") || "overview";
         renderAdminEconomy();
+        return;
+      }
+      const burnButton = event.target.closest('[data-role="burn-run"]');
+      if (burnButton) {
+        event.preventDefault();
+        if (!burnButton.disabled) void runAdminBurn();
         return;
       }
       const refreshPrice = event.target.closest('[data-role="price-refresh"]');

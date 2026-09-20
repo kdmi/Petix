@@ -39,6 +39,9 @@ const ALLOWLIST = new Map([
   ["0xdc3a8fa4774df5190341ac440ffe8bc697cdd6b3", "016 demo results (public demo, retired)"],
   // The launched $PETIX token contract — public by definition (landing header links to it on Dexscreener). Wallets and keys stay in env.
   ["0xb79ec3cdffefe0ec6c806d715e4082d6be4dbf55", "public $PETIX token contract on Robinhood Chain (launched 2026-09-18)"],
+  // The universally known burn address (024): no private key exists for it, so
+  // it is a constant, not a wallet we could ever spend from.
+  ["0x000000000000000000000000000000000000dead", "burn address (024), keyless by construction"],
 ]);
 
 function walk(dir, out) {

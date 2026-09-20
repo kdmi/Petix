@@ -47,11 +47,15 @@ const EMPTY_STATE = {
   price: null,
   // Сколько Points потрачено внутри игры с момента последнего сжигания.
   burnQueue: { points: 0, byReason: {}, since: null, lastBurnAt: null },
+  // Сожжено за всё время и последние костры (id, сумма, хеш, статус).
+  burnedTotalPoints: 0,
+  burns: [],
   lastRunAt: null,
   lastError: null,
 };
 
 const SPEND_REASONS = ["pet_creation", "energy", "pet_burn", "capsule_unbind"];
+const MAX_BURNS = 50;
 
 let writeQueue = Promise.resolve();
 
@@ -123,6 +127,8 @@ function normalizeState(parsed) {
     },
     price: normalizePriceQuote(parsed.price),
     burnQueue: normalizeBurnQueue(parsed.burnQueue),
+    burnedTotalPoints: nonNegativeInt(parsed.burnedTotalPoints),
+    burns: Array.isArray(parsed.burns) ? parsed.burns.slice(-MAX_BURNS).map(normalizeBurn) : [],
     lastRunAt: parsed.lastRunAt ? String(parsed.lastRunAt) : null,
     lastError: parsed.lastError ? String(parsed.lastError) : null,
   };
@@ -161,6 +167,85 @@ function normalizeBurnQueue(parsed) {
     since: parsed?.since ? String(parsed.since) : null,
     lastBurnAt: parsed?.lastBurnAt ? String(parsed.lastBurnAt) : null,
   };
+}
+
+function normalizeBurn(parsed) {
+  return {
+    id: String(parsed?.id || ""),
+    points: nonNegativeInt(parsed?.points),
+    amountRaw: parsed?.amountRaw ? String(parsed.amountRaw) : null,
+    txHash: parsed?.txHash ? String(parsed.txHash) : null,
+    status: ["sent", "confirmed", "failed"].includes(parsed?.status) ? parsed.status : "sent",
+    at: parsed?.at ? String(parsed.at) : null,
+    settledAt: parsed?.settledAt ? String(parsed.settledAt) : null,
+    // Из каких причин сложилась сожжённая сумма — по ней восстанавливаем
+    // очередь, если транзакция не прошла.
+    byReason: parsed?.byReason && typeof parsed.byReason === "object" ? { ...parsed.byReason } : {},
+  };
+}
+
+/**
+ * Снять сумму с очереди под костёр. Разбивка по причинам уменьшается от самой
+ * большой к меньшим, чтобы итог и слагаемые всегда сходились. Возвращает, что
+ * именно снято, — этим же восстанавливаем очередь, если транзакция не удалась.
+ */
+function drainBurnQueue(state, points) {
+  const queue = normalizeBurnQueue(state.burnQueue);
+  let left = Math.min(nonNegativeInt(points), queue.points);
+  const drained = {};
+
+  const reasons = Object.entries(queue.byReason).sort((a, b) => b[1] - a[1]);
+  for (const [reason, amount] of reasons) {
+    if (left <= 0) break;
+    const take = Math.min(amount, left);
+    drained[reason] = take;
+    queue.byReason[reason] = amount - take;
+    if (queue.byReason[reason] === 0) delete queue.byReason[reason];
+    left -= take;
+  }
+
+  queue.points = Math.max(0, queue.points - nonNegativeInt(points));
+  state.burnQueue = queue;
+  return drained;
+}
+
+/** Вернуть в очередь сумму, которую костёр не смог сжечь. */
+function restoreBurnQueue(state, byReason) {
+  const queue = normalizeBurnQueue(state.burnQueue);
+  for (const [reason, amount] of Object.entries(byReason || {})) {
+    const value = nonNegativeInt(amount);
+    if (!value) continue;
+    queue.byReason[reason] = (queue.byReason[reason] || 0) + value;
+    queue.points += value;
+  }
+  state.burnQueue = queue;
+  return state;
+}
+
+/** Новый костёр: запись в историю, список ограничен последними MAX_BURNS. */
+function recordBurn(state, entry) {
+  const burns = Array.isArray(state.burns) ? state.burns : [];
+  burns.push(normalizeBurn(entry));
+  state.burns = burns.slice(-MAX_BURNS);
+  state.burnQueue = { ...normalizeBurnQueue(state.burnQueue), lastBurnAt: entry.at || null };
+  return state;
+}
+
+/**
+ * Итог костра. Сожжённым считается только подтверждённый: «в пути» ещё может
+ * не долететь, а неудачный не сжёг ничего.
+ */
+function settleBurn(state, id, { status, at }) {
+  const burns = Array.isArray(state.burns) ? state.burns : [];
+  const entry = burns.find((record) => record.id === id);
+  if (!entry) return state;
+  const wasConfirmed = entry.status === "confirmed";
+  entry.status = status;
+  entry.settledAt = at || null;
+  if (status === "confirmed" && !wasConfirmed) {
+    state.burnedTotalPoints = nonNegativeInt(state.burnedTotalPoints) + entry.points;
+  }
+  return state;
 }
 
 /**
@@ -412,7 +497,12 @@ module.exports = {
   EMPTY_STATE,
   SPEND_REASONS,
   addSpend,
+  drainBurnQueue,
+  normalizeBurn,
+  restoreBurnQueue,
   normalizeBurnQueue,
+  recordBurn,
+  settleBurn,
   normalizePriceQuote,
   MAX_RECENT_KEYS,
   MAX_RECENT_WALLETS,

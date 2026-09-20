@@ -9005,3 +9005,109 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
 .petbuy-error.hidden {
   display: none;
 }
+
+/* Костёр в админке (024): счётчик, кнопка и короткий огонёк после нажатия. */
+.admin-burn {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.admin-burn-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-burn-label {
+  color: #9a3412;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.admin-burn-value {
+  color: #7c2d12;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 32px;
+}
+
+.admin-burn-reasons {
+  color: #9a3412;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 12px;
+}
+
+.admin-burn-btn {
+  align-items: center;
+  background: #ea580c;
+  border: none;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  gap: 8px;
+  height: 44px;
+  letter-spacing: 0.04em;
+  padding: 0 22px;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.admin-burn-btn:hover:not(:disabled) {
+  background: #c2410c;
+  transform: translateY(-1px);
+}
+
+.admin-burn-btn:disabled {
+  background: #fdba74;
+  cursor: not-allowed;
+}
+
+.admin-burn-btn .admin-burn-flame {
+  font-size: 18px;
+}
+
+.burn-effect {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  z-index: 200;
+}
+
+.burn-effect span {
+  animation: burn-rise 2s ease-out forwards;
+  bottom: -40px;
+  position: absolute;
+}
+
+@keyframes burn-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-70vh) scale(1.25) rotate(12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burn-effect span {
+    animation-duration: 0.01ms;
+  }
+}

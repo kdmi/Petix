@@ -152,6 +152,34 @@
         margin: 0 0 14px;
       }
 
+      /* Раздел костра (024): единственное место на странице, где цифра растёт,
+         а монеты исчезают — поэтому он выделен и слегка живёт. */
+      .burn-section .burn-lead {
+        color: #8a8f98;
+        font-size: 14px;
+        line-height: 20px;
+        margin: -6px 0 14px;
+        max-width: 620px;
+      }
+
+      .burn-flame {
+        animation: burn-flicker 2.4s ease-in-out infinite;
+        display: inline-block;
+        transform-origin: 50% 90%;
+      }
+
+      @keyframes burn-flicker {
+        0%, 100% { transform: scale(1) rotate(-2deg); }
+        30% { transform: scale(1.12) rotate(3deg); }
+        60% { transform: scale(0.96) rotate(-3deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .burn-flame {
+          animation: none;
+        }
+      }
+
       .grid {
         display: grid;
         gap: 12px;
@@ -640,6 +668,8 @@
           const entries = Array.isArray(data.entries) ? data.entries : [];
           // Deposits can outweigh payouts, and a clamped "net out: 0" would hide that.
           const netFlow = (Number(totals.withdrawnPoints) || 0) - (Number(totals.depositedPoints) || 0);
+          const burned = data.burned || {};
+          const burnEntries = Array.isArray(burned.entries) ? burned.entries : [];
 
           const rules_html = [
             "<li><b>1 Point = 1 $PETIX</b> — always</li>",
@@ -666,6 +696,37 @@
                   pool.tokens == null ? "The chain did not answer — retry in a minute" : "$PETIX held by the wallet below"
                 )}
               </div>
+            </section>
+
+            <section class="burn-section">
+              <h2>Burned forever <span class="burn-flame" aria-hidden="true">\u{1F525}</span></h2>
+              <p class="burn-lead">
+                Points spent inside the game are claims we no longer owe anyone. The same number of
+                $PETIX leaves the pool for a keyless address and never comes back.
+              </p>
+              <div class="grid">
+                ${statCard("Burned, all time", points(burned.totalPoints || 0), `${points(burned.count || 0)} burns`)}
+                ${statCard("Waiting for the next burn", points(burned.queuedPoints || 0), "Spent in game, not burned yet")}
+              </div>
+              ${
+                burnEntries.length
+                  ? `<ul class="feed">${burnEntries
+                      .map(
+                        (entry) => `
+                          <li>
+                            <span class="what">\u{1F525} burned</span>
+                            <span class="amount">${escapeHtml(points(entry.points))}</span>
+                            <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
+                            ${
+                              entry.txUrl
+                                ? `<a class="tx" href="${escapeHtml(entry.txUrl)}" target="_blank" rel="noopener noreferrer">tx</a>`
+                                : ""
+                            }
+                          </li>`
+                      )
+                      .join("")}</ul>`
+                  : ""
+              }
             </section>
 
             <section>

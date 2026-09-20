@@ -1266,6 +1266,23 @@ async function publicLedger(depOverrides) {
     today,
     last7Days,
     pending,
+    // Сожжённое за созданных питомцев (024): траты игроков внутри игры уходят
+    // из обращения навсегда, и это видно любому по хешам транзакций.
+    burned: {
+      totalPoints: state.burnedTotalPoints,
+      queuedPoints: state.burnQueue.points,
+      count: (state.burns || []).filter((entry) => entry.status === "confirmed").length,
+      entries: (state.burns || [])
+        .filter((entry) => entry.status === "confirmed")
+        .slice(-PUBLIC_ENTRIES)
+        .reverse()
+        .map((entry) => ({
+          points: entry.points,
+          at: entry.settledAt || entry.at,
+          txHash: entry.txHash,
+          txUrl: explorerTxUrl(env, entry.txHash),
+        })),
+    },
     entries: entries.slice(0, PUBLIC_ENTRIES),
     totalEntries: Math.min(entries.length, PUBLIC_ENTRIES),
     ...(entries.length > PUBLIC_ENTRIES ? { capped: true } : {}),
