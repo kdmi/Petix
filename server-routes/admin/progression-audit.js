@@ -74,6 +74,12 @@ async function applyFinding(finding) {
       return profile;
     }
 
+    // Only the attributes and the unspent points move. Level stays as it is —
+    // it was earned with real XP, and it is the one progress trait published in
+    // the capsule metadata (the four attributes are deliberately not there, see
+    // buildBoundMetadata). If a future correction ever touches the level, this
+    // write has to call refreshBoundCharacterMetadata for bound pets, otherwise
+    // marketplaces keep showing the old number.
     profile.characters[index] = {
       ...record,
       attributes: { ...finding.attributesAfter },
