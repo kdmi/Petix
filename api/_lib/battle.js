@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { findCharacterRecordById } = require("./store");
+const { getWalletProfile } = require("./store");
 const {
   buildBattleRewardOutcome,
   normalizeProgression,
@@ -418,21 +418,28 @@ function applyProgressionToCharacterRecord(record, nextState, updatedAt = new Da
 }
 
 async function resolveAttackerParticipant({ attackerPetId, attackerWallet }) {
-  const foundCharacter = await findCharacterRecordById(attackerPetId);
-
-  if (!foundCharacter?.character) {
-    throw new Error("Attacker pet was not found.");
-  }
-
-  if (foundCharacter.wallet !== attackerWallet) {
+  if (!attackerWallet) {
     throw new Error("Attacker pet does not belong to this wallet.");
   }
 
-  if (!isCompletedBattlePet(foundCharacter.character)) {
+  // Read the owner's profile directly instead of the store-wide snapshot:
+  // that snapshot is a cache (up to WALLET_PROFILE_SCAN_TTL_MS old), and a
+  // fight computed from it uses the stats the pet had BEFORE its last upgrade
+  // — which is exactly what players reported on 2026-09-21.
+  const profile = await getWalletProfile(attackerWallet);
+  const character = (profile.characters || []).find(
+    (record) => String(record?.id || "").trim() === String(attackerPetId || "").trim()
+  );
+
+  if (!character) {
+    throw new Error("Attacker pet was not found.");
+  }
+
+  if (!isCompletedBattlePet(character)) {
     throw new Error("Only completed pets can battle.");
   }
 
-  return buildBattleParticipant(foundCharacter);
+  return buildBattleParticipant({ wallet: attackerWallet, character });
 }
 
 function createBattleSimulation({

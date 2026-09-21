@@ -20,6 +20,7 @@ const {
   assertBattleEnergyAvailable,
   consumeBattleEnergy,
 } = require("../_lib/battle-energy");
+const { applyBattleXpReward } = require("../_lib/battle-progression");
 const {
   buildRevealOpponentCandidates,
   selectAuthoritativeOpponent,
@@ -99,12 +100,13 @@ async function markBattleFailed(battleId, error, baseRecord = null) {
 async function applyAttackerBattleMutation({
   wallet,
   petId,
-  progressionState,
+  xpGained,
   coinReward = 0,
   bonusEnergy = 0,
 }) {
   let previousProfile = null;
   let updatedCurrency = null;
+  let appliedReward = null;
   const now = new Date().toISOString();
 
   await updateWalletProfile(wallet, async (current) => {
@@ -118,7 +120,12 @@ async function applyAttackerBattleMutation({
       }
 
       characterFound = true;
-      return applyProgressionToCharacterRecord(character, progressionState, now);
+      // XP is applied as a delta to the record as it is RIGHT NOW, never as the
+      // absolute state computed before the fight: a point the player spent
+      // meanwhile would otherwise come back and could be spent again (the free
+      // stats players found on 2026-09-21).
+      appliedReward = applyBattleXpReward(character, xpGained);
+      return applyProgressionToCharacterRecord(character, appliedReward.nextState, now);
     });
 
     if (!characterFound) {
@@ -142,17 +149,18 @@ async function applyAttackerBattleMutation({
     return next;
   });
 
-  return { previousProfile, updatedCurrency };
+  return { previousProfile, updatedCurrency, appliedReward };
 }
 
 async function applyDefenderBattleMutation({
   wallet,
   petId,
-  progressionState,
+  xpGained,
   coinReward = 0,
   notification = null,
 }) {
   let previousProfile = null;
+  let appliedReward = null;
   const now = new Date().toISOString();
 
   await updateWalletProfile(wallet, async (current) => {
@@ -165,7 +173,10 @@ async function applyDefenderBattleMutation({
       }
 
       characterFound = true;
-      return applyProgressionToCharacterRecord(character, progressionState, now);
+      // Same delta rule as the attacker: the defender may be spending points
+      // on their own screen while this fight is being written.
+      appliedReward = applyBattleXpReward(character, xpGained);
+      return applyProgressionToCharacterRecord(character, appliedReward.nextState, now);
     });
 
     if (!characterFound) {
@@ -188,7 +199,21 @@ async function applyDefenderBattleMutation({
     return next;
   });
 
-  return previousProfile;
+  return { previousProfile, appliedReward };
+}
+
+// The public reward block of a battle, filled from the progression that was
+// actually applied to the record.
+function buildAppliedRewardFields(applied) {
+  return {
+    xpGained: applied.xpGained,
+    levelUp: applied.levelUp,
+    newLevel: applied.newLevel,
+    newExperience: applied.newExperience,
+    xpForNextLevel: applied.xpForNextLevel,
+    attributePointsGained: applied.attributePointsGained,
+    newAttributePointsAvailable: applied.newAttributePointsAvailable,
+  };
 }
 
 function resolveWinnerCoinReward({ simulation, attacker, defender, config, winBonusPct = {} }) {
@@ -360,7 +385,7 @@ module.exports = async (req, res) => {
       bonusEnergy: attackerCapsuleBonus.extraBattles,
       wallet: attacker.wallet,
       petId: attacker.character.id,
-      progressionState: simulation.progression.attacker,
+      xpGained: simulation.battle.result?.attackerRewards?.xpGained || 0,
       coinReward: winnerRole === "attacker" ? coinReward : 0,
     });
     attackerPreviousProfile = attackerMutation.previousProfile;
@@ -380,13 +405,20 @@ module.exports = async (req, res) => {
       newLevel: simulation.battle.result?.defenderRewards?.newLevel,
     });
 
-    defenderPreviousProfile = await applyDefenderBattleMutation({
+    const defenderMutation = await applyDefenderBattleMutation({
       wallet: defender.wallet,
       petId: defender.character.id,
-      progressionState: simulation.progression.defender,
+      xpGained: simulation.battle.result?.defenderRewards?.xpGained || 0,
       coinReward: winnerRole === "defender" ? coinReward : 0,
       notification: passiveNotification,
     });
+    defenderPreviousProfile = defenderMutation.previousProfile;
+
+    // Report what was actually written, not what the simulation predicted: the
+    // two differ whenever the pet's progress moved between the fight and the
+    // write (an upgrade spent, another battle landed).
+    const mergeRewards = (predicted, applied) =>
+      applied ? { ...predicted, ...buildAppliedRewardFields(applied) } : predicted;
 
     const narration = await generateBattleNarration(simulation.battle);
     const readyBattle = {
@@ -395,6 +427,14 @@ module.exports = async (req, res) => {
       rounds: narration.rounds,
       result: {
         ...simulation.battle.result,
+        attackerRewards: mergeRewards(
+          simulation.battle.result?.attackerRewards,
+          attackerMutation.appliedReward
+        ),
+        defenderRewards: mergeRewards(
+          simulation.battle.result?.defenderRewards,
+          defenderMutation.appliedReward
+        ),
         finalSummaryText: narration.finalSummaryText,
       },
       coinReward,
