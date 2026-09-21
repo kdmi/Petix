@@ -6,7 +6,7 @@
     <title>Petix - Treasury transparency</title>
     <meta
       name="description"
-      content="Every $PETIX payout and deposit that moved through the Petix pool wallet, with a link to the chain for each one."
+      content="Every $PETIX payout, deposit and burn that moved through the Petix pool wallet, with a link to the chain for each one."
     />
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="canonical" href="https://petix.fun/transparency/" />
@@ -15,14 +15,14 @@
     <meta property="og:title" content="Petix - Treasury transparency" />
     <meta
       property="og:description"
-      content="Every $PETIX payout and deposit that moved through the Petix pool wallet, with a link to the chain for each one."
+      content="Every $PETIX payout, deposit and burn that moved through the Petix pool wallet, with a link to the chain for each one."
     />
     <meta property="og:image" content="https://petix.fun/assets/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -31,16 +31,22 @@
         --muted: #667085;
         --faint: #98a2b3;
         --line: #eaecf0;
-        --bg: #fafbfc;
+        --hair: #f2f4f7;
+        --bg: #fbfbfc;
         --card: #ffffff;
         --out: #027a48;
         --in: #026aa2;
-        --warn: #b54708;
         --burn: #b93815;
+        --warn: #b54708;
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
       }
 
       * {
         box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
       }
 
       html,
@@ -52,8 +58,8 @@
         background: var(--bg);
         color: var(--ink);
         font-family: "Figtree", Arial, sans-serif;
-        font-size: 16px;
-        line-height: 24px;
+        font-size: 17px;
+        line-height: 27px;
         -webkit-font-smoothing: antialiased;
       }
 
@@ -61,19 +67,25 @@
         color: inherit;
       }
 
+      /* ---------- chrome ---------- */
+
       .topbar {
         align-items: center;
+        background: rgba(251, 251, 252, 0.82);
+        backdrop-filter: blur(10px);
         border-bottom: 1px solid var(--line);
-        background: var(--card);
         display: flex;
         gap: 24px;
         justify-content: space-between;
-        padding: 16px clamp(20px, 6vw, 64px);
+        padding: 14px clamp(20px, 6vw, 64px);
+        position: sticky;
+        top: 0;
+        z-index: 20;
       }
 
       .brand img {
         display: block;
-        height: 32px;
+        height: 30px;
         width: auto;
       }
 
@@ -89,165 +101,307 @@
         color: var(--ink);
       }
 
-      .wrap {
+      .story {
         margin: 0 auto;
-        max-width: 960px;
-        padding: 48px clamp(20px, 6vw, 40px) 80px;
+        max-width: 1040px;
+        padding: 0 clamp(20px, 6vw, 40px);
       }
 
-      .pill {
+      /* ---------- hero ---------- */
+
+      .hero {
+        padding: clamp(64px, 13vh, 136px) 0 clamp(56px, 11vh, 112px);
+      }
+
+      .eyebrow {
         align-items: center;
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 999px;
         color: var(--muted);
         display: inline-flex;
         font-size: 14px;
         font-weight: 500;
-        gap: 8px;
-        line-height: 20px;
-        padding: 6px 14px 6px 12px;
+        gap: 9px;
+        letter-spacing: 0.01em;
       }
 
       .dot {
         background: #12b76a;
         border-radius: 999px;
-        box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.16);
         height: 8px;
+        position: relative;
         width: 8px;
       }
 
+      .dot::after {
+        animation: pulse 2.6s ease-out infinite;
+        background: #12b76a;
+        border-radius: 999px;
+        content: "";
+        inset: 0;
+        position: absolute;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 0.6;
+          transform: scale(1);
+        }
+        70%,
+        100% {
+          opacity: 0;
+          transform: scale(3.4);
+        }
+      }
+
       h1 {
-        font-size: clamp(32px, 5vw, 44px);
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 1.12;
-        margin: 20px 0 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(40px, 7vw, 76px);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.02;
+        margin: 22px 0 0;
+        max-width: 16ch;
       }
 
       .lede {
         color: var(--muted);
-        margin: 14px 0 0;
-        max-width: 620px;
+        font-size: clamp(17px, 2vw, 19px);
+        line-height: 1.6;
+        margin: 22px 0 0;
+        max-width: 60ch;
       }
 
       .snapshot {
         color: var(--faint);
         font-size: 14px;
         line-height: 20px;
-        margin: 10px 0 0;
+        margin: 28px 0 0;
       }
 
       .snapshot.is-stale {
         color: var(--warn);
       }
 
-      section {
-        margin-top: 40px;
+      .cue {
+        align-items: center;
+        color: var(--faint);
+        display: flex;
+        font-size: 13px;
+        gap: 10px;
+        letter-spacing: 0.08em;
+        margin-top: clamp(40px, 7vh, 72px);
+        text-transform: uppercase;
       }
 
-      h2 {
+      .cue span {
+        animation: nudge 2.2s ease-in-out infinite;
         font-size: 18px;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-        margin: 0 0 14px;
+        line-height: 1;
       }
 
-      /* Раздел костра (024): единственное место на странице, где цифра растёт,
-         а монеты исчезают — поэтому он выделен и слегка живёт. */
-      .burn-section .burn-lead {
-        color: #8a8f98;
-        font-size: 14px;
-        line-height: 20px;
-        margin: -6px 0 14px;
-        max-width: 620px;
-      }
-
-      .burn-flame {
-        animation: burn-flicker 2.4s ease-in-out infinite;
-        display: inline-block;
-        transform-origin: 50% 90%;
-      }
-
-      @keyframes burn-flicker {
-        0%, 100% { transform: scale(1) rotate(-2deg); }
-        30% { transform: scale(1.12) rotate(3deg); }
-        60% { transform: scale(0.96) rotate(-3deg); }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .burn-flame {
-          animation: none;
+      @keyframes nudge {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(5px);
         }
       }
 
-      .grid {
+      /* ---------- beats ---------- */
+
+      .beat {
+        border-top: 1px solid var(--line);
+        padding: clamp(56px, 10vh, 112px) 0;
+      }
+
+      .kicker {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        font-size: 12px;
+        font-weight: 600;
+        gap: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .kicker::after {
+        background: currentColor;
+        content: "";
+        flex: 1;
+        height: 1px;
+        opacity: 0.2;
+      }
+
+      .beat[data-tone="out"] .kicker {
+        color: var(--out);
+      }
+
+      .beat[data-tone="in"] .kicker {
+        color: var(--in);
+      }
+
+      .beat[data-tone="burn"] .kicker {
+        color: var(--burn);
+      }
+
+      .beat h2 {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(25px, 3.4vw, 37px);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.16;
+        margin: 22px 0 0;
+        max-width: 26ch;
+      }
+
+      .beat p {
+        color: var(--muted);
+        margin: 16px 0 0;
+        max-width: 62ch;
+      }
+
+      .big {
+        align-items: baseline;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 18px;
+        margin: clamp(26px, 4vw, 44px) 0 0;
+      }
+
+      .value {
+        /* `.big` is a <p>, and beats paint their paragraphs grey — say it here. */
+        color: var(--ink);
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(54px, 11vw, 124px);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.035em;
+        line-height: 0.94;
+      }
+
+      .unit {
+        color: var(--muted);
+        font-size: clamp(15px, 1.8vw, 18px);
+        font-weight: 500;
+      }
+
+      .caption {
+        color: var(--faint);
+        font-size: 15px;
+        margin: 14px 0 0;
+      }
+
+      .mini {
         display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 22px 32px;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        margin-top: clamp(32px, 5vw, 48px);
       }
 
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 18px 20px;
+      .mini > div {
+        border-left: 2px solid var(--line);
+        padding-left: 14px;
       }
 
-      .stat-label {
+      .mini .mini-label {
         color: var(--muted);
         display: block;
         font-size: 14px;
         line-height: 20px;
       }
 
-      .stat-value {
+      .mini .mini-value {
         display: block;
-        font-size: 28px;
+        font-size: 23px;
+        font-variant-numeric: tabular-nums;
         font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 36px;
-        margin-top: 6px;
+        letter-spacing: -0.01em;
+        margin-top: 2px;
       }
 
-      .stat-note {
-        color: var(--faint);
-        display: block;
-        font-size: 13px;
-        line-height: 18px;
+      /* ---------- terms ---------- */
+
+      .terms {
+        margin: clamp(28px, 4vw, 44px) 0 0;
       }
 
-      .wallet-card {
+      .terms > div {
+        align-items: baseline;
+        border-top: 1px solid var(--hair);
         display: grid;
-        gap: 20px 40px;
+        gap: 6px 32px;
+        grid-template-columns: minmax(0, 8fr) minmax(0, 11fr);
+        padding: 20px 0;
+      }
+
+      .terms > div:last-child {
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .terms dt {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(22px, 2.6vw, 30px);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .terms dd {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      /* ---------- wallets ---------- */
+
+      .wallets {
+        display: grid;
+        gap: 14px;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        margin-top: clamp(28px, 4vw, 44px);
       }
 
-      .addr {
-        align-items: center;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 6px;
+      .wallet {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 20px;
       }
 
-      .addr code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      .wallet-label {
+        color: var(--muted);
         font-size: 14px;
+      }
+
+      .wallet code {
+        display: block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13.5px;
+        line-height: 22px;
+        margin-top: 8px;
         word-break: break-all;
       }
 
+      .wallet-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
       .ghost-btn {
-        background: var(--card);
+        background: transparent;
         border: 1px solid var(--line);
-        border-radius: 8px;
+        border-radius: 999px;
         color: var(--muted);
         cursor: pointer;
         font-family: inherit;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 500;
-        line-height: 18px;
-        padding: 4px 10px;
+        line-height: 20px;
+        padding: 6px 14px;
+        text-decoration: none;
+        transition: border-color 0.2s, color 0.2s;
+        white-space: nowrap;
       }
 
       .ghost-btn:hover:not([disabled]) {
@@ -258,102 +412,51 @@
       .ghost-btn[disabled] {
         color: var(--faint);
         cursor: default;
-        opacity: 0.6;
-      }
-
-      .pager {
-        align-items: center;
-        display: flex;
-        gap: 16px;
-        justify-content: space-between;
-        margin-top: 12px;
-      }
-
-      .pager .ghost-btn {
-        font-size: 14px;
-        line-height: 20px;
-        padding: 6px 14px;
-      }
-
-      .pager-info {
-        color: var(--muted);
-        font-size: 14px;
-        font-variant-numeric: tabular-nums;
-      }
-
-      #ledger.is-loading {
         opacity: 0.55;
-        pointer-events: none;
       }
 
-      .link {
-        color: var(--in);
-        font-size: 14px;
-        font-weight: 500;
-        text-decoration: none;
-        white-space: nowrap;
-      }
-
-      .link:hover {
-        text-decoration: underline;
-      }
-
-      .rules {
-        color: var(--muted);
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 10px;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-
-      .rules li {
-        background: var(--card);
-        border: 1px solid var(--line);
+      .more-btn {
+        background: var(--ink);
+        border: 1px solid var(--ink);
         border-radius: 999px;
-        font-size: 14px;
-        line-height: 20px;
-        padding: 5px 12px;
-      }
-
-      .rules b {
-        color: var(--ink);
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 15px;
         font-weight: 600;
+        margin-top: 20px;
+        padding: 11px 22px;
+        transition: background 0.2s, border-color 0.2s;
       }
 
-      .ledger {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 16px;
+      .more-btn:hover {
+        background: #344054;
+        border-color: #344054;
+      }
+
+      /* ---------- rows ---------- */
+
+      .rows {
         list-style: none;
-        margin: 0;
-        overflow: hidden;
+        margin: clamp(26px, 4vw, 40px) 0 0;
         padding: 0;
       }
 
       .row {
         align-items: center;
-        border-top: 1px solid var(--line);
+        border-top: 1px solid var(--hair);
         display: grid;
-        gap: 12px 16px;
-        grid-template-columns: 116px minmax(0, 1fr) 150px 110px 32px;
-        padding: 14px 20px;
+        gap: 10px 18px;
+        grid-template-columns: 132px minmax(0, 1fr) 148px 108px 34px;
+        padding: 15px 0;
       }
 
-      .row:first-child {
-        border-top: none;
+      .rows .row:last-child {
+        border-bottom: 1px solid var(--hair);
       }
 
-      .row-head {
-        background: #fcfcfd;
-        color: var(--muted);
-        font-size: 13px;
-        font-weight: 500;
-        letter-spacing: 0.02em;
-        line-height: 18px;
-        padding: 10px 20px;
-        text-transform: uppercase;
+      .row-burn {
+        grid-template-columns: 132px minmax(0, 1fr) 108px 34px;
       }
 
       .kind {
@@ -381,22 +484,32 @@
         color: var(--burn);
       }
 
-      /* Burn rows carry no wallet, so they drop that column and keep the rest
-         of a movement row: label, amount, when, link — on one line. */
-      .burn-feed {
-        margin-top: 12px;
+      .burn-flame {
+        animation: flicker 2.4s ease-in-out infinite;
+        display: inline-block;
+        transform-origin: 50% 90%;
       }
 
-      .burn-feed .row {
-        grid-template-columns: 132px minmax(0, 1fr) 110px 32px;
+      @keyframes flicker {
+        0%,
+        100% {
+          transform: scale(1) rotate(-2deg);
+        }
+        30% {
+          transform: scale(1.12) rotate(3deg);
+        }
+        60% {
+          transform: scale(0.96) rotate(-3deg);
+        }
       }
 
       .amount {
         align-items: center;
         display: flex;
-        font-size: 15px;
+        font-size: 16px;
+        font-variant-numeric: tabular-nums;
         font-weight: 600;
-        gap: 6px;
+        gap: 7px;
         white-space: nowrap;
       }
 
@@ -433,41 +546,229 @@
       }
 
       .tx:hover {
-        color: var(--ink);
+        text-decoration: underline;
       }
 
       .note {
         color: var(--muted);
-        font-size: 14px;
-        line-height: 20px;
-        margin: 14px 0 0;
+        font-size: 15px;
+        line-height: 23px;
+        margin: 20px 0 0;
+        max-width: 68ch;
       }
 
       .state {
         background: var(--card);
         border: 1px solid var(--line);
-        border-radius: 16px;
+        border-radius: 18px;
         color: var(--muted);
-        padding: 32px 20px;
+        padding: 40px 24px;
         text-align: center;
       }
 
       .state b {
         color: var(--ink);
         display: block;
-        font-size: 18px;
-        margin-bottom: 6px;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 8px;
       }
+
+      /* ---------- reveal ---------- */
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.85s var(--ease), transform 0.85s var(--ease);
+      }
+
+      .reveal.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      .beat .mini > div,
+      .beat .terms > div,
+      .beat .rows > li,
+      .beat .wallets > div {
+        opacity: 0;
+        transform: translateY(14px);
+        transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+      }
+
+      .beat.is-visible .mini > div,
+      .beat.is-visible .terms > div,
+      .beat.is-visible .rows > li,
+      .beat.is-visible .wallets > div {
+        opacity: 1;
+        transform: none;
+      }
+
+      .beat.is-visible .mini > div:nth-child(2),
+      .beat.is-visible .terms > div:nth-child(2),
+      .beat.is-visible .rows > li:nth-child(2),
+      .beat.is-visible .wallets > div:nth-child(2) {
+        transition-delay: 0.08s;
+      }
+
+      .beat.is-visible .mini > div:nth-child(3),
+      .beat.is-visible .terms > div:nth-child(3),
+      .beat.is-visible .rows > li:nth-child(3) {
+        transition-delay: 0.16s;
+      }
+
+      .beat.is-visible .terms > div:nth-child(4),
+      .beat.is-visible .rows > li:nth-child(4) {
+        transition-delay: 0.24s;
+      }
+
+      .beat.is-visible .rows > li:nth-child(5) {
+        transition-delay: 0.32s;
+      }
+
+      /* ---------- modal ---------- */
+
+      .modal[hidden] {
+        display: none;
+      }
+
+      .modal {
+        align-items: center;
+        display: flex;
+        inset: 0;
+        justify-content: center;
+        padding: clamp(12px, 4vw, 40px);
+        position: fixed;
+        z-index: 40;
+      }
+
+      .modal-backdrop {
+        animation: fade 0.25s var(--ease);
+        backdrop-filter: blur(4px);
+        background: rgba(16, 24, 40, 0.45);
+        border: none;
+        cursor: pointer;
+        inset: 0;
+        padding: 0;
+        position: absolute;
+      }
+
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+      }
+
+      .modal-card {
+        animation: lift 0.32s var(--ease);
+        background: var(--card);
+        border-radius: 22px;
+        box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.24);
+        display: flex;
+        flex-direction: column;
+        max-height: min(84vh, 760px);
+        position: relative;
+        width: min(820px, 100%);
+      }
+
+      @keyframes lift {
+        from {
+          opacity: 0;
+          transform: translateY(16px) scale(0.985);
+        }
+      }
+
+      .modal-head {
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        padding: 20px clamp(16px, 3vw, 28px);
+      }
+
+      .modal-head h3 {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: 21px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+
+      .modal-head p {
+        color: var(--faint);
+        font-size: 14px;
+        margin: 2px 0 0;
+      }
+
+      .modal-close {
+        background: var(--hair);
+        border: none;
+        border-radius: 999px;
+        color: var(--muted);
+        cursor: pointer;
+        flex: none;
+        font-size: 16px;
+        height: 34px;
+        line-height: 1;
+        width: 34px;
+      }
+
+      .modal-close:hover {
+        background: #e4e7ec;
+        color: var(--ink);
+      }
+
+      .modal-body {
+        overflow: auto;
+        padding: 4px clamp(16px, 3vw, 28px) 8px;
+      }
+
+      .modal-body .rows {
+        margin: 0;
+      }
+
+      .modal-body .row:first-child {
+        border-top: none;
+      }
+
+      .modal-body .rows > li {
+        opacity: 1;
+        transform: none;
+      }
+
+      .modal-foot {
+        align-items: center;
+        border-top: 1px solid var(--line);
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        padding: 14px clamp(16px, 3vw, 28px);
+      }
+
+      .modal-page {
+        color: var(--muted);
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      body.is-locked {
+        overflow: hidden;
+      }
+
+      /* ---------- footer ---------- */
 
       .page-footer {
         border-top: 1px solid var(--line);
         color: var(--faint);
         display: flex;
         flex-wrap: wrap;
-        gap: 8px 24px;
         font-size: 14px;
+        gap: 8px 24px;
         justify-content: space-between;
-        padding: 24px clamp(20px, 6vw, 64px) 40px;
+        margin-top: clamp(48px, 8vh, 96px);
+        padding: 28px clamp(20px, 6vw, 64px) 48px;
       }
 
       .page-footer a {
@@ -480,11 +781,8 @@
       }
 
       @media (max-width: 720px) {
-        .row-head {
-          display: none;
-        }
-
-        .row {
+        .row,
+        .row-burn {
           grid-template-columns: minmax(0, 1fr) auto;
           row-gap: 6px;
         }
@@ -505,27 +803,52 @@
         .when {
           grid-column: 2;
           justify-self: end;
-          text-align: right;
+        }
+
+        .row-burn .when {
+          grid-column: 1;
+          justify-self: start;
         }
 
         .tx {
+          grid-column: 2;
+          justify-self: end;
+        }
+
+        .row:not(.row-burn) .tx {
           grid-column: 1 / -1;
           justify-self: start;
         }
 
-        .burn-feed .row {
-          grid-template-columns: minmax(0, 1fr) auto;
+        .terms > div {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
         }
 
-        .burn-feed .when {
-          grid-column: 1;
-          justify-self: start;
-          text-align: left;
+        .reveal,
+        .beat .mini > div,
+        .beat .terms > div,
+        .beat .rows > li,
+        .beat .wallets > div {
+          opacity: 1;
+          transform: none;
+          transition: none;
         }
 
-        .burn-feed .tx {
-          grid-column: 2;
-          justify-self: end;
+        .burn-flame,
+        .cue span,
+        .dot::after {
+          animation: none;
+        }
+
+        .modal-card,
+        .modal-backdrop {
+          animation: none;
         }
       }
     </style>
@@ -538,33 +861,67 @@
       <a class="topbar-link" href="/dashboard/">Open the game</a>
     </header>
 
-    <main class="wrap">
-      <span class="pill"><span class="dot" aria-hidden="true"></span>Live from the chain</span>
-      <h1>Where the $PETIX goes</h1>
-      <p class="lede">
-        Players farm Points in Petix and withdraw them as $PETIX at 1:1. Every payout leaves the same
-        wallet that holds the pool, and every deposit lands on it. This page lists that traffic, with a
-        link to the transaction for each line.
-      </p>
-      <p class="snapshot" id="snapshot"></p>
+    <main class="story">
+      <section class="hero">
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Live from Robinhood Chain</span>
+        <h1>Where the $PETIX goes</h1>
+        <p class="lede">
+          Petix pays its players from one wallet. This page follows that wallet: what leaves it for
+          players, what comes back, and what is burned and never returns. Every line links to its
+          transaction on the chain.
+        </p>
+        <p class="snapshot" id="snapshot"></p>
+        <p class="cue" id="cue" hidden>Scroll <span aria-hidden="true">↓</span></p>
+      </section>
 
-      <div id="content">
-        <section>
-          <div class="state" id="loading">Loading the ledger…</div>
+      <div id="story">
+        <section class="beat">
+          <div class="state">Reading the chain…</div>
         </section>
       </div>
     </main>
 
     <footer class="page-footer">
-      <span id="updated">Numbers come straight from the wallet and the game's payout journal.</span>
-      <span><a href="/">petix.fun</a> · <a href="https://x.com/petixfun" target="_blank" rel="noopener noreferrer">@petixfun</a></span>
+      <span id="updated">Data comes from the pool wallet and the game's payout journal.</span>
+      <span>
+        <a href="/">petix.fun</a> ·
+        <a href="https://x.com/petixfun" target="_blank" rel="noopener noreferrer">@petixfun</a>
+      </span>
     </footer>
+
+    <div class="modal" id="modal" hidden>
+      <button class="modal-backdrop" type="button" data-close aria-label="Close"></button>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="modalTitle">Every movement</h3>
+            <p id="modalSub"></p>
+          </div>
+          <button class="modal-close" type="button" data-close aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-foot" id="modalFoot"></div>
+      </div>
+    </div>
 
     <script>
       (() => {
-        const content = document.getElementById("content");
-        const updated = document.getElementById("updated");
+        const story = document.getElementById("story");
+        const snapshotLine = document.getElementById("snapshot");
+        const footerNote = document.getElementById("updated");
+        const cue = document.getElementById("cue");
+        const modal = document.getElementById("modal");
+        const modalBody = document.getElementById("modalBody");
+        const modalFoot = document.getElementById("modalFoot");
+        const modalSub = document.getElementById("modalSub");
         const numbers = new Intl.NumberFormat("en-US");
+        const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const PAGE_SIZE = 20;
+        const PREVIEW = 5;
+
+        let journal = [];
+        let modalPage = 1;
+        let lastFocus = null;
 
         const escapeHtml = (value) =>
           String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
@@ -599,110 +956,115 @@
           });
         };
 
-        const statCard = (label, value, note) => `
-          <article class="card">
-            <span class="stat-label">${escapeHtml(label)}</span>
-            <strong class="stat-value">${escapeHtml(value)}</strong>
-            ${note ? `<span class="stat-note">${escapeHtml(note)}</span>` : ""}
-          </article>`;
-
-        const state = (title, text) => `
-          <section>
-            <div class="state"><b>${escapeHtml(title)}</b>${escapeHtml(text)}</div>
-          </section>`;
-
-        const walletBlock = (label, address, url, linkText) => {
-          if (!address) return "";
-          const link = url
-            ? `<a class="link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkText)} ↗</a>`
-            : "";
-          return `
-            <div class="wallet-block">
-              <span class="stat-label">${escapeHtml(label)}</span>
-              <div class="addr">
-                <code>${escapeHtml(address)}</code>
-                <button class="ghost-btn" type="button" data-copy="${escapeHtml(address)}">Copy</button>
-                ${link}
-              </div>
-            </div>`;
+        // Big numbers run up when their beat comes into view. The value is in the
+        // markup, so it is correct even if the animation never starts.
+        const countUp = (node) => {
+          const target = Number(node.dataset.count);
+          if (!Number.isFinite(target)) return;
+          const finish = () => {
+            node.textContent = points(target);
+          };
+          // A hidden tab freezes requestAnimationFrame, so animating there would
+          // leave the number sitting at 0. Same for a reader who asked for calm.
+          if (calm || target <= 0 || document.hidden) {
+            finish();
+            return;
+          }
+          const duration = Math.min(1600, 700 + String(Math.floor(target)).length * 120);
+          const started = performance.now();
+          const tick = (now) => {
+            const progress = Math.min(1, (now - started) / duration);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            node.textContent = points(target * eased);
+            if (progress < 1) requestAnimationFrame(tick);
+          };
+          node.textContent = "0";
+          requestAnimationFrame(tick);
+          // Safety net: whatever happens to the frame loop, the true number wins.
+          setTimeout(finish, duration + 400);
         };
 
-        const ledgerRow = (entry) => {
+        const bigNumber = (value, unit, { raw = false } = {}) => {
+          if (value == null) {
+            return `<p class="big"><span class="value">—</span><span class="unit">${escapeHtml(unit)}</span></p>`;
+          }
+          const number = Number(value) || 0;
+          return `<p class="big">
+              <span class="value" data-count="${escapeHtml(String(number))}">${escapeHtml(raw ? String(value) : points(number))}</span>
+              <span class="unit">${escapeHtml(unit)}</span>
+            </p>`;
+        };
+
+        const mini = (items) => `
+          <div class="mini">
+            ${items
+              .filter(Boolean)
+              .map(
+                (item) => `<div>
+                  <span class="mini-label">${escapeHtml(item.label)}</span>
+                  <strong class="mini-value">${escapeHtml(item.value)}</strong>
+                </div>`
+              )
+              .join("")}
+          </div>`;
+
+        const txCell = (url) =>
+          url
+            ? `<a class="tx" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Open the transaction">tx ↗</a>`
+            : '<span class="tx" title="No transaction yet">—</span>';
+
+        const movementRow = (entry) => {
           const isOut = entry.kind === "withdrawal";
           const pending = entry.status === "pending";
-          const label = isOut ? (pending ? "Payout, sending" : "Payout") : "Deposit";
+          const label = isOut ? (pending ? "Sending" : "Payout") : "Deposit";
           const kindClass = pending ? "kind-pending" : isOut ? "kind-out" : "kind-in";
-          const arrow = isOut ? "↑" : "↓";
-          const tx = entry.explorerUrl
-            ? `<a class="tx" href="${escapeHtml(entry.explorerUrl)}" target="_blank" rel="noopener noreferrer" title="Open the transaction">tx ↗</a>`
-            : '<span class="tx" title="No transaction yet">—</span>';
           return `
             <li class="row">
-              <span class="kind ${kindClass}"><span aria-hidden="true">${arrow}</span>${escapeHtml(label)}</span>
+              <span class="kind ${kindClass}"><span aria-hidden="true">${isOut ? "↑" : "↓"}</span>${escapeHtml(label)}</span>
               <span class="amount">
                 <img src="/assets/dashboard/points-coin.svg" alt="" width="18" height="18" />
                 ${escapeHtml(points(entry.points))} <span>$PETIX</span>
               </span>
               <span class="who" title="${escapeHtml(entry.wallet || "")}">${escapeHtml(entry.wallet || "")}</span>
               <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
-              ${tx}
+              ${txCell(entry.explorerUrl)}
             </li>`;
         };
 
-        // Same row shape as a movement: label, amount, when, link — one line.
-        const burnRow = (entry) => {
-          const tx = entry.txUrl
-            ? `<a class="tx" href="${escapeHtml(entry.txUrl)}" target="_blank" rel="noopener noreferrer" title="Open the transaction">tx ↗</a>`
-            : '<span class="tx" title="No transaction yet">—</span>';
+        const burnRow = (entry) => `
+          <li class="row row-burn">
+            <span class="kind kind-burn"><span class="burn-flame" aria-hidden="true">\u{1F525}</span>Burned</span>
+            <span class="amount">
+              <img src="/assets/dashboard/points-coin.svg" alt="" width="18" height="18" />
+              ${escapeHtml(points(entry.points))} <span>$PETIX</span>
+            </span>
+            <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
+            ${txCell(entry.txUrl)}
+          </li>`;
+
+        const walletCard = (label, address, url) => {
+          if (!address) return "";
           return `
-            <li class="row">
-              <span class="kind kind-burn"><span class="burn-flame" aria-hidden="true">\u{1F525}</span>Burned</span>
-              <span class="amount">
-                <img src="/assets/dashboard/points-coin.svg" alt="" width="18" height="18" />
-                ${escapeHtml(points(entry.points))} <span>$PETIX</span>
-              </span>
-              <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
-              ${tx}
-            </li>`;
+            <div class="wallet">
+              <span class="wallet-label">${escapeHtml(label)}</span>
+              <code>${escapeHtml(address)}</code>
+              <div class="wallet-actions">
+                <button class="ghost-btn" type="button" data-copy="${escapeHtml(address)}">Copy</button>
+                ${
+                  url
+                    ? `<a class="ghost-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Explorer ↗</a>`
+                    : ""
+                }
+              </div>
+            </div>`;
         };
 
-        // One snapshot per load, paged locally: the page keeps a fixed height
-        // however long the history gets, and two pages can never come from two
-        // different builds (which could duplicate or skip a row at the seam).
-        const PAGE_SIZE = 20;
-        let journal = [];
+        const state = (title, text) => `
+          <section class="beat">
+            <div class="state"><b>${escapeHtml(title)}</b>${escapeHtml(text)}</div>
+          </section>`;
 
-        const renderLedger = (requestedPage) => {
-          const box = document.getElementById("ledger");
-          if (!box) return;
-          const pageCount = Math.max(1, Math.ceil(journal.length / PAGE_SIZE));
-          const page = Math.min(Math.max(1, requestedPage), pageCount);
-          const start = (page - 1) * PAGE_SIZE;
-          const entries = journal.slice(start, start + PAGE_SIZE);
-          if (!entries.length) {
-            box.innerHTML =
-              '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>';
-            return;
-          }
-          const from = start + 1;
-          const to = Math.min(start + PAGE_SIZE, journal.length);
-          const pager =
-            pageCount > 1
-              ? `<div class="pager">
-                  <button class="ghost-btn" type="button" data-page="${page - 1}"${page <= 1 ? " disabled" : ""}>← Newer</button>
-                  <span class="pager-info">${escapeHtml(points(from))}–${escapeHtml(points(to))} of ${escapeHtml(points(journal.length))}</span>
-                  <button class="ghost-btn" type="button" data-page="${page + 1}"${page >= pageCount ? " disabled" : ""}>Older →</button>
-                </div>`
-              : "";
-          box.innerHTML = `
-            <ul class="ledger">
-              <li class="row row-head" aria-hidden="true">
-                <span>Direction</span><span>Amount</span><span>Wallet</span><span>When</span><span></span>
-              </li>
-              ${entries.map(ledgerRow).join("")}
-            </ul>
-            ${pager}`;
-        };
+        // ---------- the story ----------
 
         const render = (data) => {
           const totals = data.totals || {};
@@ -712,120 +1074,248 @@
           const pool = data.pool || {};
           const token = data.token || {};
           const rules = data.rules || {};
-          const entries = Array.isArray(data.entries) ? data.entries : [];
-          // Deposits can outweigh payouts, and a clamped "net out: 0" would hide that.
-          const netFlow = (Number(totals.withdrawnPoints) || 0) - (Number(totals.depositedPoints) || 0);
           const burned = data.burned || {};
           const burnEntries = Array.isArray(burned.entries) ? burned.entries : [];
+          journal = Array.isArray(data.entries) ? data.entries : [];
 
-          const rules_html = [
-            "<li><b>1 Point = 1 $PETIX</b> — always</li>",
-            `<li>Withdrawal fee <b>${escapeHtml(String(rules.feePct || 0))}%</b></li>`,
-            rules.minWithdraw ? `<li>Minimum withdrawal <b>${escapeHtml(points(rules.minWithdraw))}</b> Points</li>` : "",
+          const paid = Number(totals.withdrawnPoints) || 0;
+          const deposited = Number(totals.depositedPoints) || 0;
+          const netFlow = paid - deposited;
+
+          const terms = [
+            { term: "1 Point = 1 $PETIX", text: "Always. No rate, no spread, no rounding in our favour." },
+            {
+              term: `${rules.feePct ? `${points(rules.feePct)}%` : "0%"} fee`,
+              text: rules.feePct
+                ? "Taken from every withdrawal."
+                : "Withdrawals cost you nothing. The gas for each payout is ours.",
+            },
+            rules.minWithdraw
+              ? {
+                  term: `${points(rules.minWithdraw)} Points`,
+                  text: "The smallest withdrawal, so a payout is never worth less than its transaction.",
+                }
+              : null,
             rules.capsuleHoldHours
-              ? `<li>Withdrawals for wallets holding a capsule over <b>${escapeHtml(String(rules.capsuleHoldHours))} h</b></li>`
-              : "",
-            data.open ? "" : "<li>Withdrawals are <b>paused</b> right now</li>",
-          ]
-            .filter(Boolean)
-            .join("");
+              ? {
+                  term: `${points(rules.capsuleHoldHours)} hours`,
+                  text: "How long a capsule must sit on a wallet before that wallet can withdraw.",
+                }
+              : null,
+            data.open ? null : { term: "Paused", text: "Withdrawals are closed at the moment." },
+          ].filter(Boolean);
 
-          content.innerHTML = `
-            <section>
-              <h2>Money out to players</h2>
-              <div class="grid">
-                ${statCard("Paid out, all time", points(totals.withdrawnPoints), `${points(totals.withdrawnCount)} payouts to ${points(totals.walletsPaid)} wallets`)}
-                ${statCard("Paid out, last 7 days", points(week.outPoints), `${points(today.outPoints)} today`)}
-                ${statCard("Payouts in flight", points(pending.points), `${points(pending.count)} waiting for the chain`)}
-                ${statCard(
-                  "In the pool now",
-                  pool.tokens == null ? "—" : points(pool.tokens),
-                  pool.tokens == null ? "The chain did not answer — retry in a minute" : "$PETIX held by the wallet below"
-                )}
-              </div>
+          story.innerHTML = `
+            <section class="beat reveal" data-tone="out">
+              <p class="kicker">01 — Out to players</p>
+              <h2>Players farm Points in the game and cash them out, one for one.</h2>
+              ${bigNumber(paid, "$PETIX paid out, all time")}
+              <p class="caption">
+                ${escapeHtml(points(totals.withdrawnCount))} payouts to
+                ${escapeHtml(points(totals.walletsPaid))} different wallets.
+              </p>
+              ${mini([
+                { label: "Last 7 days", value: `${points(week.outPoints)} $PETIX` },
+                { label: "Today", value: `${points(today.outPoints)} $PETIX` },
+                {
+                  label: "In flight",
+                  value: pending.count
+                    ? `${points(pending.points)} $PETIX`
+                    : "nothing waiting",
+                },
+              ])}
             </section>
 
-            <section class="burn-section">
-              <h2>Burned forever <span class="burn-flame" aria-hidden="true">\u{1F525}</span></h2>
-              <p class="burn-lead">
-                Points spent inside the game are claims we no longer owe anyone. The same number of
-                $PETIX leaves the pool for a keyless address and never comes back.
+            <section class="beat reveal" data-tone="in">
+              <p class="kicker">02 — Back into the pool</p>
+              <h2>Some of it comes back: players send $PETIX to the same wallet and get Points.</h2>
+              ${bigNumber(deposited, "$PETIX deposited, all time")}
+              <p class="caption">${escapeHtml(points(totals.depositedCount))} transfers in.</p>
+              ${mini([
+                { label: "Last 7 days", value: `${points(week.inPoints)} $PETIX` },
+                { label: "Today", value: `${points(today.inPoints)} $PETIX` },
+                {
+                  label: netFlow >= 0 ? "Net out to players" : "Net back into the pool",
+                  value: `${points(Math.abs(netFlow))} $PETIX`,
+                },
+              ])}
+            </section>
+
+            <section class="beat reveal" data-tone="burn">
+              <p class="kicker">03 — Burned forever</p>
+              <h2>What players spend inside the game leaves the supply and never comes back.</h2>
+              ${bigNumber(Number(burned.totalPoints) || 0, "$PETIX burned, all time")}
+              <p class="caption">
+                ${escapeHtml(points(burned.count || 0))} burns${
+                  Number(burned.queuedPoints) > 0
+                    ? ` · ${escapeHtml(points(burned.queuedPoints))} spent in game, waiting for the next one`
+                    : ""
+                }.
               </p>
-              <div class="grid">
-                ${statCard("Burned, all time", points(burned.totalPoints || 0), `${points(burned.count || 0)} burns`)}
-                ${statCard("Waiting for the next burn", points(burned.queuedPoints || 0), "Spent in game, not burned yet")}
-              </div>
+              <p>
+                Points spent inside the game are claims we no longer owe anyone. The same number of
+                $PETIX leaves the pool for a keyless address — nobody holds its key, so nobody can
+                spend it again.
+              </p>
               ${
                 burnEntries.length
-                  ? `<ul class="ledger burn-feed">${burnEntries.map(burnRow).join("")}</ul>`
+                  ? `<ul class="rows">${burnEntries.slice(0, 3).map(burnRow).join("")}</ul>`
                   : ""
               }
             </section>
 
-            <section>
-              <h2>Money back in</h2>
-              <div class="grid">
-                ${statCard("Deposited, all time", points(totals.depositedPoints), `${points(totals.depositedCount)} transfers`)}
-                ${statCard("Deposited, last 7 days", points(week.inPoints), `${points(today.inPoints)} today`)}
-                ${
-                  netFlow >= 0
-                    ? statCard("Net out to players", points(netFlow), "Paid out minus deposited")
-                    : statCard("Net in from players", points(-netFlow), "Deposited minus paid out")
-                }
-              </div>
-            </section>
-
-            <section>
-              <h2>The wallet</h2>
-              <div class="card wallet-card">
-                ${walletBlock("Pool and deposits", pool.address, pool.addressUrl, "Explorer")}
-                ${walletBlock(`${token.symbol || "$PETIX"} contract`, token.contract, token.contractUrl, "Explorer")}
+            <section class="beat reveal">
+              <p class="kicker">04 — The wallet</p>
+              <h2>One wallet holds the pool, pays the players and receives the deposits.</h2>
+              ${bigNumber(pool.tokens == null ? null : Number(pool.tokens), pool.tokens == null ? "the chain did not answer — retry in a minute" : "$PETIX in the wallet right now")}
+              <div class="wallets">
+                ${walletCard("Pool and deposits", pool.address, pool.addressUrl)}
+                ${walletCard(`${token.symbol || "$PETIX"} contract`, token.contract, token.contractUrl)}
               </div>
               <p class="note">
-                Payouts are sent by an operator wallet that only pays the gas and may move the amount a
-                player asked for — the coins never leave the wallet above for anything else.
-                ${token.chainName ? `Chain: ${escapeHtml(token.chainName)}.` : ""}
+                Payouts are signed by a separate operator wallet that only pays the gas and may move
+                no more than the amount a player asked for. The coins themselves never leave the
+                wallet above for anything else.${
+                  token.chainName ? ` Chain: ${escapeHtml(token.chainName)}.` : ""
+                }
               </p>
             </section>
 
-            <section>
-              <h2>Rules</h2>
-              <ul class="rules">${rules_html}</ul>
+            <section class="beat reveal">
+              <p class="kicker">05 — The terms</p>
+              <h2>The rules of the exchange, as they stand right now.</h2>
+              <dl class="terms">
+                ${terms
+                  .map(
+                    (item) => `<div>
+                      <dt>${escapeHtml(item.term)}</dt>
+                      <dd>${escapeHtml(item.text)}</dd>
+                    </div>`
+                  )
+                  .join("")}
+              </dl>
             </section>
 
-            <section>
-              <h2>Movements</h2>
-              <div id="ledger"></div>
+            <section class="beat reveal">
+              <p class="kicker">06 — On the chain</p>
+              <h2>Every movement through the wallet, with the transaction behind it.</h2>
+              ${
+                journal.length
+                  ? `<ul class="rows">${journal.slice(0, PREVIEW).map(movementRow).join("")}</ul>
+                     <button class="more-btn" type="button" id="openAll">
+                       See all ${escapeHtml(points(data.totalEntries || journal.length))} movements
+                     </button>`
+                  : '<div class="state"><b>Nothing has moved yet</b>The first payouts and deposits will show up here.</div>'
+              }
               <p class="note">
-                Player wallets are shortened; the transaction link carries the full address. Failed
-                requests are not listed — those Points go straight back to the player and nothing
-                leaves the wallet. Numbers can lag the chain by a couple of minutes.
-                ${data.capped ? `Only the last ${escapeHtml(points(data.totalEntries))} movements are kept here — older ones stay on the chain.` : ""}
+                Player wallets are shortened; the transaction carries the full address. Requests that
+                failed are not listed — those Points go straight back to the player and nothing leaves
+                the wallet.${
+                  data.capped
+                    ? ` Only the last ${escapeHtml(points(data.totalEntries))} movements are kept here; older ones stay on the chain.`
+                    : ""
+                }
               </p>
             </section>`;
 
-          journal = entries;
-          renderLedger(1);
-
-          // The feed is a snapshot rebuilt every couple of minutes, and two
-          // visitors can be served snapshots of slightly different ages. Naming
-          // the moment keeps a lower number readable as "older", not "wrong".
-          const snapshot = document.getElementById("snapshot");
-          if (snapshot && data.updatedAt) {
-            snapshot.classList.toggle("is-stale", Boolean(data.stale));
-            snapshot.textContent = data.stale
+          if (snapshotLine && data.updatedAt) {
+            snapshotLine.classList.toggle("is-stale", Boolean(data.stale));
+            snapshotLine.textContent = data.stale
               ? `Showing the last complete snapshot, taken ${utc(data.updatedAt)} — a refresh is in progress.`
               : `Snapshot taken ${utc(data.updatedAt)}, rebuilt every couple of minutes.`;
           }
-          if (data.updatedAt) {
-            updated.textContent = `Data comes from the wallet and the game's payout journal. Snapshot ${utc(data.updatedAt)}.`;
+          if (footerNote && data.updatedAt) {
+            footerNote.textContent = `Data comes from the pool wallet and the game's payout journal. Snapshot ${utc(data.updatedAt)}.`;
           }
+          if (cue) cue.hidden = false;
+
+          reveal();
         };
 
-        content.addEventListener("click", (event) => {
-          const pageButton = event.target.closest("[data-page]");
+        // ---------- reveal on scroll ----------
+
+        const wake = (beat) => {
+          beat.classList.add("is-visible");
+          beat.querySelectorAll("[data-count]").forEach((node) => {
+            if (node.dataset.counted) return;
+            node.dataset.counted = "1";
+            countUp(node);
+          });
+        };
+
+        const reveal = () => {
+          const beats = [...story.querySelectorAll(".beat")];
+          // No observer, or nobody looking (hidden tab, a thumbnail pass): show
+          // everything at once rather than leave the page blank.
+          if (!("IntersectionObserver" in window) || document.hidden) {
+            beats.forEach(wake);
+            return;
+          }
+          const observer = new IntersectionObserver(
+            (items) => {
+              for (const item of items) {
+                if (!item.isIntersecting) continue;
+                wake(item.target);
+                observer.unobserve(item.target);
+              }
+            },
+            { threshold: 0.2, rootMargin: "0px 0px -8% 0px" }
+          );
+          beats.forEach((beat) => observer.observe(beat));
+        };
+
+        // ---------- the full journal, in a dialog ----------
+
+        const renderModal = () => {
+          const pageCount = Math.max(1, Math.ceil(journal.length / PAGE_SIZE));
+          modalPage = Math.min(Math.max(1, modalPage), pageCount);
+          const start = (modalPage - 1) * PAGE_SIZE;
+          const slice = journal.slice(start, start + PAGE_SIZE);
+          modalSub.textContent = `${points(journal.length)} movements, newest first`;
+          modalBody.innerHTML = `<ul class="rows">${slice.map(movementRow).join("")}</ul>`;
+          modalFoot.innerHTML =
+            pageCount > 1
+              ? `<button class="ghost-btn" type="button" data-modal-page="${modalPage - 1}"${modalPage <= 1 ? " disabled" : ""}>← Newer</button>
+                 <span class="modal-page">${points(start + 1)}–${points(Math.min(start + PAGE_SIZE, journal.length))} of ${points(journal.length)}</span>
+                 <button class="ghost-btn" type="button" data-modal-page="${modalPage + 1}"${modalPage >= pageCount ? " disabled" : ""}>Older →</button>`
+              : `<span class="modal-page">${points(journal.length)} in total</span>`;
+          modalBody.scrollTop = 0;
+        };
+
+        const openModal = () => {
+          lastFocus = document.activeElement;
+          modalPage = 1;
+          renderModal();
+          modal.hidden = false;
+          document.body.classList.add("is-locked");
+          modal.querySelector(".modal-close").focus();
+        };
+
+        const closeModal = () => {
+          modal.hidden = true;
+          document.body.classList.remove("is-locked");
+          if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+        };
+
+        modal.addEventListener("click", (event) => {
+          if (event.target.closest("[data-close]")) {
+            closeModal();
+            return;
+          }
+          const pageButton = event.target.closest("[data-modal-page]");
           if (pageButton && !pageButton.disabled) {
-            renderLedger(Number(pageButton.getAttribute("data-page")) || 1);
+            modalPage = Number(pageButton.getAttribute("data-modal-page")) || 1;
+            renderModal();
+          }
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !modal.hidden) closeModal();
+        });
+
+        story.addEventListener("click", (event) => {
+          if (event.target.closest("#openAll")) {
+            openModal();
             return;
           }
           const button = event.target.closest("[data-copy]");
@@ -857,17 +1347,19 @@
         fetch("/api/token/ledger", { headers: { Accept: "application/json" } })
           .then(async (response) => {
             if (response.status === 404) {
-              content.innerHTML = state(
+              story.innerHTML = state(
                 "Not open yet",
                 "$PETIX withdrawals and deposits are not running on this site yet. Once they are, every movement shows up here."
               );
+              reveal();
               return;
             }
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             render(await response.json());
           })
           .catch(() => {
-            content.innerHTML = state("Could not load the ledger", "Refresh the page in a minute.");
+            story.innerHTML = state("Could not read the chain", "Refresh the page in a minute.");
+            reveal();
           });
       })();
     </script>
