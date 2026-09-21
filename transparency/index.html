@@ -1143,19 +1143,28 @@
 
             <section class="beat reveal" data-tone="burn">
               <p class="kicker">03 — Burned forever</p>
-              <h2>What players spend inside the game leaves the supply and never comes back.</h2>
+              <h2>The Points players spend on a new pet are burned, not recycled.</h2>
               ${bigNumber(Number(burned.totalPoints) || 0, "$PETIX burned, all time")}
               <p class="caption">
-                ${escapeHtml(points(burned.count || 0))} burns${
-                  Number(burned.queuedPoints) > 0
-                    ? ` · ${escapeHtml(points(burned.queuedPoints))} spent in game, waiting for the next one`
-                    : ""
-                }.
+                Creating a pet costs Points. Those Points are a claim we no longer owe anyone, so the
+                same number of $PETIX leaves the pool for an address whose private key does not
+                exist — nobody can ever spend those coins again.
               </p>
-              <p>
-                Points spent inside the game are claims we no longer owe anyone. The same number of
-                $PETIX leaves the pool for a keyless address — nobody holds its key, so nobody can
-                spend it again.
+              ${mini([
+                {
+                  label: "Ready for the next burn",
+                  value: `${points(burned.queuedPoints)} $PETIX`,
+                },
+                { label: "Burns so far", value: points(burned.count || 0) },
+                {
+                  label: "Last burn",
+                  value: burnEntries.length ? when(burnEntries[0].at) : "none yet",
+                },
+              ])}
+              <p class="note">
+                Pet creation is the only spend that burns today: the other things Points buy —
+                extra battles, capsule actions — move no $PETIX out of the wallet yet. Burns are run
+                by hand in batches, so the amount above waits for the next one.
               </p>
               ${
                 burnEntries.length
