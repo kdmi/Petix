@@ -36,6 +36,7 @@
         --out: #027a48;
         --in: #026aa2;
         --warn: #b54708;
+        --burn: #b93815;
       }
 
       * {
@@ -376,6 +377,20 @@
         color: var(--warn);
       }
 
+      .kind-burn {
+        color: var(--burn);
+      }
+
+      /* Burn rows carry no wallet, so they drop that column and keep the rest
+         of a movement row: label, amount, when, link — on one line. */
+      .burn-feed {
+        margin-top: 12px;
+      }
+
+      .burn-feed .row {
+        grid-template-columns: 132px minmax(0, 1fr) 110px 32px;
+      }
+
       .amount {
         align-items: center;
         display: flex;
@@ -496,6 +511,21 @@
         .tx {
           grid-column: 1 / -1;
           justify-self: start;
+        }
+
+        .burn-feed .row {
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .burn-feed .when {
+          grid-column: 1;
+          justify-self: start;
+          text-align: left;
+        }
+
+        .burn-feed .tx {
+          grid-column: 2;
+          justify-self: end;
         }
       }
     </style>
@@ -619,6 +649,23 @@
             </li>`;
         };
 
+        // Same row shape as a movement: label, amount, when, link — one line.
+        const burnRow = (entry) => {
+          const tx = entry.txUrl
+            ? `<a class="tx" href="${escapeHtml(entry.txUrl)}" target="_blank" rel="noopener noreferrer" title="Open the transaction">tx ↗</a>`
+            : '<span class="tx" title="No transaction yet">—</span>';
+          return `
+            <li class="row">
+              <span class="kind kind-burn"><span class="burn-flame" aria-hidden="true">\u{1F525}</span>Burned</span>
+              <span class="amount">
+                <img src="/assets/dashboard/points-coin.svg" alt="" width="18" height="18" />
+                ${escapeHtml(points(entry.points))} <span>$PETIX</span>
+              </span>
+              <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
+              ${tx}
+            </li>`;
+        };
+
         // One snapshot per load, paged locally: the page keeps a fixed height
         // however long the history gets, and two pages can never come from two
         // different builds (which could duplicate or skip a row at the seam).
@@ -710,21 +757,7 @@
               </div>
               ${
                 burnEntries.length
-                  ? `<ul class="feed">${burnEntries
-                      .map(
-                        (entry) => `
-                          <li>
-                            <span class="what">\u{1F525} burned</span>
-                            <span class="amount">${escapeHtml(points(entry.points))}</span>
-                            <span class="when" title="${escapeHtml(utc(entry.at))}">${escapeHtml(when(entry.at))}</span>
-                            ${
-                              entry.txUrl
-                                ? `<a class="tx" href="${escapeHtml(entry.txUrl)}" target="_blank" rel="noopener noreferrer">tx</a>`
-                                : ""
-                            }
-                          </li>`
-                      )
-                      .join("")}</ul>`
+                  ? `<ul class="ledger burn-feed">${burnEntries.map(burnRow).join("")}</ul>`
                   : ""
               }
             </section>
