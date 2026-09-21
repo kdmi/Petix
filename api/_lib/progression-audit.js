@@ -118,9 +118,36 @@ function auditPet({ wallet, character, battles }) {
 
   if (!extraSpent && !extraUnspent) return null;
 
+  // The timeline says WHERE the phantom points went; the invariant says HOW
+  // MANY the pet may keep. Real data disagrees on nine pets out of 107 — a lost
+  // level here, a purchase made outside any recorded battle window there — so
+  // the removal is clamped to land the pet exactly on
+  // `budget + (level - 1) - available`, never above it and never below.
+  const availableAfter = Math.max(0, current.available - extraUnspent);
+  const budget = getAttributePointBudget(character);
+  const targetSum = Math.max(0, budget + (current.level - 1) - availableAfter);
+  const removable = Math.max(0, sumAttributes(current.attributes) - targetSum);
+
   const attributesAfter = { ...current.attributes };
+  let removed = 0;
+  // 1. take what the timeline could attribute, in that order
   for (const [key, value] of Object.entries(corrections)) {
-    attributesAfter[key] = Math.max(0, attributesAfter[key] - value);
+    const take = Math.min(value, Math.max(0, removable - removed), attributesAfter[key]);
+    attributesAfter[key] -= take;
+    removed += take;
+  }
+  // 2. anything the timeline could not place comes off the biggest attributes
+  while (removed < removable) {
+    const key = ATTRIBUTE_KEYS.slice().sort((a, b) => attributesAfter[b] - attributesAfter[a])[0];
+    if (!attributesAfter[key]) break;
+    attributesAfter[key] -= 1;
+    removed += 1;
+  }
+
+  const appliedCorrections = {};
+  for (const key of ATTRIBUTE_KEYS) {
+    const delta = current.attributes[key] - attributesAfter[key];
+    if (delta > 0) appliedCorrections[key] = delta;
   }
 
   return {
@@ -131,11 +158,14 @@ function auditPet({ wallet, character, battles }) {
     level: current.level,
     extraSpent,
     extraUnspent,
-    corrections,
+    // What the ledger traced, and what will actually be taken after the clamp.
+    tracedCorrections: corrections,
+    corrections: appliedCorrections,
+    removedPoints: removed,
     attributesBefore: current.attributes,
     attributesAfter,
     availableBefore: current.available,
-    availableAfter: Math.max(0, current.available - extraUnspent),
+    availableAfter,
     // Points we know are phantom but could not place on a specific attribute
     // (the growth happened outside any recorded battle window).
     unattributed,
