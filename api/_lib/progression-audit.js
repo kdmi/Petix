@@ -116,8 +116,6 @@ function auditPet({ wallet, character, battles }) {
   // Points the refund handed back that were never spent yet.
   const extraUnspent = Math.max(0, current.available - legitAvailable);
 
-  if (!extraSpent && !extraUnspent) return null;
-
   // The timeline says WHERE the phantom points went; the invariant says HOW
   // MANY the pet may keep. Real data disagrees on nine pets out of 107 — a lost
   // level here, a purchase made outside any recorded battle window there — so
@@ -149,6 +147,11 @@ function auditPet({ wallet, character, battles }) {
     const delta = current.attributes[key] - attributesAfter[key];
     if (delta > 0) appliedCorrections[key] = delta;
   }
+
+  // Nothing to take and nothing to trim: either the pet is clean, or it was
+  // already corrected and only the old bursts are still visible in its
+  // history. Reporting those would leave an operator chasing ghosts.
+  if (!removed && !extraUnspent) return null;
 
   return {
     petId,

@@ -49,12 +49,13 @@ function pet(id, { level, attrs, available = 0, rarity = "Rare" }) {
 
 test("clean play produces no findings", () => {
   const id = "char_clean";
+  // Rare budget 12: level 1 spends 12, and each level adds exactly one point.
   const battles = [
-    battle("2026-09-20T10:00:00.000Z", snapshot(id, { level: 1, attrs: a(4, 4, 4, 3) })),
-    battle("2026-09-20T10:05:00.000Z", snapshot(id, { level: 2, attrs: a(4, 4, 4, 3), available: 1 })),
-    battle("2026-09-20T10:10:00.000Z", snapshot(id, { level: 2, attrs: a(5, 4, 4, 3) })),
+    battle("2026-09-20T10:00:00.000Z", snapshot(id, { level: 1, attrs: a(3, 3, 3, 3) })),
+    battle("2026-09-20T10:05:00.000Z", snapshot(id, { level: 2, attrs: a(3, 3, 3, 3), available: 1 })),
+    battle("2026-09-20T10:10:00.000Z", snapshot(id, { level: 2, attrs: a(4, 3, 3, 3) })),
   ];
-  const character = pet(id, { level: 3, attrs: a(5, 5, 4, 3), available: 0 });
+  const character = pet(id, { level: 3, attrs: a(4, 4, 3, 3), available: 0 });
 
   assert.equal(auditPet({ wallet: WALLET, character, battles }), null);
 });
@@ -152,8 +153,30 @@ test("the report only marks a pet applicable when the correction restores the in
 });
 
 test("pets that never fought are left alone", () => {
-  const character = pet("char_fresh", { level: 1, attrs: a(4, 4, 4, 3), available: 0 });
+  // Common budget 10, freshly created and never in a fight.
+  const character = pet("char_fresh", { level: 1, attrs: a(3, 3, 2, 2), available: 0, rarity: "Common" });
   assert.equal(auditPet({ wallet: WALLET, character, battles: [] }), null);
+});
+
+test("overspend the battle history cannot explain is still corrected", () => {
+  // Production case (Pixel Drop): the pet holds one point more than its budget
+  // allows, but every recorded fight shows the same numbers — the purchase
+  // happened in a gap between battles, so the ledger has nothing to trace.
+  const id = "char_invisible";
+  const battles = [
+    battle("2026-09-21T03:00:00.000Z", snapshot(id, { level: 3, attrs: a(5, 3, 3, 1), available: 1 })),
+    battle("2026-09-21T03:30:00.000Z", snapshot(id, { level: 3, attrs: a(5, 3, 3, 1), available: 1 })),
+    // (the same numbers in every fight — nothing for the ledger to catch)
+  ];
+  // Common budget 10: at level 3 with one point in hand it may hold 11.
+  const character = pet(id, { level: 3, attrs: a(5, 3, 3, 1), available: 1, rarity: "Common" });
+
+  const finding = auditPet({ wallet: WALLET, character, battles });
+
+  assert.ok(finding, "a pet over its budget must be reported even without ledger evidence");
+  assert.equal(finding.extraSpent, 0, "the ledger saw nothing");
+  assert.equal(finding.removedPoints, 1, "the invariant still says one point too many");
+  assert.equal(finding.attributesAfter.stamina, 4, "it comes off the biggest attribute");
 });
 
 test("the removal is clamped to the invariant, whichever way the ledger leans", () => {
