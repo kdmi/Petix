@@ -7747,6 +7747,15 @@ async function startFightFlow(characterId) {
       state.pendingCurrency = authoritativeCurrency;
     }
 
+    // Энергию до этого клиент считал сам (вычитал единицу на каждый бой) и
+    // сверялся с сервером только по таймеру. Любое расхождение показывало
+    // «0 боёв» при живой энергии — теперь берём авторитетное состояние из
+    // ответа боя.
+    if (createBattlePayload?.battleState) {
+      applyBattleStatePayload(createBattlePayload.battleState);
+      updateEnergyUi();
+    }
+
     if (!createdBattleId) {
       throw new Error("Battle id was not returned.");
     }
