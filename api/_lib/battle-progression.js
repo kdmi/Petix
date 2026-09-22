@@ -77,6 +77,50 @@ function applyBattleXpReward(progression, xpGained) {
   };
 }
 
+// Total experience a pet has accumulated across all its levels. Used to undo a
+// battle's XP exactly: the level curve is deterministic, so the sum can be
+// walked back down again.
+function getCumulativeExperience(record) {
+  const { level, experience } = normalizeProgression(record);
+  let total = experience;
+  for (let step = 1; step < level; step += 1) {
+    total += getExperienceForNextLevel(step);
+  }
+  return total;
+}
+
+function resolveProgressionFromExperience(totalExperience) {
+  let remaining = Math.max(0, normalizeInteger(totalExperience, 0));
+  let level = DEFAULT_LEVEL;
+  while (remaining >= getExperienceForNextLevel(level)) {
+    remaining -= getExperienceForNextLevel(level);
+    level += 1;
+  }
+  return { level, experience: remaining };
+}
+
+/**
+ * Undoes what a battle gave this pet, as a delta against the record as it is
+ * now — a failed battle must take back its own XP and points and nothing else.
+ * Points already spent are not clawed back: the floor at zero means a rollback
+ * can never take away more than the battle handed out.
+ */
+function revertBattleXpReward(record, { xpGained = 0, attributePointsGained = 0 } = {}) {
+  const current = normalizeProgression(record);
+  const total = Math.max(0, getCumulativeExperience(record) - Math.max(0, normalizeInteger(xpGained, 0)));
+  const { level, experience } = resolveProgressionFromExperience(total);
+
+  return {
+    level,
+    experience,
+    softCurrency: current.softCurrency,
+    attributePointsAvailable: Math.max(
+      0,
+      current.attributePointsAvailable - Math.max(0, normalizeInteger(attributePointsGained, 0))
+    ),
+  };
+}
+
 function buildBattleRewardOutcome({ petId, role, isWinner, progression }) {
   const xpGained = getBattleXpReward({ role, isWinner });
   const applied = applyBattleXpReward(progression, xpGained);
@@ -103,6 +147,9 @@ module.exports = {
   DEFAULT_SOFT_CURRENCY,
   applyBattleXpReward,
   buildBattleRewardOutcome,
+  getCumulativeExperience,
+  resolveProgressionFromExperience,
+  revertBattleXpReward,
   getBattleXpReward,
   getExperienceForNextLevel,
   normalizeProgression,

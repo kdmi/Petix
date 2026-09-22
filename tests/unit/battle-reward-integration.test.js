@@ -136,35 +136,56 @@ test("applyDefenderBattleMutation credits the defender when they are the winner"
   });
 });
 
-test("applyAttackerBattleMutation rollback restores pre-battle balance via restoreWalletProfile", async () => {
+test("a failed battle takes back only what it gave, leaving later writes alone", async () => {
   await withIsolatedBattleHistoryEnv(async ({ battlesRoute, store }) => {
     const wallet = createWallet("4");
     const petId = "pet_rollback";
-    const startingCurrency = { balance: 500, totalEarned: 500 };
     await store.saveWalletProfile(
       wallet,
       buildProfileWithCharacter({
-        walletCurrency: startingCurrency,
+        walletCurrency: { balance: 500, totalEarned: 500 },
         character: buildCompletedCharacter({ id: petId, level: 2 }),
       })
     );
 
-    const { applyAttackerBattleMutation, restoreWalletProfile } = battlesRoute;
+    const { applyAttackerBattleMutation, compensateAttackerBattleMutation } = battlesRoute;
     const result = await applyAttackerBattleMutation({
       wallet,
       petId,
-      progressionState: buildProgressionState({ level: 2 }),
+      xpGained: 200,
+      coinReward: 150,
+    });
+    assert.equal(result.updatedCurrency.balance, 650);
+
+    // While the battle was failing, the player's money kept moving: a deposit
+    // landed and they bought an energy pack. The old rollback wrote the whole
+    // pre-battle profile back and erased both.
+    await store.updateWalletProfile(wallet, (profile) => {
+      profile.currency = {
+        balance: profile.currency.balance + 1000,
+        totalEarned: profile.currency.totalEarned,
+      };
+      profile.battleState = { ...profile.battleState, energyPurchased: 3 };
+      return profile;
+    });
+
+    await compensateAttackerBattleMutation({
+      wallet,
+      petId,
+      appliedReward: result.appliedReward,
       coinReward: 150,
     });
 
-    assert.equal(result.updatedCurrency.balance, 650);
-
-    // Simulate handler catch-block restore
-    await restoreWalletProfile(wallet, result.previousProfile);
-
     const reloaded = await store.getWalletProfile(wallet);
-    assert.equal(reloaded.currency.balance, 500);
-    assert.equal(reloaded.currency.totalEarned, 500);
+    assert.equal(reloaded.currency.balance, 1500, "the deposit survives, the battle reward does not");
+    assert.equal(reloaded.currency.totalEarned, 500, "the reward leaves the emission total too");
+    assert.equal(reloaded.battleState.energyPurchased, 3, "the purchased fights survive");
+    assert.equal(reloaded.battleState.energyUsed, 0, "and the fight that failed is refunded");
+
+    const pet = reloaded.characters.find((record) => record.id === petId);
+    assert.equal(pet.experience, 0, "the XP the battle handed out is taken back");
+    assert.equal(pet.level, 2);
+    assert.equal(pet.attributePointsAvailable, 0);
   });
 });
 

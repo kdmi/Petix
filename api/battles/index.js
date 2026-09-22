@@ -19,37 +19,103 @@ const {
 const {
   assertBattleEnergyAvailable,
   consumeBattleEnergy,
+  refundBattleEnergy,
 } = require("../_lib/battle-energy");
-const { applyBattleXpReward } = require("../_lib/battle-progression");
+const { applyBattleXpReward, revertBattleXpReward } = require("../_lib/battle-progression");
+const { serializeBattleState } = require("../_lib/character");
 const {
   buildRevealOpponentCandidates,
   selectAuthoritativeOpponent,
 } = require("../_lib/battle-matchmaking");
 const { buildPassiveBattleNotification } = require("../_lib/notification");
-const {
-  getWalletProfile,
-  saveWalletProfile,
-  updateWalletProfile,
-} = require("../_lib/store");
+const { getWalletProfile, updateWalletProfile } = require("../_lib/store");
 const { getRoster } = require("../_lib/roster");
 const {
   listBattleHistoryForWallet,
   saveBattleRecord,
   updateBattleRecord,
 } = require("../_lib/battle-store");
-const { computeCoinReward, creditCurrency } = require("../_lib/currency");
+const { computeCoinReward, creditCurrency, normalizeCurrency } = require("../_lib/currency");
 const { getEconomyConfig } = require("../_lib/economy-config");
 
 // How many times a stale roster pick may be discarded before giving up: the
 // index can name a pet that was burned or transferred since the last sync.
 const OPPONENT_RESOLVE_ATTEMPTS = 3;
 
-async function restoreWalletProfile(wallet, profile) {
-  if (!wallet || !profile) {
-    return;
-  }
+// Undoing a failed battle used to mean writing the whole pre-battle profile
+// back over whatever was there. That is an absolute write from a stale base:
+// an energy pack bought, Points earned or a deposit credited while the battle
+// was running would be silently erased. The two helpers below take back
+// exactly what the battle gave, as a delta against the profile as it is now.
+async function compensateAttackerBattleMutation({
+  wallet,
+  petId,
+  appliedReward,
+  coinReward = 0,
+  bonusEnergy = 0,
+}) {
+  await updateWalletProfile(wallet, (current) => {
+    current.battleState = refundBattleEnergy(current.battleState, { wallet, bonusEnergy });
+    revertCharacterProgression(current, petId, appliedReward);
+    revertCoinReward(current, coinReward);
+    return current;
+  });
+}
 
-  await saveWalletProfile(wallet, profile);
+async function compensateDefenderBattleMutation({
+  wallet,
+  petId,
+  appliedReward,
+  coinReward = 0,
+  notificationId = "",
+}) {
+  await updateWalletProfile(wallet, (current) => {
+    revertCharacterProgression(current, petId, appliedReward);
+    revertCoinReward(current, coinReward);
+
+    if (notificationId && Array.isArray(current.notifications)) {
+      // The fight never happened; a notification about it would only confuse.
+      current.notifications = current.notifications.filter(
+        (record) => record?.id !== notificationId
+      );
+    }
+
+    return current;
+  });
+}
+
+function revertCharacterProgression(profile, petId, appliedReward) {
+  if (!appliedReward || !petId) return;
+
+  const index = (profile.characters || []).findIndex((record) => record.id === petId);
+  if (index < 0) return;
+
+  const record = profile.characters[index];
+  const reverted = revertBattleXpReward(record, {
+    xpGained: appliedReward.xpGained,
+    attributePointsGained: appliedReward.attributePointsGained,
+  });
+
+  profile.characters[index] = {
+    ...record,
+    level: reverted.level,
+    experience: reverted.experience,
+    attributePointsAvailable: reverted.attributePointsAvailable,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function revertCoinReward(profile, coinReward) {
+  const amount = Math.max(0, Math.floor(Number(coinReward) || 0));
+  if (!amount) return;
+
+  const currency = normalizeCurrency(profile.currency);
+  const taken = Math.min(amount, currency.balance);
+  profile.currency = {
+    balance: currency.balance - taken,
+    // The reward never happened, so it must leave the emission total too.
+    totalEarned: Math.max(0, currency.totalEarned - amount),
+  };
 }
 
 function getRequestUrl(req) {
@@ -107,11 +173,13 @@ async function applyAttackerBattleMutation({
   let previousProfile = null;
   let updatedCurrency = null;
   let appliedReward = null;
+  let updatedBattleState = null;
   const now = new Date().toISOString();
 
   await updateWalletProfile(wallet, async (current) => {
     previousProfile = current;
     const nextBattleState = consumeBattleEnergy(current.battleState, { wallet, bonusEnergy });
+    updatedBattleState = nextBattleState;
     let characterFound = false;
 
     const characters = current.characters.map((character) => {
@@ -149,7 +217,7 @@ async function applyAttackerBattleMutation({
     return next;
   });
 
-  return { previousProfile, updatedCurrency, appliedReward };
+  return { previousProfile, updatedCurrency, appliedReward, updatedBattleState };
 }
 
 async function applyDefenderBattleMutation({
@@ -280,8 +348,10 @@ module.exports = async (req, res) => {
   }
 
   let battleId = "";
-  let attackerPreviousProfile = null;
-  let defenderPreviousProfile = null;
+  // What each side's write actually applied — the undo is built from this, not
+  // from a snapshot of the whole profile.
+  let attackerApplied = null;
+  let defenderApplied = null;
   let attacker = null;
   let attackerCapsuleBonus = { extraBattles: 0, winBonusPct: 0 };
   let defender = null;
@@ -388,7 +458,11 @@ module.exports = async (req, res) => {
       xpGained: simulation.battle.result?.attackerRewards?.xpGained || 0,
       coinReward: winnerRole === "attacker" ? coinReward : 0,
     });
-    attackerPreviousProfile = attackerMutation.previousProfile;
+    attackerApplied = {
+      appliedReward: attackerMutation.appliedReward,
+      coinReward: winnerRole === "attacker" ? coinReward : 0,
+      bonusEnergy: attackerCapsuleBonus.extraBattles,
+    };
     let attackerCurrency = attackerMutation.updatedCurrency;
 
     const passiveNotification = buildPassiveBattleNotification({
@@ -412,7 +486,11 @@ module.exports = async (req, res) => {
       coinReward: winnerRole === "defender" ? coinReward : 0,
       notification: passiveNotification,
     });
-    defenderPreviousProfile = defenderMutation.previousProfile;
+    defenderApplied = {
+      appliedReward: defenderMutation.appliedReward,
+      coinReward: winnerRole === "defender" ? coinReward : 0,
+      notificationId: passiveNotification?.id || "",
+    };
 
     // Report what was actually written, not what the simulation predicted: the
     // two differ whenever the pet's progress moved between the fight and the
@@ -469,14 +547,29 @@ module.exports = async (req, res) => {
       battle: formatBattleResponse(readyBattle),
       coinReward: winnerRole === "attacker" ? coinReward : 0,
       currency: attackerCurrency || { balance: 0, totalEarned: 0 },
+      // Without this the dashboard can only guess: it decremented its own
+      // counter and had nothing to reconcile against until the next poll, so
+      // players saw 0 fights left while the server still had some (2026-09-22).
+      battleState: serializeBattleState(attackerMutation.updatedBattleState, {
+        wallet: attacker.wallet,
+        bonusEnergy: attackerCapsuleBonus.extraBattles,
+      }),
     });
   } catch (error) {
-    if (defenderPreviousProfile && defender?.wallet) {
-      await restoreWalletProfile(defender.wallet, defenderPreviousProfile).catch(() => null);
+    if (defenderApplied && defender?.wallet) {
+      await compensateDefenderBattleMutation({
+        wallet: defender.wallet,
+        petId: defender.character?.id,
+        ...defenderApplied,
+      }).catch(() => null);
     }
 
-    if (attackerPreviousProfile && attacker?.wallet) {
-      await restoreWalletProfile(attacker.wallet, attackerPreviousProfile).catch(() => null);
+    if (attackerApplied && attacker?.wallet) {
+      await compensateAttackerBattleMutation({
+        wallet: attacker.wallet,
+        petId: attacker.character?.id,
+        ...attackerApplied,
+      }).catch(() => null);
     }
 
     if (battleId) {
@@ -535,5 +628,6 @@ module.exports = async (req, res) => {
 
 module.exports.applyAttackerBattleMutation = applyAttackerBattleMutation;
 module.exports.applyDefenderBattleMutation = applyDefenderBattleMutation;
+module.exports.compensateAttackerBattleMutation = compensateAttackerBattleMutation;
+module.exports.compensateDefenderBattleMutation = compensateDefenderBattleMutation;
 module.exports.resolveWinnerCoinReward = resolveWinnerCoinReward;
-module.exports.restoreWalletProfile = restoreWalletProfile;
