@@ -9,6 +9,9 @@ const BATTLE_MATCHMAKING_PATH = path.resolve(__dirname, "../../../api/_lib/battl
 const CHARACTER_LIB_PATH = path.resolve(__dirname, "../../../api/_lib/character.js");
 const CHARACTER_ACTION_ROUTE_PATH = path.resolve(__dirname, "../../../api/character/[action].js");
 const ADMIN_ACTION_ROUTE_PATH = path.resolve(__dirname, "../../../api/admin/[action].js");
+// The dispatcher builds its handler map at require time, so the handlers have
+// to be dropped too — otherwise they keep the store instance of a previous test.
+const ADMIN_CHARACTERS_ROUTE_PATH = path.resolve(__dirname, "../../../server-routes/admin/characters.js");
 const BATTLES_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/index.js");
 const BATTLE_BY_ID_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/[battleId].js");
 const OPPONENTS_ROUTE_PATH = path.resolve(__dirname, "../../../api/battles/opponents.js");
@@ -85,6 +88,7 @@ async function withIsolatedBattleHistoryEnv(run, options = {}) {
   } finally {
     clearModule(CHARACTER_ACTION_ROUTE_PATH);
     clearModule(ADMIN_ACTION_ROUTE_PATH);
+    clearModule(ADMIN_CHARACTERS_ROUTE_PATH);
     clearModule(CHARACTER_UPGRADE_ROUTE_PATH);
     clearModule(CHARACTER_BURN_ROUTE_PATH);
     clearModule(CHARACTER_BUY_ENERGY_ROUTE_PATH);
