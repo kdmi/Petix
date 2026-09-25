@@ -221,3 +221,36 @@ test("POST /api/character/burn rejects non-POST and missing petId", async () => 
     assert.equal(noPetId.statusCode, 400);
   });
 });
+
+// Burning a pet used to delete its image. Battle records keep a snapshot that
+// points at that image, and those battles live forever — and since 2026-09-25
+// anyone can open one by link. Production already had 63 of 65 burned pets
+// showing a hole where the fighter should be.
+test("burning a pet keeps its image, because past battles still point at it", async () => {
+  const fs = require("fs/promises");
+  const path = require("path");
+
+  await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store, tempDir }) => {
+    const wallet = createWallet("9");
+    const imagePath = path.join(tempDir, "burned-pet.png");
+    await fs.writeFile(imagePath, "pet-bytes-that-must-survive");
+
+    const victim = {
+      ...createCompletedCharacter({ id: "char_burn_image", name: "Doomed" }),
+      image: { filePath: imagePath, mimeType: "image/png" },
+    };
+    await seedProfile(store, wallet, { characters: [victim], balance: BURN_COST + 100 });
+
+    const response = await invokeJsonHandler(
+      characterActionRoute,
+      burnRequest(auth, wallet, "char_burn_image")
+    );
+
+    assert.equal(response.statusCode, 200);
+    const profile = await store.getWalletProfile(wallet);
+    assert.equal(profile.characters.length, 0, "the pet is gone from the roster");
+
+    const survived = await fs.readFile(imagePath, "utf8");
+    assert.equal(survived, "pet-bytes-that-must-survive", "its picture stays for the replays");
+  });
+});

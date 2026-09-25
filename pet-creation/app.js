@@ -1,6 +1,11 @@
 const TYPES = ["Dragon", "Phoenix", "Cat", "Owl", "Ape", "Panda", "Undead", "Other"];
 const DEFAULT_ATTRIBUTE_POINTS = 15;
 const DEFAULT_CHARACTER_IMAGE = "/assets/character/current-pet.jpg";
+// Питомца могли сжечь до того, как мы перестали удалять картинки (на проде так
+// потерялись 63 из 65 сожжённых). Бой при этом остаётся и открывается по
+// ссылке, поэтому вместо битой картинки показываем тот самый серый куб —
+// референс формы, по которому пета и рисовали.
+const MISSING_CHARACTER_IMAGE = "/assets/character/shape-reference.png";
 const ENABLE_ARENA = true;
 const DEFAULT_DASHBOARD_ENERGY_MAX = 3;
 const DEFAULT_DASHBOARD_ENERGY_CURRENT = 3;
@@ -4034,7 +4039,9 @@ function preloadAndOptimizeArenaImage(src) {
   if (!arenaImagePromises.has(normalizedSrc)) {
     const imagePromise = loadImageAsset(normalizedSrc)
       .then((image) => downscaleArenaImage(image, normalizedSrc))
-      .catch(() => normalizedSrc);
+      // Картинки нет (сожжённый питомец из старого боя) — отдаём куб-заглушку,
+      // а не ссылку, которая всё равно не загрузится.
+      .catch(() => MISSING_CHARACTER_IMAGE);
 
     arenaImagePromises.set(normalizedSrc, imagePromise);
   }
@@ -7205,7 +7212,7 @@ function renderArenaRouletteTrack(battle) {
       .map(
         (record, index) => `
           <div class="arena-roulette-thumb" data-sequence-index="${index}">
-            <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="${itemSize}" height="${itemSize}" />
+            <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="${itemSize}" height="${itemSize}" onerror="this.onerror=null;this.src='${MISSING_CHARACTER_IMAGE}';" />
           </div>
         `
       )

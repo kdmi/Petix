@@ -8,7 +8,7 @@ const { debitCurrency, normalizeCurrency } = require("../../api/_lib/currency");
 const { computeFarmEarned, normalizeFarmState } = require("../../api/_lib/farm");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { ensureUnlockedSlots, getMaxCharacters } = require("../../api/_lib/slots");
-const { deleteStoredImage, updateWalletProfile } = require("../../api/_lib/store");
+const { updateWalletProfile } = require("../../api/_lib/store");
 
 function fail(status, message, code, extra) {
   const error = new Error(message);
@@ -89,14 +89,10 @@ module.exports = async (req, res) => {
       return current;
     });
 
-    if (burned.image) {
-      // Best-effort: сирота в сторадже допустима, откатывать burn из-за неё нельзя.
-      try {
-        await deleteStoredImage(burned.image);
-      } catch (error) {
-        console.warn("[character:burn:image]", error.message);
-      }
-    }
+    // Картинку не удаляем. Она больше не принадлежит одному питомцу: на неё
+    // ссылаются снимки во всех его прошлых боях, а бои остаются навсегда и с
+    // 2026-09-25 открываются по ссылке кому угодно. 512px весит ~60 КБ —
+    // дешевле хранить, чем показывать дырку в чужом реплее.
 
     json(res, 200, {
       burned: true,
