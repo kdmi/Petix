@@ -1565,14 +1565,8 @@ async function executeUnbind(binding, owner, deps) {
     throw error;
   }
 
-  if (removed?.image) {
-    // Снапшот-копия для NFT остаётся, удаляем только игровую картинку.
-    try {
-      await deps.deleteStoredImage(removed.image);
-    } catch (error) {
-      console.warn("[nft:unbind:image]", error.message);
-    }
-  }
+  // Картинку не удаляем — на неё ссылаются снимки прошлых боёв этого питомца,
+  // а они остаются навсегда и открываются по публичной ссылке (2026-09-25).
 
   const marketplaceRefreshed = await requestMarketplaceRefresh(binding.tokenId);
   await markForVerification(binding.tokenId, deps);

@@ -50,18 +50,16 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Картинка завершённого пета публична: её и так видит любой авторизованный
+  // игрок, а с 2026-09-25 бой можно смотреть по ссылке без входа — иначе в
+  // публичном реплее у пета без блоб-ссылки вместо картинки была бы дыра.
   const session = getSessionFromRequest(req);
-  if (!session) {
-    res.statusCode = 401;
-    res.end("Unauthorized.");
-    return;
-  }
 
   try {
     const requestUrl = new URL(req.url, "http://localhost");
     const characterId = String(requestUrl.searchParams.get("id") || "").trim();
     let record = null;
-    const isAdmin = isAdminSession(session);
+    const isAdmin = Boolean(session) && isAdminSession(session);
 
     if (characterId) {
       const globalMatch = await findCharacterRecordById(characterId);
@@ -70,7 +68,7 @@ module.exports = async (req, res) => {
         canAccessCharacterImage({
           record: globalMatch.character,
           ownerWallet: globalMatch.wallet,
-          sessionWallet: session.wallet,
+          sessionWallet: session?.wallet || "",
           isAdmin,
         })
       ) {
@@ -78,7 +76,9 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (!record) {
+    // Свой черновик (и пет без id в запросе) — только для своей сессии; у гостя
+    // профиля нет, для него работает лишь публичный поиск выше.
+    if (!record && session) {
       const profile = await getWalletProfile(session.wallet);
       record = resolveRecordById(profile, characterId);
     }
@@ -100,10 +100,17 @@ module.exports = async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.end(buffer);
   } catch {
-    const buffer = await fs.readFile(FALLBACK_IMAGE_PATH);
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Cache-Control", "no-store");
-    res.end(buffer);
+    // Last resort is the placeholder; if even that cannot be read, answer 404
+    // instead of throwing — a broken image is better than a 500 in a replay.
+    try {
+      const buffer = await fs.readFile(FALLBACK_IMAGE_PATH);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Cache-Control", "no-store");
+      res.end(buffer);
+    } catch {
+      res.statusCode = 404;
+      res.end("Image not found.");
+    }
   }
 };

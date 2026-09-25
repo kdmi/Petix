@@ -1,6 +1,11 @@
 const TYPES = ["Dragon", "Phoenix", "Cat", "Owl", "Ape", "Panda", "Undead", "Other"];
 const DEFAULT_ATTRIBUTE_POINTS = 15;
 const DEFAULT_CHARACTER_IMAGE = "/assets/character/current-pet.jpg";
+// Питомца могли сжечь до того, как мы перестали удалять картинки (на проде так
+// потерялись 63 из 65 сожжённых). Бой при этом остаётся и открывается по
+// ссылке, поэтому вместо битой картинки показываем тот самый серый куб —
+// референс формы, по которому пета и рисовали.
+const MISSING_CHARACTER_IMAGE = "/assets/character/shape-reference.png";
 const ENABLE_ARENA = true;
 const DEFAULT_DASHBOARD_ENERGY_MAX = 3;
 const DEFAULT_DASHBOARD_ENERGY_CURRENT = 3;
@@ -659,6 +664,7 @@ const cabinetCount = document.getElementById("cabinetCount");
 const createAnotherBtn = document.getElementById("createAnotherBtn");
 const dashboardTopbar = document.querySelector(".dashboard-topbar");
 const dashboardTabs = document.getElementById("dashboardTabs");
+const topbarSignIn = document.getElementById("topbarSignIn");
 const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
 const dashboardTabArena = document.getElementById("dashboardTabArena");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
@@ -996,6 +1002,9 @@ const state = {
   // Ввод не зависит от права на вывод: сервер присылает deposit.address всем,
   // кому депозит открыт, даже когда вывод закрыт правилом капсулы или рубильником.
   depositAvailable: false,
+  // Гость смотрит чужой бой по ссылке: в шапке только вход, а кнопки ведут не
+  // в кабинет (его нет), а на авторизацию.
+  isPublicReplay: false,
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
@@ -2910,6 +2919,7 @@ async function buyEnergyPack(packIndex) {
 }
 
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
+  exitPublicReplayMode();
   state.isAuthenticated = true;
   state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
   state.walletAddress = walletAddress || "";
@@ -3445,6 +3455,32 @@ function openAdminPanelFromMenu() {
   window.location.href = new URL(ADMIN_ROUTE, window.location.origin).toString();
 }
 
+// === Публичный реплей боя ==================================================
+// Ссылка на бой шарится наружу, поэтому гостя не уводим на лендинг: показываем
+// сам бой, а в шапке оставляем логотип и вход. Всё остальное — вкладки,
+// счётчики, бургер — инструменты своего кабинета и гостю не нужны.
+function getPublicReplayBattleId() {
+  const params = new URLSearchParams(window.location.search);
+  if (String(params.get("screen") || "").trim() !== "arena") return "";
+  return String(params.get("battleId") || "").trim();
+}
+
+async function enterPublicReplayMode(battleId) {
+  state.isPublicReplay = true;
+  document.body.classList.add("is-public-replay");
+  if (topbarSignIn) topbarSignIn.classList.remove("hidden");
+
+  // Тот же путь, что у авторизованного игрока по ссылке из истории: он и
+  // грузит бой, и перерисовывает арену после загрузки.
+  await openArenaReplayBattle(battleId, { source: "link", pushRoute: false });
+}
+
+function exitPublicReplayMode() {
+  state.isPublicReplay = false;
+  document.body.classList.remove("is-public-replay");
+  if (topbarSignIn) topbarSignIn.classList.add("hidden");
+}
+
 // Публичная страница про движение $PETIX — не часть игрового потока, поэтому
 // открываем рядом: игрок читает и возвращается, не перезагружая приложение.
 // Если вкладку открыть не дали, уходим на неё в текущей.
@@ -3811,6 +3847,13 @@ async function restoreWalletSession() {
     await restoreCharacterState();
   } catch {
     showWalletAuthState();
+
+    const publicBattleId = getPublicReplayBattleId();
+    if (publicBattleId) {
+      await enterPublicReplayMode(publicBattleId);
+      return;
+    }
+
     redirectToLandingAuthPrompt();
   }
 }
@@ -4008,7 +4051,9 @@ function preloadAndOptimizeArenaImage(src) {
   if (!arenaImagePromises.has(normalizedSrc)) {
     const imagePromise = loadImageAsset(normalizedSrc)
       .then((image) => downscaleArenaImage(image, normalizedSrc))
-      .catch(() => normalizedSrc);
+      // Картинки нет (сожжённый питомец из старого боя) — отдаём куб-заглушку,
+      // а не ссылку, которая всё равно не загрузится.
+      .catch(() => MISSING_CHARACTER_IMAGE);
 
     arenaImagePromises.set(normalizedSrc, imagePromise);
   }
@@ -6313,7 +6358,7 @@ function buildArenaBattleResultLayerMarkup() {
           <span>Replay</span>
         </button>
         <button class="arena-live-result-btn arena-live-result-btn--primary" data-action="go-to-my-pets" type="button">
-          <span>Go to My Pets</span>
+          <span>${state.isPublicReplay ? "Create pet" : "Go to My Pets"}</span>
         </button>
       </div>
     </div>
@@ -6997,6 +7042,12 @@ function bindArenaBattleControls(battle) {
 
   if (goToPetsButton) {
     goToPetsButton.onclick = () => {
+      // У гостя кабинета нет: та же кнопка зовёт завести своего пета, то есть
+      // войти. Вход открывается прямо здесь, поверх боя.
+      if (state.isPublicReplay) {
+        openWalletModal();
+        return;
+      }
       window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
     };
   }
@@ -7173,7 +7224,7 @@ function renderArenaRouletteTrack(battle) {
       .map(
         (record, index) => `
           <div class="arena-roulette-thumb" data-sequence-index="${index}">
-            <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="${itemSize}" height="${itemSize}" />
+            <img src="${record.imageUrl}" alt="${escapeHtml(getRecordDisplayName(record))}" width="${itemSize}" height="${itemSize}" onerror="this.onerror=null;this.src='${MISSING_CHARACTER_IMAGE}';" />
           </div>
         `
       )
@@ -12141,6 +12192,14 @@ function init() {
     }
     openWalletModal();
   });
+
+  // Гость смотрит чужой бой: единственное действие в шапке — войти и остаться
+  // на этой же странице.
+  if (topbarSignIn) {
+    topbarSignIn.addEventListener("click", () => {
+      openWalletModal();
+    });
+  }
 
   if (dashboardPoints) {
     const canOpenWithdraw = () => dashboardPoints.classList.contains("is-withdrawable");

@@ -9111,3 +9111,38 @@ body[data-page="dashboard"] .dashboard-energy.is-shoppable:focus-visible {
     animation-duration: 0.01ms;
   }
 }
+
+/* === Публичный реплей боя (гость по шаренной ссылке) ====================== */
+/* В шапке остаются логотип и кнопка входа: вкладки, счётчики и бургер — это
+   инструменты своего кабинета, гостю показывать нечего. */
+.topbar-signin {
+  align-items: center;
+  background: var(--gray-900);
+  border: 0;
+  border-radius: 99px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  height: 40px;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+.topbar-signin:hover {
+  opacity: 0.9;
+}
+
+body.is-public-replay .dashboard-tabs,
+body.is-public-replay .topbar-cluster,
+body.is-public-replay .arena-history-panel,
+body.is-public-replay .arena-panel-actions {
+  display: none !important;
+}
+
+/* Без вкладок середина шапки пустая — прижимаем вход к правому краю. */
+body.is-public-replay[data-page="dashboard"] .dashboard-topbar {
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+}
