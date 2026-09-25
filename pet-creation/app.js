@@ -201,6 +201,7 @@ const ADMIN_PAGE_SIZE = 20;
 const CREATION_ROUTE = "/pet-creation/";
 const DASHBOARD_ROUTE = "/dashboard/";
 const ADMIN_ROUTE = "/admin/";
+const TRANSPARENCY_ROUTE = "/transparency/";
 const CLIENT_LOG_ENDPOINT = "/api/client-log";
 
 const TYPE_META = {
@@ -707,6 +708,7 @@ const walletMenu = document.getElementById("walletMenu");
 const walletMenuCreatePet = document.getElementById("walletMenuCreatePet");
 const walletMenuDashboard = document.getElementById("walletMenuDashboard");
 const walletMenuAdmin = document.getElementById("walletMenuAdmin");
+const walletMenuTransparency = document.getElementById("walletMenuTransparency");
 const walletMenuLogout = document.getElementById("walletMenuLogout");
 const walletAuthPanel = document.getElementById("walletAuthPanel");
 const walletLoggedPanel = document.getElementById("walletLoggedPanel");
@@ -3477,6 +3479,16 @@ function exitPublicReplayMode() {
   state.isPublicReplay = false;
   document.body.classList.remove("is-public-replay");
   if (topbarSignIn) topbarSignIn.classList.add("hidden");
+}
+
+// Публичная страница про движение $PETIX — не часть игрового потока, поэтому
+// открываем рядом: игрок читает и возвращается, не перезагружая приложение.
+// Если вкладку открыть не дали, уходим на неё в текущей.
+function openTransparencyFromMenu() {
+  hideWalletMenu();
+  const url = new URL(TRANSPARENCY_ROUTE, window.location.origin).toString();
+  const opened = window.open(url, "_blank", "noopener");
+  if (!opened) window.location.href = url;
 }
 
 function redirectToLandingAuthPrompt() {
@@ -12164,6 +12176,12 @@ function init() {
   if (walletMenuAdmin) {
     walletMenuAdmin.addEventListener("click", () => {
       openAdminPanelFromMenu();
+    });
+  }
+
+  if (walletMenuTransparency) {
+    walletMenuTransparency.addEventListener("click", () => {
+      openTransparencyFromMenu();
     });
   }
 
