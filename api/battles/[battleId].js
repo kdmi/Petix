@@ -1,4 +1,4 @@
-const { getSessionFromRequest, handleCors, json } = require("../_lib/auth");
+const { handleCors, json } = require("../_lib/auth");
 const { formatBattleResponse } = require("../_lib/battle");
 const { getBattleRecord } = require("../_lib/battle-store");
 
@@ -16,12 +16,8 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const session = getSessionFromRequest(req);
-  if (!session) {
-    json(res, 401, { error: "Unauthorized." });
-    return;
-  }
-
+  // A battle replay is public: the link is meant to be shared, and the payload
+  // carries nothing private — pet snapshots, rounds and the result, no wallets.
   const battleId = getBattleIdFromRequest(req);
   if (!battleId) {
     json(res, 400, {

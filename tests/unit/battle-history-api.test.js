@@ -148,3 +148,49 @@ test("GET /api/battles/[battleId] still rejects missing replays with explicit er
     });
   });
 });
+
+// A shared battle link has to open for someone who is not signed in — that is
+// the whole point of sharing it. The payload is safe to hand out: pet snapshots,
+// rounds and the result, with no wallet anywhere in it.
+test("GET /api/battles/[battleId] opens for a visitor with no session", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ battleStore, battleByIdRoute }) => {
+    await battleStore.saveBattleRecord(
+      createReadyBattleRecord({
+        id: "battle_public_link",
+        attackerOwnerWallet: createWallet("5"),
+        defenderOwnerWallet: createWallet("6"),
+        attackerPetId: "pet_public_a",
+        attackerPetName: "Public Paw",
+        defenderPetId: "pet_public_b",
+        defenderPetName: "Guest Fang",
+        winnerPetId: "pet_public_a",
+      })
+    );
+
+    const response = await invokeJsonHandler(battleByIdRoute, {
+      url: "/api/battles/battle_public_link",
+      headers: {}, // no session, no internal secret
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.status, "ready");
+    assert.equal(response.body.attacker.name, "Public Paw");
+    assert.equal(response.body.defender.name, "Guest Fang");
+
+    const serialized = JSON.stringify(response.body);
+    assert.ok(!serialized.includes(createWallet("5")), "an owner wallet must not travel with a public replay");
+    assert.ok(!serialized.includes(createWallet("6")), "neither must the opponent's");
+  });
+});
+
+test("a missing replay answers the same way without a session", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ battleByIdRoute }) => {
+    const response = await invokeJsonHandler(battleByIdRoute, {
+      url: "/api/battles/battle_nope",
+      headers: {},
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.body.error, "BATTLE_NOT_FOUND");
+  });
+});

@@ -658,6 +658,7 @@ const cabinetCount = document.getElementById("cabinetCount");
 const createAnotherBtn = document.getElementById("createAnotherBtn");
 const dashboardTopbar = document.querySelector(".dashboard-topbar");
 const dashboardTabs = document.getElementById("dashboardTabs");
+const topbarSignIn = document.getElementById("topbarSignIn");
 const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
 const dashboardTabArena = document.getElementById("dashboardTabArena");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
@@ -2908,6 +2909,7 @@ async function buyEnergyPack(packIndex) {
 }
 
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
+  exitPublicReplayMode();
   state.isAuthenticated = true;
   state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
   state.walletAddress = walletAddress || "";
@@ -3443,6 +3445,29 @@ function openAdminPanelFromMenu() {
   window.location.href = new URL(ADMIN_ROUTE, window.location.origin).toString();
 }
 
+// === Публичный реплей боя ==================================================
+// Ссылка на бой шарится наружу, поэтому гостя не уводим на лендинг: показываем
+// сам бой, а в шапке оставляем логотип и вход. Всё остальное — вкладки,
+// счётчики, бургер — инструменты своего кабинета и гостю не нужны.
+function getPublicReplayBattleId() {
+  const params = new URLSearchParams(window.location.search);
+  if (String(params.get("screen") || "").trim() !== "arena") return "";
+  return String(params.get("battleId") || "").trim();
+}
+
+async function enterPublicReplayMode(battleId) {
+  document.body.classList.add("is-public-replay");
+  if (topbarSignIn) topbarSignIn.classList.remove("hidden");
+
+  moveTo("arena");
+  await ensureArenaReplayBattle(battleId, { source: "link" });
+}
+
+function exitPublicReplayMode() {
+  document.body.classList.remove("is-public-replay");
+  if (topbarSignIn) topbarSignIn.classList.add("hidden");
+}
+
 function redirectToLandingAuthPrompt() {
   const targetUrl = new URL("/", window.location.origin);
   targetUrl.searchParams.set("auth", "1");
@@ -3799,6 +3824,13 @@ async function restoreWalletSession() {
     await restoreCharacterState();
   } catch {
     showWalletAuthState();
+
+    const publicBattleId = getPublicReplayBattleId();
+    if (publicBattleId) {
+      await enterPublicReplayMode(publicBattleId);
+      return;
+    }
+
     redirectToLandingAuthPrompt();
   }
 }
@@ -12123,6 +12155,14 @@ function init() {
     }
     openWalletModal();
   });
+
+  // Гость смотрит чужой бой: единственное действие в шапке — войти и остаться
+  // на этой же странице.
+  if (topbarSignIn) {
+    topbarSignIn.addEventListener("click", () => {
+      openWalletModal();
+    });
+  }
 
   if (dashboardPoints) {
     const canOpenWithdraw = () => dashboardPoints.classList.contains("is-withdrawable");
