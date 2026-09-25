@@ -995,6 +995,9 @@ const state = {
   // Ввод не зависит от права на вывод: сервер присылает deposit.address всем,
   // кому депозит открыт, даже когда вывод закрыт правилом капсулы или рубильником.
   depositAvailable: false,
+  // Гость смотрит чужой бой по ссылке: в шапке только вход, а кнопки ведут не
+  // в кабинет (его нет), а на авторизацию.
+  isPublicReplay: false,
   isStarting: false,
   isSavingPower: false,
   isCreating: false,
@@ -3456,14 +3459,17 @@ function getPublicReplayBattleId() {
 }
 
 async function enterPublicReplayMode(battleId) {
+  state.isPublicReplay = true;
   document.body.classList.add("is-public-replay");
   if (topbarSignIn) topbarSignIn.classList.remove("hidden");
 
-  moveTo("arena");
-  await ensureArenaReplayBattle(battleId, { source: "link" });
+  // Тот же путь, что у авторизованного игрока по ссылке из истории: он и
+  // грузит бой, и перерисовывает арену после загрузки.
+  await openArenaReplayBattle(battleId, { source: "link", pushRoute: false });
 }
 
 function exitPublicReplayMode() {
+  state.isPublicReplay = false;
   document.body.classList.remove("is-public-replay");
   if (topbarSignIn) topbarSignIn.classList.add("hidden");
 }
@@ -6333,7 +6339,7 @@ function buildArenaBattleResultLayerMarkup() {
           <span>Replay</span>
         </button>
         <button class="arena-live-result-btn arena-live-result-btn--primary" data-action="go-to-my-pets" type="button">
-          <span>Go to My Pets</span>
+          <span>${state.isPublicReplay ? "Create pet" : "Go to My Pets"}</span>
         </button>
       </div>
     </div>
@@ -7017,6 +7023,12 @@ function bindArenaBattleControls(battle) {
 
   if (goToPetsButton) {
     goToPetsButton.onclick = () => {
+      // У гостя кабинета нет: та же кнопка зовёт завести своего пета, то есть
+      // войти. Вход открывается прямо здесь, поверх боя.
+      if (state.isPublicReplay) {
+        openWalletModal();
+        return;
+      }
       window.location.href = new URL(DASHBOARD_ROUTE, window.location.origin).toString();
     };
   }

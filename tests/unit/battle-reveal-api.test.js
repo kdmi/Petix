@@ -107,3 +107,64 @@ test("completed opponent images can be fetched by another wallet session", async
     assert.equal(response.bodyText, "opponent-image-bytes");
   });
 });
+
+// A shared replay opens without a session, so the pets in it have to be
+// visible too. Most pets carry a public blob URL and never touch this route,
+// but one whose image never made it to blob falls back here — and a hole in
+// the middle of a public replay is not an option.
+test("a completed pet's image is served to a visitor with no session", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ characterImageRoute, store, tempDir }) => {
+    const ownerWallet = createWallet("7");
+    const imagePath = path.join(tempDir, "public-pet.png");
+    await fs.writeFile(imagePath, "public-pet-bytes");
+
+    await store.saveWalletProfile(ownerWallet, {
+      characters: [
+        createCompletedCharacter({
+          id: "pet_public_image",
+          name: "Public Pet",
+          level: 3,
+          image: { filePath: imagePath, mimeType: "image/png" },
+        }),
+      ],
+    });
+
+    const response = await invokeHandler(characterImageRoute, {
+      url: "/api/character/image?id=pet_public_image",
+      headers: {},
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.response.getHeader("content-type"), "image/png");
+    assert.equal(response.bodyText, "public-pet-bytes");
+  });
+});
+
+test("a visitor with no session gets the placeholder, never someone's draft", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ characterImageRoute, store, tempDir }) => {
+    const ownerWallet = createWallet("8");
+    const draftPath = path.join(tempDir, "draft-pet.png");
+    await fs.writeFile(draftPath, "draft-bytes-nobody-should-see");
+
+    await store.saveWalletProfile(ownerWallet, {
+      draft: {
+        id: "pet_draft_private",
+        status: "draft",
+        name: "Half-baked",
+        image: { filePath: draftPath, mimeType: "image/png" },
+      },
+      characters: [],
+    });
+
+    const response = await invokeHandler(characterImageRoute, {
+      url: "/api/character/image?id=pet_draft_private",
+      headers: {},
+    });
+
+    assert.notEqual(response.bodyText, "draft-bytes-nobody-should-see");
+    assert.ok(
+      [200, 404].includes(response.statusCode),
+      `a guest gets the placeholder or a 404, never a 500 (got ${response.statusCode})`
+    );
+  });
+});
