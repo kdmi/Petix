@@ -281,6 +281,31 @@
         line-height: 0.94;
       }
 
+      /* NumberFlow draws into a shadow root, so the digits reach neither a
+         screen reader nor the clipboard — the number rides along as text. */
+      .sr-only {
+        border: 0;
+        clip-path: inset(50%);
+        height: 1px;
+        overflow: hidden;
+        padding: 0;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+      }
+
+      /* NumberFlow paints its own digits; keep them on the same metrics as the
+         static fallback so the number does not jump when the module lands. */
+      .value number-flow {
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        --number-flow-mask-height: 0.22em;
+        --number-flow-mask-width: 0.4em;
+        /* The mask pads the box top and bottom; take it back so the number
+           occupies exactly the height the plain text would. */
+        margin-block: calc(var(--number-flow-mask-height) * -1);
+      }
+
       .unit {
         color: var(--muted);
         font-size: clamp(15px, 1.8vw, 18px);
@@ -922,6 +947,7 @@
         let journal = [];
         let modalPage = 1;
         let lastFocus = null;
+        let numberFlow = false; // becomes true once the <number-flow> element is defined
 
         const escapeHtml = (value) =>
           String(value == null ? "" : value).replace(/[&<>"']/g, (char) => ({
@@ -961,6 +987,17 @@
         const countUp = (node) => {
           const target = Number(node.dataset.count);
           if (!Number.isFinite(target)) return;
+
+          // NumberFlow spins the digits itself: the element starts at 0 and the
+          // second update is what animates. A hidden tab gets the number flat —
+          // its frame loop is frozen and a half-played roll would stick.
+          const flow = node.querySelector("number-flow");
+          if (flow) {
+            flow.animated = !document.hidden;
+            flow.update(target);
+            return;
+          }
+
           const finish = () => {
             node.textContent = points(target);
           };
@@ -984,13 +1021,18 @@
           setTimeout(finish, duration + 400);
         };
 
-        const bigNumber = (value, unit, { raw = false } = {}) => {
+        const bigNumber = (value, unit) => {
           if (value == null) {
             return `<p class="big"><span class="value">—</span><span class="unit">${escapeHtml(unit)}</span></p>`;
           }
           const number = Number(value) || 0;
+          // With NumberFlow the digits roll; without it the plain formatted
+          // number is already in the markup, so the page never shows less.
+          const inner = numberFlow
+            ? `<number-flow aria-hidden="true"></number-flow><span class="sr-only">${escapeHtml(points(number))}</span>`
+            : escapeHtml(points(number));
           return `<p class="big">
-              <span class="value" data-count="${escapeHtml(String(number))}">${escapeHtml(raw ? String(value) : points(number))}</span>
+              <span class="value" data-count="${escapeHtml(String(number))}">${inner}</span>
               <span class="unit">${escapeHtml(unit)}</span>
             </p>`;
         };
@@ -1238,6 +1280,16 @@
           }
           if (cue) cue.hidden = false;
 
+          // Every roll starts from zero; countUp() supplies the real number when
+          // the beat scrolls into view.
+          story.querySelectorAll("number-flow").forEach((flow) => {
+            flow.locales = "en-US";
+            flow.transformTiming = { duration: 900, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
+            flow.spinTiming = { duration: 1100, easing: "cubic-bezier(0.22, 1, 0.36, 1)" };
+            flow.opacityTiming = { duration: 400, easing: "ease-out" };
+            flow.update(0);
+          });
+
           reveal();
         };
 
@@ -1353,8 +1405,23 @@
           helper.remove();
         });
 
-        fetch("/api/token/ledger", { headers: { Accept: "application/json" } })
-          .then(async (response) => {
+        // NumberFlow is vendored (assets/vendor, built by scripts/build-number-flow-bundle.js)
+        // and loaded next to the data, so the page never waits on a third party
+        // and still renders if the module cannot be fetched at all.
+        const flowReady = import("/assets/vendor/number-flow.min.mjs").then(
+          () => {
+            numberFlow = Boolean(window.customElements && customElements.get("number-flow"));
+          },
+          () => {
+            numberFlow = false;
+          }
+        );
+
+        Promise.all([
+          fetch("/api/token/ledger", { headers: { Accept: "application/json" } }),
+          flowReady,
+        ])
+          .then(async ([response]) => {
             if (response.status === 404) {
               story.innerHTML = state(
                 "Not open yet",
