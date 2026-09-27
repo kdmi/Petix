@@ -114,7 +114,39 @@ async function compareBattleStores() {
   };
 }
 
+/**
+ * Imports exactly the records the shards do not have, which the cursor-based
+ * pass cannot reach: a battle played *during* the migration gets an id that
+ * sorts before the cursor, so the pass has already walked past its position.
+ * The first production run left 38 of them behind (2026-09-27).
+ *
+ * This is also the pass to run right after `BATTLE_SHARDS_ENABLED` is turned
+ * on, for the battles played between the last pass and the switch. Re-running
+ * the whole migration would work too, but it would rewrite nine thousand
+ * records to fix a few dozen — and blob writes are the rate-limited resource.
+ */
+async function catchUpMissingBattles({ limit = 500 } = {}) {
+  const startedAt = Date.now();
+  const { listBattleIds } = require("./battle-shard-store");
+
+  const legacy = await legacyListBattleRecords();
+  const shardIds = new Set(await listBattleIds());
+  const missing = legacy.filter((record) => !shardIds.has(record.id));
+  const batch = missing.slice(0, Math.max(1, Math.floor(Number(limit) || 500)));
+
+  if (batch.length) await importBattleRecords(batch);
+
+  return {
+    imported: batch.length,
+    remaining: missing.length - batch.length,
+    legacy: legacy.length,
+    shards: shardIds.size,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 module.exports = {
+  catchUpMissingBattles,
   compareBattleStores,
   migrateBattlesToShards,
 };
