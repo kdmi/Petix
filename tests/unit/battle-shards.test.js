@@ -369,3 +369,52 @@ test("a battle left behind in the legacy document is adopted on read", async () 
     });
   });
 });
+
+test("a migration run that is cut short still moves the cursor forward", async () => {
+  // Production, 2026-09-27: 400 records took ~160 s, because blob writes are
+  // rate limited. A run the platform kills must not hand the next tick the
+  // same records again — those redone writes cost the same budget as new ones.
+  await withShardEnv({ BATTLE_MIGRATION_BATCH: "2", BATTLE_MIGRATION_MAX_DURATION_MS: "1000" }, async () => {
+    await withFakeBlobEnv(async ({ battleStore }) => {
+      await withShardEnv({ BATTLE_SHARDS_ENABLED: "0" }, async () => {
+        for (let index = 0; index < 6; index += 1) {
+          await battleStore.saveBattleRecord(
+            battle(`battle_cut_${index}`, { at: `2026-08-1${index}T10:00:00.000Z` })
+          );
+        }
+      });
+
+      delete require.cache[require.resolve(MIGRATION_PATH)];
+      const { migrateBattlesToShards } = require(MIGRATION_PATH);
+      const shards = loadShardStore();
+      const { migrationDocument } = shards;
+
+      // Stop the run after its first batch by exhausting the budget.
+      const originalNow = Date.now;
+      let calls = 0;
+      Date.now = () => originalNow() + (calls++ > 2 ? 5000 : 0);
+
+      let first;
+      try {
+        first = await migrateBattlesToShards();
+      } finally {
+        Date.now = originalNow;
+      }
+
+      assert.ok(first.imported > 0 && first.imported < 6, "the run stopped early");
+      assert.equal(first.done, false);
+
+      const { data: progress } = await migrationDocument().readConsistent();
+      assert.equal(progress.migrated, first.imported, "progress is saved per batch");
+      assert.ok(progress.cursor, "and the cursor points at the last record written");
+
+      const second = await migrateBattlesToShards();
+      assert.equal(second.done, true);
+      assert.equal(
+        second.migrated,
+        6,
+        "the second run finishes the rest instead of starting over"
+      );
+    });
+  });
+});

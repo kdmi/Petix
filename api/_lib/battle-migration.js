@@ -19,12 +19,16 @@ function readIntEnv(name, fallback, minimum) {
   return Math.max(minimum, parsed);
 }
 
+// Measured on production (2026-09-27): importing 400 records took ~160 s —
+// blob writes are rate limited, so a batch is paced by the store, not by us.
+// Smaller batches mean the cursor moves more often, which is what keeps a run
+// that the platform cuts short from being redone from the beginning.
 function getBatchSize() {
-  return readIntEnv("BATTLE_MIGRATION_BATCH", 400, 1);
+  return readIntEnv("BATTLE_MIGRATION_BATCH", 100, 1);
 }
 
 function getMaxDurationMs() {
-  return readIntEnv("BATTLE_MIGRATION_MAX_DURATION_MS", 45000, 1000);
+  return readIntEnv("BATTLE_MIGRATION_MAX_DURATION_MS", 120000, 1000);
 }
 
 /** Stable order so a cursor means the same thing on every run. */
@@ -56,6 +60,7 @@ async function migrateBattlesToShards({ force = false } = {}) {
 
   let imported = 0;
   let lastId = cursor;
+  let migrated = { migrated: force ? 0 : state.migrated, done: false };
 
   // One legacy read serves several batches; stop on the time budget so the
   // invocation always returns and the next tick continues from the cursor.
@@ -66,19 +71,26 @@ async function migrateBattlesToShards({ force = false } = {}) {
     await importBattleRecords(batch);
     imported += batch.length;
     lastId = batch[batch.length - 1].id;
+
+    // Save after every batch, not at the end: an invocation the platform cuts
+    // short would otherwise hand the next tick the same records again, and
+    // those redone writes cost the same rate-limited budget as new ones.
+    migrated = await progress.mutate((current) => ({
+      ...current,
+      startedAt: current.startedAt || new Date(startedAt).toISOString(),
+      migrated: (force && imported === batch.length ? 0 : current.migrated) + batch.length,
+      cursor: lastId,
+      done: false,
+    }));
   }
 
   const remaining = pending.length - imported;
-  const migrated = await progress.mutate((current) => ({
-    ...current,
-    startedAt: current.startedAt || new Date(startedAt).toISOString(),
-    migrated: (force ? 0 : current.migrated) + imported,
-    cursor: lastId,
-    done: remaining === 0,
-  }));
+  if (remaining === 0) {
+    migrated = await progress.mutate((current) => ({ ...current, done: true }));
+  }
 
   return {
-    done: migrated.done,
+    done: Boolean(migrated.done),
     imported,
     migrated: migrated.migrated,
     remaining,
