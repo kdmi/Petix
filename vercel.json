@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/storage/battle-migrate",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {
