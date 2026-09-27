@@ -277,7 +277,8 @@ async function loadBlobStateConsistent() {
 }
 
 async function writeBlobState(state, { ifMatch = null } = {}) {
-  const json = JSON.stringify(state, null, 2);
+  // Compact: the cron rewrites this every minute and keeps a copy of each.
+  const json = JSON.stringify(state);
   await put(buildVersionPath(md5Hex(json)), json, {
     access: "public",
     addRandomSuffix: false,
@@ -450,6 +451,9 @@ async function listHoldingsFromIndex(wallet) {
 
 module.exports = {
   EMPTY_STATE,
+  // Exported for the version-blob GC (api/_lib/blob-gc.js).
+  STATE_BLOB_PATH,
+  STATE_BLOB_VERSION_PREFIX,
   appendTransferEntry,
   applyTransferToIndex,
   holdingsOf,

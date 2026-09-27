@@ -73,6 +73,7 @@ All persistence, auth, and game logic lives here and is imported by both the `ap
 - `battle.js` — battle simulation (deterministic given a seed), reveal bundle construction, and progression application to character records.
 - `battle-matchmaking.js` — opponent selection and reveal carousel candidate shortlisting.
 - `roster.js` — roster index (feature 023): a compact blob with one entry per battle-ready character, refreshed incrementally from the `uploadedAt` timestamps `list()` reports (cron `/api/roster/sync`, once a minute). Matchmaking and `/api/battles/opponents` read it instead of every wallet profile; the chosen opponent's full record still comes from its owner's profile. `ROSTER_ENABLED=0` falls back to the old full scan, which the admin roster still uses.
+- `blob-gc.js` — deletes superseded version blobs (cron `/api/storage/gc`, every 5 minutes). Every mutable document is written twice — an immutable copy at `<doc>-v/<md5>.json` plus the pointer — and nothing used to remove the copies: on 2026-09-27 the store held 541 GB in 103 377 blobs, three days of battles. The sweep never guesses which copy is current; it reads the pointer's etag (= the md5, = the copy's name) and keeps that one plus anything younger than `BLOB_GC_TTL_MS`. A document whose pointer it cannot read is left alone.
 - `battle-progression.js` — XP/level/upgrade-point math.
 - `battle-energy.js` — daily battle-energy state normalization and refill logic.
 - `battle-narration.js` — Gemini-backed narration with template fallback; respects `BATTLE_NARRATION_BUDGET_MS`.

@@ -48,6 +48,10 @@ function backdateProfileBlobs(state, uploadedAt = OLD_UPLOADED_AT) {
   }
 }
 
+function versionCopies(state) {
+  return [...state.keys()].filter((pathname) => pathname.includes("-roster-v/")).sort();
+}
+
 function rosterBlobPath(state) {
   for (const pathname of state.keys()) {
     if (pathname.endsWith("-roster.json") && !pathname.includes("-roster-v/")) {
@@ -234,9 +238,11 @@ test("an index older than ROSTER_MAX_AGE_MS is rebuilt lazily", async () => {
 
       const pathname = rosterBlobPath(state);
       const stale = JSON.parse(state.get(pathname).content);
-      stale.builtAt = "2026-09-01T00:00:00.000Z";
       stale.entries = [];
-      setEntry(pathname, JSON.stringify(stale));
+      // Age is the blob's own timestamp now — the document no longer carries a
+      // "built at" field, because changing it every minute minted a new
+      // immutable copy every minute.
+      setEntry(pathname, JSON.stringify(stale), { uploadedAt: OLD_UPLOADED_AT });
       roster.clearRosterCache();
 
       const entries = await roster.getRoster();
@@ -377,6 +383,34 @@ test("the fight uses the defender's current profile, not the indexed snapshot", 
         body.battle.defender.level,
         11,
         "the simulation must use the defender's fresh level, not the indexed one"
+      );
+    });
+  });
+});
+
+test("a sync that finds nothing new leaves no new copy behind", async () => {
+  // The index used to carry "built at" and a sync counter, so every tick of the
+  // minute cron produced different bytes — and therefore a fresh 1.5 MB
+  // immutable copy that nothing ever deleted (541 GB by 2026-09-27).
+  await withRosterEnv({}, async () => {
+    await withFakeBlobEnv(async ({ store, roster, state }) => {
+      await seedWallets(store, 3);
+      backdateProfileBlobs(state);
+      store.clearWalletProfileCache();
+
+      await roster.refreshRoster({ force: true });
+      // The first incremental pass still moves the watermark forward; from
+      // there on an idle store must produce the very same bytes.
+      await roster.refreshRoster();
+      const copiesAfterSettling = versionCopies(state);
+
+      await roster.refreshRoster();
+      await roster.refreshRoster();
+
+      assert.deepEqual(
+        versionCopies(state),
+        copiesAfterSettling,
+        "an idle sync must rewrite the same paths, not mint new ones"
       );
     });
   });
