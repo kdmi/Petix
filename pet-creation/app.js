@@ -1043,6 +1043,8 @@ const state = {
   adminErrorMessage: "",
   adminBattles: [],
   adminBattleSummary: null,
+  adminBattleDays: 30,
+  adminBattleRange: null,
   hasLoadedAdminBattles: false,
   adminBattleQuery: "",
   adminBattlePage: 1,
@@ -9827,8 +9829,9 @@ function renderAdminStats() {
 
   if (state.adminSection === "battles") {
     const summary = state.adminBattleSummary || {};
+    const windowDays = state.adminBattleRange?.days || state.adminBattleDays;
     const labels = [
-      "Completed Battles",
+      `Completed Battles (${windowDays}d)`,
       "Avg Rounds (50)",
       "Sample Size",
       "AI Narration",
@@ -10501,7 +10504,13 @@ async function loadAdminBattles({ force = false } = {}) {
   renderAdminTable();
 
   try {
-    const data = await apiRequest("/api/admin/battles", {}, "GET");
+    // Feature 025: the battle list is a window now — the old answer read every
+    // battle ever played (a 5 MB payload on top of a 103 MB document read).
+    const data = await apiRequest(
+      `/api/admin/battles?days=${encodeURIComponent(state.adminBattleDays)}`,
+      {},
+      "GET"
+    );
     state.adminBattles = Array.isArray(data.battles)
       ? data.battles.map(normalizeAdminBattleRecord).filter(Boolean)
       : [];
@@ -10528,10 +10537,12 @@ async function loadAdminBattles({ force = false } = {}) {
             ),
           }
         : null;
+    state.adminBattleRange = data.range || null;
     state.adminBattlePage = 1;
   } catch (error) {
     state.adminBattles = [];
     state.adminBattleSummary = null;
+    state.adminBattleRange = null;
     state.adminBattleErrorMessage =
       typeof error?.message === "string" ? error.message : "Failed to load completed battles.";
   } finally {

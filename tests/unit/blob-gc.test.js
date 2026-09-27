@@ -17,6 +17,10 @@ const GC_PATH = path.resolve(__dirname, "../../api/_lib/blob-gc");
 const NFT_STORE_PATH = path.resolve(__dirname, "../../api/_lib/nft-store");
 const TOKEN_STORE_PATH = path.resolve(__dirname, "../../api/_lib/token-store");
 
+function md5(text) {
+  return require("crypto").createHash("md5").update(String(text)).digest("hex");
+}
+
 function minutesAgo(minutes) {
   return new Date(Date.now() - minutes * 60000).toISOString();
 }
@@ -72,9 +76,9 @@ test("old copies go, the current one and anything inside the TTL stay", async ()
       const current = pathsUnder(state, prefix)[0];
       setEntry(current, state.get(current).content, { uploadedAt: minutesAgo(180) });
 
-      setEntry(`${prefix}aaaa.json`, "{}", { uploadedAt: minutesAgo(10) });
-      setEntry(`${prefix}bbbb.json`, "{}", { uploadedAt: minutesAgo(120) });
-      setEntry(`${prefix}cccc.json`, "{}", { uploadedAt: minutesAgo(240) });
+      setEntry(`${prefix}${md5("aaaa")}.json`, "{}", { uploadedAt: minutesAgo(10) });
+      setEntry(`${prefix}${md5("bbbb")}.json`, "{}", { uploadedAt: minutesAgo(120) });
+      setEntry(`${prefix}${md5("cccc")}.json`, "{}", { uploadedAt: minutesAgo(240) });
 
       const gc = loadBlobGc();
       const report = await gc.collectBlobGarbage();
@@ -82,9 +86,9 @@ test("old copies go, the current one and anything inside the TTL stay", async ()
       const left = pathsUnder(state, prefix);
       assert.equal(report.deleted, 2, "only the two expired copies");
       assert.ok(left.includes(current), "the copy the pointer resolves to must survive");
-      assert.ok(left.includes(`${prefix}aaaa.json`), "a copy inside the TTL must survive");
-      assert.ok(!left.includes(`${prefix}bbbb.json`));
-      assert.ok(!left.includes(`${prefix}cccc.json`));
+      assert.ok(left.includes(`${prefix}${md5("aaaa")}.json`), "a copy inside the TTL must survive");
+      assert.ok(!left.includes(`${prefix}${md5("bbbb")}.json`));
+      assert.ok(!left.includes(`${prefix}${md5("cccc")}.json`));
     });
   });
 });
@@ -106,7 +110,7 @@ test("wallet profiles are swept per wallet, so every wallet keeps its own curren
         setEntry(pathname, state.get(pathname).content, { uploadedAt: minutesAgo(300) });
       }
       for (const wallet of wallets) {
-        setEntry(`${prefix}${wallet}/0000.json`, "{}", { uploadedAt: minutesAgo(400) });
+        setEntry(`${prefix}${wallet}/${md5("0000")}.json`, "{}", { uploadedAt: minutesAgo(400) });
       }
 
       const gc = loadBlobGc();
@@ -130,7 +134,7 @@ test("a newer orphan copy never gets the current one deleted", async () => {
       const current = pathsUnder(state, prefix)[0];
 
       setEntry(current, state.get(current).content, { uploadedAt: minutesAgo(180) });
-      setEntry(`${prefix}ffff.json`, "{}", { uploadedAt: minutesAgo(60) });
+      setEntry(`${prefix}${md5("ffff")}.json`, "{}", { uploadedAt: minutesAgo(60) });
 
       const gc = loadBlobGc();
       const report = await gc.collectBlobGarbage();
@@ -146,7 +150,7 @@ test("a dry run reports the same work and deletes nothing", async () => {
     await withFakeBlobEnv(async ({ battleStore, state, setEntry }) => {
       await battleStore.saveBattleRecord({ id: "battle_dry", status: "ready" });
       const prefix = versionPrefixOf(state, "battles");
-      setEntry(`${prefix}dead.json`, "{}", { uploadedAt: minutesAgo(600) });
+      setEntry(`${prefix}${md5("dead")}.json`, "{}", { uploadedAt: minutesAgo(600) });
 
       const gc = loadBlobGc();
       const report = await gc.collectBlobGarbage({ dryRun: true });
@@ -154,7 +158,7 @@ test("a dry run reports the same work and deletes nothing", async () => {
       assert.equal(report.dryRun, true);
       assert.equal(report.deleted, 1, "it still reports what it would take");
       assert.ok(
-        pathsUnder(state, prefix).includes(`${prefix}dead.json`),
+        pathsUnder(state, prefix).includes(`${prefix}${md5("dead")}.json`),
         "a dry run must leave the store untouched"
       );
     });
@@ -167,7 +171,7 @@ test("the run stops at its delete budget and says it is not finished", async () 
       await battleStore.saveBattleRecord({ id: "battle_budget", status: "ready" });
       const prefix = versionPrefixOf(state, "battles");
       for (let index = 0; index < 5; index += 1) {
-        setEntry(`${prefix}old${index}.json`, "{}", { uploadedAt: minutesAgo(120) });
+        setEntry(`${prefix}${md5(`old${index}`)}.json`, "{}", { uploadedAt: minutesAgo(120) });
       }
 
       const gc = loadBlobGc();
@@ -185,7 +189,7 @@ test("BLOB_GC_ENABLED=0 turns the sweep off", async () => {
     await withFakeBlobEnv(async ({ battleStore, state, setEntry }) => {
       await battleStore.saveBattleRecord({ id: "battle_off", status: "ready" });
       const prefix = versionPrefixOf(state, "battles");
-      setEntry(`${prefix}dead.json`, "{}", { uploadedAt: minutesAgo(600) });
+      setEntry(`${prefix}${md5("dead")}.json`, "{}", { uploadedAt: minutesAgo(600) });
 
       const gc = loadBlobGc();
       const report = await gc.collectBlobGarbage();

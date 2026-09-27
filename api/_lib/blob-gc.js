@@ -1,5 +1,6 @@
 const { del, head, list } = require("@vercel/blob");
 
+const { isBlobNotFoundError } = require("./blob-read");
 const { isBlobDbEnabled } = require("./store");
 
 // Garbage collection for the content-addressed version blobs.
@@ -57,11 +58,58 @@ function isEnabled() {
   return String(process.env.BLOB_GC_ENABLED ?? "1").trim() !== "0";
 }
 
+const MD5_FILE = /^[a-f0-9]{32}\.json$/;
+
+// Three layouts produce version copies, so a target says how to read a copy's
+// pathname rather than the sweep assuming one shape:
+//
+//   doc      `<versionPrefix><md5>.json`               one document
+//   grouped  `<versionPrefix><wallet>/<md5>.json`      one document per wallet
+//   family   `<dir><name>-v/<md5>.json`                a directory of documents
+//
+// `groupOf` returns the document's key, or null when the blob is not a copy at
+// all (a family prefix also holds the pointers themselves).
+function docTarget(name, versionPrefix, pointerPath) {
+  return {
+    name,
+    prefix: versionPrefix,
+    groupOf: (rest) => (MD5_FILE.test(rest) ? "" : null),
+    pointerOf: () => pointerPath,
+    copyOf: (key, md5) => `${versionPrefix}${md5}.json`,
+  };
+}
+
+function groupedTarget(name, versionPrefix, pointerPrefix) {
+  return {
+    name,
+    prefix: versionPrefix,
+    groupOf: (rest) => {
+      const slash = rest.lastIndexOf("/");
+      if (slash === -1 || !MD5_FILE.test(rest.slice(slash + 1))) return null;
+      return rest.slice(0, slash);
+    },
+    pointerOf: (key) => `${pointerPrefix}${key}.json`,
+    copyOf: (key, md5) => `${versionPrefix}${key}/${md5}.json`,
+  };
+}
+
+function familyTarget(name, directory) {
+  const COPY = /^(.+)-v\/([a-f0-9]{32})\.json$/;
+  return {
+    name,
+    prefix: directory,
+    groupOf: (rest) => {
+      const match = COPY.exec(rest);
+      return match ? match[1] : null;
+    },
+    pointerOf: (key) => `${directory}${key}.json`,
+    copyOf: (key, md5) => `${directory}${key}-v/${md5}.json`,
+  };
+}
+
 /**
  * The version prefixes, asked of the modules that own them — a store that
  * changes its layout drags this list along instead of silently escaping it.
- * `pointerOf(group)` names the mutable blob whose etag says which copy is
- * current; `grouped` marks a prefix that holds one folder per document.
  */
 function getTargets() {
   const { BATTLES_BLOB_PATH, BATTLES_BLOB_VERSION_PREFIX } = require("./battle-store");
@@ -75,47 +123,26 @@ function getTargets() {
   } = require("./token-store");
   const { ROSTER_BLOB_PATH, ROSTER_VERSION_PREFIX } = require("./roster");
   const { WALLET_PROFILE_BLOB_PREFIX, WALLET_PROFILE_VERSION_PREFIX } = require("./store");
+  const {
+    DAY_INDEX_PREFIX,
+    HOUR_INDEX_PREFIX,
+    SHARD_PREFIX,
+    WALLET_INDEX_PREFIX,
+  } = require("./battle-shard-store");
 
   return [
-    {
-      name: "battles",
-      prefix: BATTLES_BLOB_VERSION_PREFIX,
-      grouped: false,
-      pointerOf: () => BATTLES_BLOB_PATH,
-    },
-    {
-      name: "roster",
-      prefix: ROSTER_VERSION_PREFIX,
-      grouped: false,
-      pointerOf: () => ROSTER_BLOB_PATH,
-    },
-    {
-      name: "nft",
-      prefix: NFT_VERSION_PREFIX,
-      grouped: false,
-      pointerOf: () => NFT_STATE_PATH,
-    },
-    {
-      name: "token",
-      prefix: TOKEN_VERSION_PREFIX,
-      grouped: false,
-      pointerOf: () => TOKEN_STATE_PATH,
-    },
-    {
-      name: "wallet-profiles",
-      prefix: WALLET_PROFILE_VERSION_PREFIX,
-      grouped: true,
-      // The group key is the wallet exactly as the version path spells it.
-      pointerOf: (wallet) => `${WALLET_PROFILE_BLOB_PREFIX}/${wallet}.json`,
-    },
+    docTarget("battles", BATTLES_BLOB_VERSION_PREFIX, BATTLES_BLOB_PATH),
+    docTarget("roster", ROSTER_VERSION_PREFIX, ROSTER_BLOB_PATH),
+    docTarget("nft", NFT_VERSION_PREFIX, NFT_STATE_PATH),
+    docTarget("token", TOKEN_VERSION_PREFIX, TOKEN_STATE_PATH),
+    groupedTarget("wallet-profiles", WALLET_PROFILE_VERSION_PREFIX, `${WALLET_PROFILE_BLOB_PREFIX}/`),
+    // Feature 025: one document per battle, plus the per-wallet and per-hour
+    // indexes. Each is its own little document with its own copies.
+    familyTarget("battle-shards", SHARD_PREFIX),
+    familyTarget("battle-index-wallets", WALLET_INDEX_PREFIX),
+    familyTarget("battle-index-hours", HOUR_INDEX_PREFIX),
+    familyTarget("battle-index-days", DAY_INDEX_PREFIX),
   ];
-}
-
-/** `<prefix><wallet>/<md5>.json` → `<wallet>`; one group per document. */
-function groupKeyOf(pathname, prefix) {
-  const rest = String(pathname || "").slice(prefix.length);
-  const slash = rest.lastIndexOf("/");
-  return slash === -1 ? "" : rest.slice(0, slash);
 }
 
 function uploadedAtMs(blob) {
@@ -130,13 +157,27 @@ function etagToMd5(etag) {
   return /^[a-f0-9]{32}$/.test(cleaned) ? cleaned : "";
 }
 
-/** The copy the pointer currently resolves to, or "" when we cannot tell. */
+/**
+ * Which copy this document's pointer resolves to.
+ * - `{ path }`   keep that copy, the rest is garbage
+ * - `{ gone: true }` the pointer is gone (a rolled-up hour file, a deleted
+ *   battle): every copy of it is garbage
+ * - `{ unknown: true }` we could not tell — leave the document alone
+ */
 async function resolveCurrentVersionPath(target, groupKey) {
   const pointer = target.pointerOf(groupKey);
-  const meta = await head(pointer).catch(() => null);
+
+  let meta = null;
+  try {
+    meta = await head(pointer);
+  } catch (error) {
+    if (isBlobNotFoundError(error)) return { gone: true };
+    return { unknown: true };
+  }
+
   const md5 = etagToMd5(meta?.etag);
-  if (!md5) return "";
-  return target.grouped ? `${target.prefix}${groupKey}/${md5}.json` : `${target.prefix}${md5}.json`;
+  if (!md5) return { unknown: true };
+  return { path: target.copyOf(groupKey, md5) };
 }
 
 function createBudget({ maxDeletes, maxDurationMs, startedAt }) {
@@ -171,8 +212,12 @@ async function pruneTarget(target, { now, ttlMs, budget, dryRun }) {
     });
 
     for (const blob of page.blobs || []) {
+      const key = target.groupOf(blob.pathname.slice(target.prefix.length));
+      // Not a version copy (a pointer blob sharing the directory) — the sweep
+      // only ever deletes copies.
+      if (key === null) continue;
+
       stats.scanned += 1;
-      const key = target.grouped ? groupKeyOf(blob.pathname, target.prefix) : "";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(blob);
     }
@@ -204,20 +249,24 @@ async function pruneTarget(target, { now, ttlMs, budget, dryRun }) {
       break;
     }
 
-    // A single copy is by definition the current one — no pointer read needed.
     const expired = blobs.filter((blob) => now - uploadedAtMs(blob) > ttlMs);
-    if (blobs.length <= 1 || !expired.length) continue;
+    if (!expired.length) continue;
 
-    const currentPath = await resolveCurrentVersionPath(target, key);
-    if (!currentPath) {
-      // No pointer, or an etag we cannot read: leave this document alone
-      // rather than risk deleting the copy its readers resolve to.
+    const current = await resolveCurrentVersionPath(target, key);
+    if (current.unknown) {
+      // An etag we cannot read, or a pointer read that failed for some other
+      // reason: leave this document alone rather than risk deleting the copy
+      // its readers resolve to.
       stats.unresolved += 1;
       continue;
     }
 
+    // `gone` means the document itself was deleted, so nothing points at any
+    // of these copies any more and all of them go.
+    const currentPath = current.gone ? null : current.path;
+
     for (const blob of expired) {
-      if (blob.pathname === currentPath) continue;
+      if (currentPath && blob.pathname === currentPath) continue;
       if (budget.remaining <= 0) {
         stats.truncated = true;
         break;
@@ -283,5 +332,4 @@ async function collectBlobGarbage({ dryRun = false } = {}) {
 module.exports = {
   collectBlobGarbage,
   getTargets,
-  groupKeyOf,
 };

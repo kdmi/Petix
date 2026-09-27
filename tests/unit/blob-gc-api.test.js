@@ -19,6 +19,10 @@ const INTERNAL_SECRET = "petix-storage-internal-secret-value";
 // The project's public admin wallet, the fixture the other admin tests use.
 const ADMIN_WALLET = "0x0e8Caf9eca5E45df0E6f50f58A5bF664db1740c1";
 
+function md5(text) {
+  return require("crypto").createHash("md5").update(String(text)).digest("hex");
+}
+
 function freshRequire(modulePath) {
   delete require.cache[require.resolve(modulePath)];
   return require(modulePath);
@@ -84,7 +88,7 @@ test("the cron and internal tooling can run the sweep", async () => {
     await withFakeBlobEnv(async ({ battleStore, state, setEntry }) => {
       await battleStore.saveBattleRecord({ id: "battle_api", status: "ready" });
       const stale = [...state.keys()].find((pathname) => pathname.includes("-battles-v/"));
-      setEntry(`${stale.replace(/[^/]+$/, "")}0000.json`, "{}", {
+      setEntry(`${stale.replace(/[^/]+$/, "")}${md5("0000")}.json`, "{}", {
         uploadedAt: new Date(Date.now() - 6 * 3600000).toISOString(),
       });
 
@@ -135,7 +139,7 @@ test("an admin session can look before anything is deleted", async () => {
     await withFakeBlobEnv(async ({ battleStore, state, setEntry }) => {
       await battleStore.saveBattleRecord({ id: "battle_admin", status: "ready" });
       const versionPath = [...state.keys()].find((pathname) => pathname.includes("-battles-v/"));
-      const orphan = `${versionPath.replace(/[^/]+$/, "")}1111.json`;
+      const orphan = `${versionPath.replace(/[^/]+$/, "")}${md5("1111")}.json`;
       setEntry(orphan, "{}", { uploadedAt: new Date(Date.now() - 6 * 3600000).toISOString() });
 
       const auth = freshRequire(AUTH_PATH);
