@@ -418,3 +418,48 @@ test("a migration run that is cut short still moves the cursor forward", async (
     });
   });
 });
+
+test("the catch-up pass imports only what the shards are missing", async () => {
+  // A battle played *while* the migration runs gets an id that sorts before
+  // the cursor, so the cursor-based pass has already walked past its place.
+  // Production left 38 of them behind on the first run (2026-09-27).
+  await withShardEnv({}, async () => {
+    await withFakeBlobEnv(async ({ battleStore, counts, resetCounts }) => {
+      await withShardEnv({ BATTLE_SHARDS_ENABLED: "0" }, async () => {
+        for (let index = 0; index < 4; index += 1) {
+          await battleStore.saveBattleRecord(
+            battle(`battle_pass_${index}`, { at: `2026-08-2${index}T10:00:00.000Z` })
+          );
+        }
+      });
+
+      delete require.cache[require.resolve(MIGRATION_PATH)];
+      const { catchUpMissingBattles, migrateBattlesToShards } = require(MIGRATION_PATH);
+      await migrateBattlesToShards();
+
+      // Now a battle lands in the legacy document after the pass is done.
+      await withShardEnv({ BATTLE_SHARDS_ENABLED: "0" }, async () => {
+        await battleStore.saveBattleRecord(
+          battle("battle_aaa_latecomer", { at: "2026-08-25T10:00:00.000Z" })
+        );
+      });
+
+      const plain = await migrateBattlesToShards();
+      assert.equal(plain.imported, 0, "the cursor pass cannot reach it");
+
+      resetCounts();
+      const caught = await catchUpMissingBattles();
+      assert.equal(caught.imported, 1, "the catch-up pass does");
+      assert.equal(caught.remaining, 0);
+      assert.ok(
+        counts.put < 20,
+        `it must write the missing record, not all of them (wrote ${counts.put} blobs)`
+      );
+
+      const shards = loadShardStore();
+      assert.ok(await shards.getBattleRecord("battle_aaa_latecomer"));
+      const history = await shards.listBattleHistoryForWallet(ATTACKER, { limit: 10 });
+      assert.equal(history.history.length, 5, "and it shows up in the player's history");
+    });
+  });
+});

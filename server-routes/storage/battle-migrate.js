@@ -5,7 +5,11 @@ const {
   isAdminSession,
   json,
 } = require("../../api/_lib/auth");
-const { compareBattleStores, migrateBattlesToShards } = require("../../api/_lib/battle-migration");
+const {
+  catchUpMissingBattles,
+  compareBattleStores,
+  migrateBattlesToShards,
+} = require("../../api/_lib/battle-migration");
 
 // Feature 025 migration: moves pre-025 battles into the sharded layout, one
 // batch per call. Same callers as the other jobs — cron, internal tooling, or
@@ -46,6 +50,14 @@ module.exports = async (req, res) => {
   try {
     if (isTruthy(requestUrl.searchParams.get("compare"))) {
       json(res, 200, { ok: true, ...(await compareBattleStores()) });
+      return;
+    }
+
+    if (isTruthy(requestUrl.searchParams.get("catchup"))) {
+      // Only the records the shards are missing — battles played while the
+      // cursor-based pass was running, or between that pass and the switch.
+      const limit = requestUrl.searchParams.get("limit");
+      json(res, 200, { ok: true, ...(await catchUpMissingBattles(limit ? { limit } : {})) });
       return;
     }
 
