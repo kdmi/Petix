@@ -97,6 +97,9 @@ Minimum recommended variables:
 | `BLOB_GC_MAX_DELETES` | Optional | Deletes per run, default `4000`; a backlog is drained across several cron ticks |
 | `BLOB_GC_MAX_DURATION_MS` | Optional | Wall-clock budget per run, default `45000` |
 | `BLOB_GC_MAX_SCAN` | Optional | Blobs listed per prefix per run, default `20000` (bounds the memory one run needs) |
+| `BATTLE_SHARDS_ENABLED` | Optional | `1` stores each battle in its own blob with per-wallet and per-hour indexes (feature 025); `0` (default) keeps the single legacy battles document. While the flag is on, a record the shards do not have yet is still served from the legacy document and adopted on read |
+| `BATTLE_MIGRATION_BATCH` | Optional | Battles imported per batch by `/api/storage/battle-migrate`, default `400` |
+| `BATTLE_MIGRATION_MAX_DURATION_MS` | Optional | Wall-clock budget for one migration call, default `45000`; the cron continues from the cursor |
 
 #### NFT slots demo (feature 016)
 

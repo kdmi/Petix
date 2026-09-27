@@ -2,7 +2,7 @@ const { getSessionFromRequest, handleCors, isAdminSession, json } = require("../
 const { normalizeFarmState } = require("../../api/_lib/farm");
 const { readDb } = require("../../api/_lib/store");
 const { getRosterStatus } = require("../../api/_lib/roster");
-const { listBattleRecords } = require("../../api/_lib/battle-store");
+const { areBattleShardsEnabled, listBattleRecords } = require("../../api/_lib/battle-store");
 
 // Reward pool reference (Points = $PETIX 1:1). Решение 2026-09-17: пул = dev buy
 // 100M токенов при запуске на Pons (было 10M/год по 013). Переопределяется env.
@@ -57,11 +57,18 @@ module.exports = async (req, res) => {
   let emittedLast24h = 0;
   try {
     const now = Date.now();
-    const battles = await listBattleRecords();
-    for (const record of battles) {
-      const ts = recordTimestamp(record);
-      if (Number.isFinite(ts) && now - ts <= DAY_MS) {
-        emittedLast24h += Number(record.coinReward) || 0;
+    if (areBattleShardsEnabled()) {
+      // Sharded storage answers this from the battle index; scanning every
+      // record would now mean one blob read per battle ever played.
+      const { sumCoinRewardSince } = require("../../api/_lib/battle-shard-store");
+      emittedLast24h = await sumCoinRewardSince(now - DAY_MS);
+    } else {
+      const battles = await listBattleRecords();
+      for (const record of battles) {
+        const ts = recordTimestamp(record);
+        if (Number.isFinite(ts) && now - ts <= DAY_MS) {
+          emittedLast24h += Number(record.coinReward) || 0;
+        }
       }
     }
   } catch {

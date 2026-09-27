@@ -15,6 +15,14 @@
     {
       "path": "/api/storage/gc",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/storage/battle-rollup",
+      "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/storage/battle-migrate",
+      "schedule": "*/2 * * * *"
     }
   ],
   "functions": {

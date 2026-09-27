@@ -20,6 +20,11 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const payload = await listAdminCompletedBattles();
-  json(res, 200, payload);
+  // Feature 025: a window, not the whole history. The sharded store reads the
+  // per-day index files for the range; the legacy store ignores the parameter
+  // and still answers with everything it has.
+  const requestUrl = new URL(req.url, "http://localhost");
+  const days = requestUrl.searchParams.get("days");
+
+  json(res, 200, await listAdminCompletedBattles(days ? { days } : {}));
 };

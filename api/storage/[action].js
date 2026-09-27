@@ -3,6 +3,8 @@ const { json } = require("../_lib/auth");
 
 const HANDLERS = {
   gc: require("../../server-routes/storage/gc"),
+  "battle-migrate": require("../../server-routes/storage/battle-migrate"),
+  "battle-rollup": require("../../server-routes/storage/battle-rollup"),
 };
 
 module.exports = async (req, res) => {

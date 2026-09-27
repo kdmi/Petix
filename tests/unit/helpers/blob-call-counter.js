@@ -20,6 +20,14 @@ const BLOB_READ_PATH = path.resolve(__dirname, "../../../api/_lib/blob-read.js")
 const STORE_PATH = path.resolve(__dirname, "../../../api/_lib/store.js");
 const BATTLE_STORE_PATH = path.resolve(__dirname, "../../../api/_lib/battle-store.js");
 const ROSTER_PATH = path.resolve(__dirname, "../../../api/_lib/roster.js");
+// Feature 025 modules: they read env at load time and hold the blob client, so
+// they have to be re-required inside the fake environment like the rest.
+const SHARD_MODULE_PATHS = [
+  path.resolve(__dirname, "../../../api/_lib/blob-doc.js"),
+  path.resolve(__dirname, "../../../api/_lib/battle-record.js"),
+  path.resolve(__dirname, "../../../api/_lib/battle-shard-store.js"),
+  path.resolve(__dirname, "../../../api/_lib/battle-migration.js"),
+];
 const AUTH_PATH = path.resolve(__dirname, "../../../api/_lib/auth.js");
 const BATTLE_LIB_PATH = path.resolve(__dirname, "../../../api/_lib/battle.js");
 const BATTLE_MATCHMAKING_PATH = path.resolve(__dirname, "../../../api/_lib/battle-matchmaking.js");
@@ -58,7 +66,7 @@ function blobPreconditionFailed() {
 
 function createFakeBlob({ initialState = {} } = {}) {
   const state = new Map(Object.entries(initialState));
-  const counts = { get: 0, put: 0, list: 0, del: 0, head: 0, copy: 0 };
+  const counts = { get: 0, put: 0, list: 0, del: 0, head: 0, copy: 0, putBytes: 0 };
   // Peak number of get() calls in flight at the same moment — real blob reads
   // cost a socket each, so tests can assert that a bulk scan stays bounded.
   const concurrency = { get: 0, peakGet: 0 };
@@ -152,6 +160,7 @@ function createFakeBlob({ initialState = {} } = {}) {
           throw blobPreconditionFailed();
         }
       }
+      counts.putBytes += String(content).length;
       setEntry(pathname, content, { uploadedAt: new Date().toISOString() });
       return {
         url: `mock://${pathname}`,
@@ -253,6 +262,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
     clearModule(ROSTER_PATH);
+    SHARD_MODULE_PATHS.forEach(clearModule);
 
     const store = require(STORE_PATH);
     const battleStore = require(BATTLE_STORE_PATH);
@@ -276,6 +286,7 @@ async function withFakeBlobEnv(run, { initialState = {} } = {}) {
     clearModule(STORE_PATH);
     clearModule(BATTLE_STORE_PATH);
     clearModule(ROSTER_PATH);
+    SHARD_MODULE_PATHS.forEach(clearModule);
 
     if (originalCachedBlob) {
       require.cache[BLOB_MODULE_ID] = originalCachedBlob;
@@ -318,6 +329,7 @@ async function withFakeBlobIntegrationEnv(run, { initialState = {} } = {}) {
     NOTIFICATION_PATH,
     BATTLE_NARRATION_PATH,
     BATTLES_ROUTE_PATH,
+    ...SHARD_MODULE_PATHS,
   ];
 
   try {
