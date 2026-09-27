@@ -323,8 +323,12 @@ function md5Hex(text) {
   return crypto.createHash("md5").update(text).digest("hex");
 }
 
+// One folder per wallet under this prefix; the GC (api/_lib/blob-gc.js) walks
+// it folder by folder, so the layout below is part of that contract.
+const WALLET_PROFILE_VERSION_PREFIX = `${WALLET_PROFILE_BLOB_PREFIX}-v/`;
+
 function buildWalletProfileVersionPath(wallet, contentMd5) {
-  return `${WALLET_PROFILE_BLOB_PREFIX}-v/${encodeURIComponent(String(wallet || "").trim())}/${contentMd5}.json`;
+  return `${WALLET_PROFILE_VERSION_PREFIX}${encodeURIComponent(String(wallet || "").trim())}/${contentMd5}.json`;
 }
 
 function extractWalletFromProfileBlobPath(pathname) {
@@ -555,7 +559,9 @@ function mergeRecordMaps(...maps) {
 }
 
 async function writeWalletProfileBlob(wallet, profile, { ifMatch = null } = {}) {
-  const json = JSON.stringify(normalizeWalletProfile(profile), null, 2);
+  // Compact — every write also leaves an immutable copy behind, so the
+  // indentation was paid for twice and read by no one.
+  const json = JSON.stringify(normalizeWalletProfile(profile));
 
   // 1. Immutable content-addressed version FIRST — readers resolve the
   //    deterministic blob's etag (= md5 of this json) to this pathname, so
@@ -1001,6 +1007,9 @@ function createImageStore() {
 }
 
 module.exports = {
+  // Exported for the version-blob GC (api/_lib/blob-gc.js).
+  WALLET_PROFILE_BLOB_PREFIX,
+  WALLET_PROFILE_VERSION_PREFIX,
   clearWalletProfileCache,
   createImageStore,
   deleteCharacterById,

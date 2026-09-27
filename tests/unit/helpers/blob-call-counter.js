@@ -119,7 +119,14 @@ function createFakeBlob({ initialState = {} } = {}) {
         return {
           statusCode: 200,
           stream: makeReadableStream(entry.content),
-          blob: { etag: entry.etag || entry.uploadedAt },
+          // The real get() returns the blob's metadata too, `uploadedAt`
+          // included — roster freshness is read from it.
+          blob: {
+            pathname: cleanPath,
+            etag: entry.etag || entry.uploadedAt,
+            uploadedAt: entry.uploadedAt,
+            size: entry.content.length,
+          },
         };
       } finally {
         concurrency.get -= 1;
@@ -165,6 +172,8 @@ function createFakeBlob({ initialState = {} } = {}) {
           });
         }
       }
+      // The real list() returns blobs ordered by pathname.
+      blobs.sort((left, right) => left.pathname.localeCompare(right.pathname));
       return { blobs, hasMore: false, cursor: null };
     },
     async del(pathname) {

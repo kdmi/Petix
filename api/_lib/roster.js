@@ -67,8 +67,19 @@ function getWatermarkOverlapMs() {
   return readIntEnv("ROSTER_WATERMARK_OVERLAP_MS", 30000, 0);
 }
 
-function getFullSyncEvery() {
-  return readIntEnv("ROSTER_FULL_EVERY", 60, 1);
+// How often the index is rebuilt from a full scan instead of the watermark.
+// This used to count syncs (ROSTER_FULL_EVERY), which meant the counter had to
+// live inside the document and change it on every tick; with the counter gone
+// the same "roughly once an hour" is expressed in time.
+function getFullSyncEveryMs() {
+  const legacyEvery = Number.parseInt(process.env.ROSTER_FULL_EVERY || "", 10);
+  const fallback = Number.isFinite(legacyEvery) && legacyEvery > 0 ? legacyEvery * 60000 : 3600000;
+  return readIntEnv("ROSTER_FULL_EVERY_MS", fallback, 60000);
+}
+
+function fullSyncAgeMs(document) {
+  const fullSyncAt = Date.parse(document?.fullSyncAt || "");
+  return Number.isFinite(fullSyncAt) ? Date.now() - fullSyncAt : Number.POSITIVE_INFINITY;
 }
 
 let rosterCache = null; // { promise, expiresAt } | null
@@ -138,12 +149,16 @@ function normalizeRosterDocument(raw) {
     return null;
   }
 
+  // Only fields that describe the roster itself. A timestamp of "when this
+  // sync ran" used to live here too, and it changed the content every single
+  // minute — which minted a fresh 1.5 MB immutable copy every minute, forever
+  // (2026-09-27). Freshness now comes from the blob's own uploadedAt, so a
+  // sync that finds nothing new rewrites the same bytes to the same paths and
+  // costs no storage at all.
   return {
     version: ROSTER_VERSION,
-    builtAt: raw.builtAt || null,
     watermark: raw.watermark || null,
     fullSyncAt: raw.fullSyncAt || null,
-    syncCount: Number.isFinite(Number(raw.syncCount)) ? Number(raw.syncCount) : 0,
     entries,
   };
 }
@@ -203,12 +218,24 @@ async function readBlobText(stream) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+// `refreshedAt` is storage metadata, not part of the document — it says when
+// the sync last confirmed this roster, which is what staleness is measured
+// against. It is never written back (see writeRosterDocument).
+function withRefreshedAt(document, refreshedAt) {
+  if (!document) return null;
+  return { ...document, refreshedAt: refreshedAt || null };
+}
+
 async function readRosterDocument({ consistent = false } = {}) {
   if (!isBlobDbEnabled()) {
     const raw = await fs.readFile(ROSTER_FILE_PATH, "utf8").catch(() => null);
     if (!raw) return null;
+    const stat = await fs.stat(ROSTER_FILE_PATH).catch(() => null);
     try {
-      return normalizeRosterDocument(JSON.parse(raw));
+      return withRefreshedAt(
+        normalizeRosterDocument(JSON.parse(raw)),
+        stat ? new Date(stat.mtimeMs).toISOString() : null
+      );
     } catch {
       return null;
     }
@@ -218,15 +245,23 @@ async function readRosterDocument({ consistent = false } = {}) {
   if (!blob || blob.statusCode !== 200) return null;
 
   const raw = await readBlobText(blob.stream);
+  const uploadedAt = blob.blob?.uploadedAt ? new Date(blob.blob.uploadedAt).toISOString() : null;
   try {
-    return normalizeRosterDocument(JSON.parse(raw));
+    return withRefreshedAt(normalizeRosterDocument(JSON.parse(raw)), uploadedAt);
   } catch {
     return null;
   }
 }
 
 async function writeRosterDocument(document) {
-  const json = JSON.stringify(document);
+  // Serialize the canonical fields only: anything volatile in here would mint
+  // a new immutable copy on every sync.
+  const json = JSON.stringify({
+    version: ROSTER_VERSION,
+    watermark: document.watermark || null,
+    fullSyncAt: document.fullSyncAt || null,
+    entries: document.entries,
+  });
 
   if (!isBlobDbEnabled()) {
     await fs.mkdir(path.dirname(ROSTER_FILE_PATH), { recursive: true });
@@ -285,10 +320,8 @@ async function buildFullRosterDocument() {
   return {
     document: {
       version: ROSTER_VERSION,
-      builtAt: now,
       watermark,
       fullSyncAt: now,
-      syncCount: 0,
       entries,
     },
     walletsScanned,
@@ -296,8 +329,8 @@ async function buildFullRosterDocument() {
 }
 
 function documentAgeMs(document) {
-  const builtAt = Date.parse(document?.builtAt || "");
-  return Number.isFinite(builtAt) ? Date.now() - builtAt : Number.POSITIVE_INFINITY;
+  const refreshedAt = Date.parse(document?.refreshedAt || "");
+  return Number.isFinite(refreshedAt) ? Date.now() - refreshedAt : Number.POSITIVE_INFINITY;
 }
 
 async function refreshRoster({ force = false } = {}) {
@@ -328,7 +361,7 @@ async function refreshRoster({ force = false } = {}) {
     force ||
     !current ||
     !current.watermark ||
-    current.syncCount >= getFullSyncEvery();
+    fullSyncAgeMs(current) >= getFullSyncEveryMs();
 
   if (needsFull) {
     const { document, walletsScanned } = await buildFullRosterDocument();
@@ -390,10 +423,8 @@ async function refreshRoster({ force = false } = {}) {
   const latest = latestUploadedAt(blobs);
   const document = {
     version: ROSTER_VERSION,
-    builtAt: new Date().toISOString(),
     watermark: latest ? new Date(latest).toISOString() : current.watermark,
     fullSyncAt: current.fullSyncAt,
-    syncCount: (current.syncCount || 0) + 1,
     entries,
   };
 
@@ -470,7 +501,8 @@ async function getRosterStatus() {
 
   return {
     enabled,
-    builtAt: document.builtAt,
+    // When the sync last confirmed this roster (the blob's own timestamp).
+    builtAt: document.refreshedAt,
     ageMs: Number.isFinite(documentAgeMs(document)) ? documentAgeMs(document) : null,
     entries: document.entries.length,
     wallets: new Set(document.entries.map((entry) => entry.wallet)).size,
@@ -480,6 +512,9 @@ async function getRosterStatus() {
 
 module.exports = {
   ROSTER_VERSION,
+  // Exported for the version-blob GC (api/_lib/blob-gc.js).
+  ROSTER_BLOB_PATH,
+  ROSTER_VERSION_PREFIX,
   buildRosterEntry,
   clearRosterCache,
   getRoster,

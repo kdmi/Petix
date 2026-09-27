@@ -425,7 +425,9 @@ async function writeLocalDb(db) {
 }
 
 async function writeBlobDb(db, { ifMatch = null } = {}) {
-  const json = JSON.stringify(db, null, 2);
+  // Compact: nobody reads this by eye, and the indentation was a quarter of
+  // every copy — of a document that is rewritten twice per battle.
+  const json = JSON.stringify(db);
 
   // 1. Immutable content-addressed version FIRST — readers resolve the
   //    pointer blob's etag (= md5 of this json) to this pathname, so it must
@@ -593,6 +595,10 @@ async function listAdminCompletedBattles() {
 }
 
 module.exports = {
+  // Exported for the version-blob GC (api/_lib/blob-gc.js): the pointer says
+  // which copy is current, the prefix says where the copies live.
+  BATTLES_BLOB_PATH,
+  BATTLES_BLOB_VERSION_PREFIX,
   buildAdminBattleSummary,
   buildAdminCompletedBattleEntry,
   buildBattleHistoryEntry,

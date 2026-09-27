@@ -91,7 +91,12 @@ Minimum recommended variables:
 | `ROSTER_CACHE_TTL_MS` | Optional | How long one function instance reuses the roster index it loaded, default `60000` |
 | `ROSTER_MAX_AGE_MS` | Optional | Older than this, the next request rebuilds the index from a full scan, default `600000` |
 | `ROSTER_WATERMARK_OVERLAP_MS` | Optional | How far before the stored watermark an incremental sync starts re-reading profiles, default `30000` (blob timestamps have second granularity) |
-| `ROSTER_FULL_EVERY` | Optional | Full reconciliation every N incremental syncs, default `60` (≈hourly with the minute cron) |
+| `ROSTER_FULL_EVERY_MS` | Optional | How old the last full reconciliation may get before the next sync does one, default `3600000` (the legacy `ROSTER_FULL_EVERY`, counted in syncs, is still read and treated as minutes) |
+| `BLOB_GC_ENABLED` | Optional | `1` (default) lets `/api/storage/gc` delete superseded version blobs; `0` stops the sweep |
+| `BLOB_GC_TTL_MS` | Optional | How long a version blob is kept after it stops being the current one, default `1800000`. Covers readers in flight and writers racing the sweep |
+| `BLOB_GC_MAX_DELETES` | Optional | Deletes per run, default `4000`; a backlog is drained across several cron ticks |
+| `BLOB_GC_MAX_DURATION_MS` | Optional | Wall-clock budget per run, default `45000` |
+| `BLOB_GC_MAX_SCAN` | Optional | Blobs listed per prefix per run, default `20000` (bounds the memory one run needs) |
 
 #### NFT slots demo (feature 016)
 

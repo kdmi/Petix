@@ -11,6 +11,10 @@
     {
       "path": "/api/roster/sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/storage/gc",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {
