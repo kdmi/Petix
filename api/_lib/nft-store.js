@@ -101,6 +101,11 @@ function normalizeBinding(tokenId, raw) {
     imageUri: raw.imageUri ? String(raw.imageUri) : null,
     imageGatewayUrl: raw.imageGatewayUrl ? String(raw.imageGatewayUrl) : null,
     boundAt: raw.boundAt || null,
+    // Feature 027: когда капсула приехала к нынешнему владельцу. До конца
+    // этого батл-дня её бонусы не считаются — иначе ротация просто возила бы
+    // жирные капсулы вместе с питомцем. Поле обязано быть здесь: нормализация
+    // выбрасывает всё, чего нет в этом списке.
+    movedAt: raw.movedAt || null,
     refreshedAt: raw.refreshedAt || null,
     // Обновление витрины не доехало (маркетплейс лёг или сработал дебаунс) —
     // токен ждёт, пока его дошлёт крон.

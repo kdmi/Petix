@@ -2,7 +2,11 @@ const crypto = require("crypto");
 const { getCapsuleTier } = require("./nft-tiers");
 const fs = require("fs/promises");
 const path = require("path");
-const { buildBattleStateView } = require("./battle-energy");
+const {
+  buildBattleStateView,
+  getNextBattleResetAt,
+  isSameBattleDay,
+} = require("./battle-energy");
 const {
   getExperienceForNextLevel,
   normalizeProgression,
@@ -1180,6 +1184,11 @@ function serializeCharacterRecord(record, options = {}) {
     softCurrency: progress.softCurrency,
     attributePointsAvailable: progress.attributePointsAvailable,
     attributePoints: getAttributePointBudget(record),
+    // Feature 027: a pet that changed owner today cannot fight until the daily
+    // reset. The card shows the countdown; null means it is free to fight.
+    settlingUntil: isSameBattleDay(record.transferredAt)
+      ? getNextBattleResetAt().toISOString()
+      : null,
     variables: record.variables,
     prompts: record.prompts,
     generation: record.generation,

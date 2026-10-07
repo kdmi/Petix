@@ -19,8 +19,14 @@ const {
 const {
   assertBattleEnergyAvailable,
   consumeBattleEnergy,
+  getNextBattleResetAt,
+  isSameBattleDay,
   refundBattleEnergy,
 } = require("../_lib/battle-energy");
+
+// Feature 027: a pet (or a capsule) that arrived today is dormant until the
+// daily reset — see api/_lib/battle-energy.js.
+const PET_SETTLING_ERROR_CODE = "PET_SETTLING";
 const { applyBattleXpReward, revertBattleXpReward } = require("../_lib/battle-progression");
 const { serializeBattleState } = require("../_lib/character");
 const {
@@ -369,6 +375,22 @@ module.exports = async (req, res) => {
       attackerWallet: session.wallet,
     });
     const attackerProfile = await getWalletProfile(attacker.wallet);
+
+    // Feature 027: a pet that arrived in this wallet today cannot fight today.
+    // Energy is a property of the wallet, XP a property of the pet, so a pet
+    // walked from wallet to wallet used to collect a fresh day's allowance
+    // from each one. Measured in battle days, not hours: the energy reset is
+    // the boundary the rotation was timed against.
+    const attackerRecord = attackerProfile.characters?.find(
+      (record) => record.id === attackerPetId
+    );
+    if (isSameBattleDay(attackerRecord?.transferredAt)) {
+      const error = new Error("This pet is settling in and cannot fight until the daily reset.");
+      error.code = PET_SETTLING_ERROR_CODE;
+      error.readyAt = getNextBattleResetAt().toISOString();
+      throw error;
+    }
+
     // Редкие капсулы поднимают дневной лимит боёв (018). Без капсул — ноль, и
     // проверка остаётся ровно прежней.
     attackerCapsuleBonus = await getWalletCapsuleBonus(attacker.wallet);
@@ -585,6 +607,15 @@ module.exports = async (req, res) => {
       json(res, 400, {
         error: "DAILY_BATTLE_LIMIT_REACHED",
         message: error.message || "You have used all battles for today.",
+      });
+      return;
+    }
+
+    if (error?.code === PET_SETTLING_ERROR_CODE) {
+      json(res, 400, {
+        error: PET_SETTLING_ERROR_CODE,
+        message: error.message || "This pet cannot fight until the daily reset.",
+        readyAt: error.readyAt || null,
       });
       return;
     }
