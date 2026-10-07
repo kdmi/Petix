@@ -8275,6 +8275,28 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   letter-spacing: 0;
 }
 
+/* Пет отдыхает после переезда с другого кошелька (027): тот же бейдж-таймер,
+   что у сжигания, но серый — это не тревога, а временная блокировка. */
+.success-card-nft-badge--settling {
+  align-items: center;
+  background: #f2f4f7;
+  color: #475467;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  gap: 3px;
+  letter-spacing: 0;
+}
+
+.success-card-nft-badge--settling svg {
+  display: block;
+}
+
+/* Карточка на паузе: приглушаем только картинку. Рамку капсулы не трогаем —
+   тир никуда не делся, а про блокировку говорит таймер с замком. */
+.cabinet-character--settling .success-card-image {
+  opacity: 0.5;
+}
+
 .success-card-nft-badge--burning img {
   display: block;
 }

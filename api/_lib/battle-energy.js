@@ -121,6 +121,22 @@ function getNextBattleResetAt(now = new Date()) {
   );
 }
 
+/**
+ * Did this timestamp land inside the battle day `now` belongs to?
+ *
+ * Feature 027: whatever arrives in a wallet stays dormant for the rest of that
+ * battle day. The rule is deliberately expressed in battle days rather than in
+ * hours — energy resets on battle-day boundaries, and a rule measured in hours
+ * leaves a seam exactly where the two meet, which is the gap the account
+ * rotation was built on. Used by the battle POST and by the capsule bonus.
+ */
+function isSameBattleDay(timestamp, now = new Date()) {
+  if (!timestamp) return false;
+  const arrived = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (Number.isNaN(arrived.getTime())) return false;
+  return getBattleDateKey(arrived) === getBattleDateKey(now);
+}
+
 function hasUnlimitedBattleEnergy(wallet) {
   return Boolean(wallet) && isAdminWallet(wallet);
 }
@@ -302,6 +318,7 @@ module.exports = {
   createNoEnergyError,
   getBattleDateKey,
   getNextBattleResetAt,
+  isSameBattleDay,
   normalizeBattleState,
   refundBattleEnergy,
 };

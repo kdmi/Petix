@@ -3,6 +3,7 @@ const path = require("path");
 
 const { getEconomyConfig } = require("./economy-config");
 const { claimFarm, normalizeFarmState } = require("./farm");
+const { isSameBattleDay } = require("./battle-energy");
 const { debitCurrency } = require("./currency");
 const { createChainClient, getNftEnv, isNftEnabled } = require("./nft-chain");
 const nftStore = require("./nft-store");
@@ -539,8 +540,14 @@ async function getWalletCapsuleBonus(wallet, depOverrides) {
 
     let extraBattles = 0;
     let winBonusPct = 0;
+    const now = new Date(deps.now());
     for (const [key, binding] of Object.entries(state.bindings || {})) {
       if (!binding || binding.wallet !== owner || binding.pendingUnbind) continue;
+      // Feature 027: a capsule that arrived today pays nothing today. Without
+      // this the rotation simply travels with its capsules — send the
+      // prismatic ones along and every fresh wallet hands the pet a bigger
+      // daily allowance than the one it just left.
+      if (isSameBattleDay(binding.movedAt, now)) continue;
       const tier = getCapsuleTier(Number(key));
       if (!tier) continue;
       extraBattles += Math.max(0, Math.floor(Number(extraByTier[tier]) || 0));
@@ -887,6 +894,12 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
             boundAt: binding.boundAt,
             tier: getCapsuleTier(binding.tokenId),
           };
+          // Feature 027: a pet that changed hands sits out the rest of this
+          // battle day. Energy belongs to the wallet while XP belongs to the
+          // pet, so without this a pet can be walked from wallet to wallet
+          // and collect a fresh day's energy from each — one player ran 344
+          // battles in 13 days that way, against ~10/day for everyone else.
+          movedCharacter.transferredAt = new Date(now).toISOString();
           characters.push(movedCharacter);
         }
         return current;
@@ -912,6 +925,9 @@ async function moveBoundCharacter(binding, toWallet, meta = {}, depOverrides) {
       const stored = state.bindings[String(binding.tokenId)];
       if (stored && stored.characterId === binding.characterId) {
         stored.wallet = target;
+        // Feature 027: the capsule's own bonuses are dormant for the rest of
+        // this battle day too (see getWalletCapsuleBonus).
+        stored.movedAt = entry.movedAt;
       }
       return deps.store.appendTransferEntry(state, entry);
     });

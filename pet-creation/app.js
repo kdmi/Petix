@@ -7976,6 +7976,17 @@ function buildNftBadgeTooltipHtml(tokenId, tier) {
   return lines.join("");
 }
 
+/**
+ * Подсказка на таймере блокировки (027). Говорит сразу о двух вещах: питомец
+ * недавно переехал, и вместе с ним «спят» бонусы его капсулы.
+ */
+function buildSettlingTooltipHtml() {
+  return [
+    `<span class="nft-badge-tooltip__title">Recently transferred</span>`,
+    `<span>Fights and capsule bonuses available from the next battle day.</span>`,
+  ].join("");
+}
+
 // Поведение тултипа: на десктопе появляется по наведению и гаснет через секунду
 // после ухода курсора (успеть дочитать, не мигать на границе). На тачах
 // наведения нет — тап по бейджу показывает и «прикалывает», тап в любом другом
@@ -8005,10 +8016,13 @@ function clearNftTooltipTimer() {
 
 function showNftBadgeTooltip(badge, { pin = false } = {}) {
   const tokenId = badge.getAttribute("data-nft-token");
-  if (!tokenId) return;
+  const settlingAt = badge.getAttribute("data-settling-at");
+  if (!tokenId && !settlingAt) return;
   clearNftTooltipTimer();
   const el = getNftBadgeTooltipEl();
-  el.innerHTML = buildNftBadgeTooltipHtml(tokenId, badge.getAttribute("data-nft-tier") || null);
+  el.innerHTML = settlingAt
+    ? buildSettlingTooltipHtml()
+    : buildNftBadgeTooltipHtml(tokenId, badge.getAttribute("data-nft-tier") || null);
   const rect = badge.getBoundingClientRect();
   el.style.left = `${rect.left + rect.width / 2}px`;
   el.style.top = `${rect.bottom + 8}px`;
@@ -8030,7 +8044,8 @@ function scheduleNftBadgeTooltipHide() {
   nftTooltip.hideTimer = setTimeout(hideNftBadgeTooltipNow, NFT_TOOLTIP_HIDE_DELAY_MS);
 }
 
-const nftBadgeSelector = ".success-card-nft-badge[data-nft-token]";
+const nftBadgeSelector =
+  ".success-card-nft-badge[data-nft-token], .success-card-nft-badge[data-settling-at]";
 
 document.addEventListener("pointerover", (event) => {
   if (event.pointerType !== "mouse") return;
@@ -8305,6 +8320,17 @@ async function bindNftSlotFlow(characterId) {
   }
 }
 
+/**
+ * Пет, сменивший владельца, не воюет до сброса энергии (027). Возвращает срок
+ * или null, если пет свободен.
+ */
+function getSettlingDeadline(record) {
+  const raw = record?.settlingUntil;
+  if (!raw) return null;
+  const at = Date.parse(raw);
+  return Number.isFinite(at) && at > Date.now() ? raw : null;
+}
+
 /** Срок сжигания привязанного питомца или null, если заявки нет / уже прошла. */
 function getBurnDeadline(record) {
   const raw = record?.nft?.pendingUnbindAt;
@@ -8329,7 +8355,9 @@ function formatBurnCountdown(deadlineIso) {
 let nftBurnTimerInterval = 0;
 
 function syncNftBurnTicker() {
-  const anyBurning = state.characters.some((record) => getBurnDeadline(record));
+  const anyBurning = state.characters.some(
+    (record) => getBurnDeadline(record) || getSettlingDeadline(record)
+  );
   if (anyBurning && isCabinetScreenActive()) {
     if (!nftBurnTimerInterval) {
       nftBurnTimerInterval = window.setInterval(tickNftBurnTimers, 1000);
@@ -8357,6 +8385,26 @@ function tickNftBurnTimers() {
     }
     if (label) label.textContent = formatBurnCountdown(deadline);
   });
+
+  // Отдых после переезда (027) идёт тем же тикером: он уже крутится раз в
+  // секунду, когда на экране есть что отсчитывать.
+  let settled = false;
+  cabinetCard.querySelectorAll("[data-settling-at]").forEach((badge) => {
+    const deadline = badge.getAttribute("data-settling-at");
+    const label = badge.querySelector("[data-settling-left]");
+    if (Date.parse(deadline) - Date.now() <= 0) {
+      settled = true;
+      return;
+    }
+    if (label) label.textContent = formatBurnCountdown(deadline);
+  });
+
+  // Отдых кончился — перерисовываем карточки, чтобы кнопка боя ожила.
+  if (settled) {
+    void refreshNftCharacters().then(() => {
+      if (isCabinetScreenActive()) renderCabinet();
+    });
+  }
 
   // Срок вышел — сжигание исполняет крон, ждём и подтягиваем правду с сервера.
   if (expired) {
@@ -8543,6 +8591,8 @@ function renderCabinet() {
 
   cabinetCard.innerHTML = records
     .map((record) => {
+      // Пет, приехавший сегодня с другого кошелька, отдыхает до сброса (027).
+      const settlingUntil = getSettlingDeadline(record);
       const rarity = getRarityMeta(record.rarity);
       const upgradePoints = getRecordAttributePointsAvailable(record);
       const isUpgradeable = canUpgradeRecord(record);
@@ -8552,14 +8602,16 @@ function renderCabinet() {
       const isFarmBusy = String(state.farmActionCharacterId) === String(record.id);
       const farmView = computeClientFarmView(record, Date.now());
       // Farm and Fight are independent — farming never disables the fight button.
+      // Отдых после переезда (027) кнопку не «гасит» насовсем: она остаётся
+      // кликабельной, чтобы объяснить, почему бой сейчас нельзя.
       const isFightButtonDisabled = !canFight || isPreparingThisFight;
       const hasNoEnergy = state.energyCurrent <= 0 && !state.isFightPreparing;
       const fightButtonMarkup = `
             <button
-              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}${isFightButtonDisabled ? " disabled" : ""}"
+              class="cabinet-fight-btn${isPreparingThisFight ? " is-loading" : ""}${isFightButtonDisabled || settlingUntil ? " disabled" : ""}"
               type="button"
               data-character-id="${record.id}"
-              ${isFightButtonDisabled ? 'disabled aria-disabled="true"' : ""}
+              ${settlingUntil ? `data-settling-at="${settlingUntil}" aria-disabled="true" title="Fights available from the next battle day"` : isFightButtonDisabled ? 'disabled aria-disabled="true"' : ""}
             >
               ${getFightButtonMarkup({ isLoading: isPreparingThisFight })}
             </button>
@@ -8678,10 +8730,17 @@ function renderCabinet() {
           `
           : "";
       return `
-        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}${nftBurningAt ? " cabinet-character--nft cabinet-character--nft-burning" : nftBoundTokenId ? " cabinet-character--nft" : ""}${nftTier ? ` cabinet-character--nft-${nftTier}` : ""}" data-character-id="${record.id}">
+        <article class="cabinet-character${isUpgradeable ? " cabinet-character--upgradeable" : ""}${settlingUntil ? " cabinet-character--settling" : ""}${nftBurningAt ? " cabinet-character--nft cabinet-character--nft-burning" : nftBoundTokenId ? " cabinet-character--nft" : ""}${nftTier ? ` cabinet-character--nft-${nftTier}` : ""}" data-character-id="${record.id}">
           <div class="success-card cabinet-success-card" aria-hidden="true">
             <div class="success-card-title">
               <span class="success-card-title__name">${record.name || record.displayName || record.creatureType}</span>
+              ${
+                // Отдых после переезда — отдельный бейдж рядом с капсульным:
+                // капсула никуда не делась, пауза временная.
+                settlingUntil
+                  ? `<span class="success-card-nft-badge success-card-nft-badge--settling" data-settling-at="${settlingUntil}" title="Fights and capsule bonuses available from the next battle day"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="2.25" y="5.25" width="7.5" height="5.25" rx="1.25" fill="currentColor"/><path d="M4.25 5.25V3.9a1.75 1.75 0 0 1 3.5 0v1.35" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span data-settling-left>${formatBurnCountdown(settlingUntil)}</span></span>`
+                  : ""
+              }
               ${
                 nftBurningAt
                   ? `<span class="success-card-nft-badge success-card-nft-badge--burning" data-nft-burn-at="${nftBurningAt}" title="Capsule #${nftBoundTokenId} is being emptied — this pet will burn"><img src="/assets/dashboard/burn-fire.svg" alt="" width="12" height="12" /><span data-nft-burn-left>${formatBurnCountdown(nftBurningAt)}</span></span>`
@@ -12142,6 +12201,12 @@ function init() {
       const fightButton = event.target.closest(".cabinet-fight-btn");
       if (!fightButton) return;
       if (fightButton.disabled) return;
+      if (fightButton.dataset.settlingAt) {
+        showToast("Fights and capsule bonuses available from the next battle day.", {
+          durationMs: 5000,
+        });
+        return;
+      }
       startFightFlow(fightButton.dataset.characterId);
     });
   }
