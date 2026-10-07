@@ -24,14 +24,32 @@ function normalizeProgression(record) {
   };
 }
 
+// Feature 028: levels came too fast. An active player reached level 20 in ten
+// days and level 30 in three weeks, which burns through the ladder the boss
+// campaign is built on — and since every level raises farm output and battle
+// rewards, fast levelling is also fast emission.
+//
+// The first ten levels are left exactly as they were: that is the stretch a new
+// player sees, and it should stay quick. From level 11 each level costs 250
+// more than the one before, instead of 50 (and 75 past level 20).
+//
+// Nothing is taken away retroactively: `level` lives on the record and
+// `experience` is only the remainder toward the next one, so a steeper curve
+// makes future levels dearer and never demotes a pet.
+const XP_BASE = 500; // L1 → L2
+const XP_STEP_EARLY = 50; // прирост за уровень в первой десятке
+const XP_STEP_LATE = 250; // прирост за уровень дальше
+const XP_EARLY_LEVELS = 10;
+
 function getExperienceForNextLevel(level) {
   const normalizedLevel = Math.max(DEFAULT_LEVEL, normalizeInteger(level, DEFAULT_LEVEL));
 
-  if (normalizedLevel <= 20) {
-    return 500 + 50 * (normalizedLevel - 1);
+  if (normalizedLevel <= XP_EARLY_LEVELS) {
+    return XP_BASE + XP_STEP_EARLY * (normalizedLevel - 1);
   }
 
-  return 1450 + 75 * (normalizedLevel - 20);
+  const earlyCeiling = XP_BASE + XP_STEP_EARLY * (XP_EARLY_LEVELS - 1);
+  return earlyCeiling + XP_STEP_LATE * (normalizedLevel - XP_EARLY_LEVELS);
 }
 
 function getBattleXpReward({ role, isWinner }) {
