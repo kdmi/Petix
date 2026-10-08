@@ -194,6 +194,7 @@
 .xp .claim-note { margin: 12px 0 0; text-align: center; font-size: 12px; color: var(--gray-400); }
 .xp .season--soon { height: 96px; padding: 23px 31px; }
 .xp .content[hidden] { display: none; }
+.xp .battle[hidden] { display: none !important; }
 .xp .season-head { position: absolute; left: 31px; top: 23px; right: 31px; }
 .xp .season-label {
   margin: 0;
@@ -1056,15 +1057,14 @@
 .xp .slots .slot { width: 64px; height: 64px; }
 .xp .slot-inner { left: 6px; top: 6px; width: 50px; height: 50px; }
 .xp .slot.is-filled .slot-pet { width: 64px; height: 64px; }
-.xp .dropdown { top: 61px !important; left: 50% !important; transform: translateX(-50%); transform-origin: bottom center; }
-.xp .dropdown.is-closing { transform: translateX(-50%); }
+.xp .dropdown { top: 61px !important; left: 50% !important; margin-left: calc(289px / -2); transform-origin: bottom center; }
 .xp .btn-fight { top: 430px; }
 .xp .modal { height: 560px; }
 .xp .modal-rewards { bottom: 16px; }
 .xp .reward-strip, .xp .res-strip--modal { gap: 10px; }
 .xp.is-battle .header, .xp.is-battle .content, .xp.is-battle .demo-foot { display: none; }
 .xp.is-battle .page { padding: 0; }
-.xp .battle { position: fixed; inset: 0; width: 100%; margin: 0; display: flex; flex-direction: column; background: var(--gray-50); overflow: hidden; animation: none; }
+.xp .battle { position: fixed; inset: 0; width: 100%; margin: 0; display: flex; flex-direction: column; background: var(--gray-50); overflow: hidden; animation: none; z-index: 1001; /* above the dashboard's fixed topbar (z 1000) */ }
 .xp .battle-layout { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 0; }
 .xp .battle-side, .xp .battle-main { display: contents; }
 .xp .battle-topbar { display: none; }
@@ -1196,3 +1196,7 @@
 #screenExpeditions .content { margin-top: 0; }
 #screenExpeditions.is-battle .content { display: none; }
 .xp .xp-error { margin: 48px auto; color: var(--gray-500); text-align: center; }
+@media (max-width: 640px) {
+  /* Same offsets as #screenCabinet under the fixed header + tabs on phones. */
+  #screenExpeditions { margin-top: 0; max-width: 100%; padding: 123px 0 112px; box-sizing: border-box; }
+}

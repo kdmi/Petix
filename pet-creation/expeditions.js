@@ -338,6 +338,7 @@
   }
 
   function runBattle(attempt, bossIndex, squadIds, initialMoves) {
+    if (!initialMoves) writeMoves(attempt.attemptId, []); // a reload before the first move must resume, not forfeit
     var boss = bossOf(bossIndex);
     var prevStars = bestStars(bossIndex);
     setBattleMode(true);

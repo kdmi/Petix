@@ -76,6 +76,7 @@ test("finish: no active attempt → 409; unfinished battle → 400; forfeit clos
     assert.equal(forfeit.status, 200);
     assert.equal(forfeit.body.paid, 0);
     assert.equal(forfeit.body.result.finished, false);
+    assert.equal(forfeit.body.progress.forfeits, 1, "an explicit forfeit is counted in the boss stats");
     const profile = await env.store.getWalletProfile(PLAYER);
     assert.equal(profile.expeditions.active, null);
     assert.equal(profile.expeditions.progress[1].lastResult.status, "forfeited");

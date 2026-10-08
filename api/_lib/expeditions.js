@@ -275,7 +275,8 @@ function settleAttempt(profile, attempt, result, cfg, { now = new Date() } = {})
   if (stars >= 3) progress.stars3 += 1;
   progress.rewardsPaid += paid;
   progress.bestStars = Math.max(progress.bestStars, stars);
-  bumpDaily(profile, now, { rewards: paid, wins: result.won ? 1 : 0, stars3: stars >= 3 ? 1 : 0 });
+  if (!result.finished) progress.forfeits += 1; // explicit forfeit (reload without moves, Back during the fight)
+  bumpDaily(profile, now, { rewards: paid, wins: result.won ? 1 : 0, stars3: stars >= 3 ? 1 : 0, forfeits: result.finished ? 0 : 1 });
   progress.lastResult = { attemptId: attempt.attemptId, status: result.finished ? "finished" : "forfeited", at: now.toISOString(), won: result.won, stars, paid, paidNow, moves: result.moves, hpPct: result.hpPct };
   profile.expeditions.progress[index] = progress;
   if (profile.expeditions.active && profile.expeditions.active.attemptId === attempt.attemptId) profile.expeditions.active = null;
