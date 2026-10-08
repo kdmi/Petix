@@ -11,6 +11,8 @@ const HANDLERS = {
   start: require("../../server-routes/expeditions/start"),
   finish: require("../../server-routes/expeditions/finish"),
   "tutorial-seen": require("../../server-routes/expeditions/tutorial-seen"),
+  "claim-nft": require("../../server-routes/expeditions/claim-nft"),
+  "mint-sync": require("../../server-routes/expeditions/mint-sync"),
 };
 
 module.exports = async (req, res) => {

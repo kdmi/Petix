@@ -15,6 +15,7 @@ function walk(target, out) {
   if (!fs.existsSync(target)) return;
   const stat = fs.statSync(target);
   if (stat.isDirectory()) {
+    if (path.basename(target) === "artifacts") return; // compiled bytecode (gitignored) is not an address
     for (const entry of fs.readdirSync(target)) walk(path.join(target, entry), out);
   } else if (/\.(js|sol|json|html|css)$/.test(target)) {
     out.push(target);

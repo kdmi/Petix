@@ -653,7 +653,7 @@
         // The Claim button stays until the mint goes through (even across sessions); the server mints and sends the NFT.
         view.nft = 'claiming'; ov.innerHTML = resultCardHtml(view); bind();
         var finishClaim = function (status) {
-          view.nft = status === 'claimed' ? 'claimed' : 'claim';
+          view.nft = status === 'claimed' ? 'claimed' : status === 'claiming' ? 'claiming' : 'claim';
           ov.innerHTML = resultCardHtml(view); bind();
           var done = ov.querySelector('.res-nft.is-claimed');
           if (status === 'claimed' && window.confetti && done) fireHitConfetti(done, 'up', 1.2);

@@ -14,6 +14,7 @@ const MODULES = [
   "api/_lib/battle-energy.js",
   "api/_lib/expeditions-config.js",
   "api/_lib/expeditions.js",
+  "api/_lib/expedition-nft.js",
   "api/_lib/roster.js",
   "api/expeditions/[action].js",
 ];
@@ -33,6 +34,11 @@ const ENV_KEYS = [
   "NFT_ENABLED",
   "ECONOMY_CONFIG_CACHE_TTL_MS",
   "ROSTER_INDEX_ENABLED",
+  "EXPEDITION_NFT_CONTRACT",
+  "EXPEDITION_MINTER_SECRET",
+  "NFT_CHAIN_ID",
+  "TOKEN_TREASURY_SECRET",
+  "TOKEN_RPC_URL",
 ];
 
 function evmWallet(digit) {
@@ -93,6 +99,11 @@ async function withExpeditionEnv(fn, { env = {}, overrides = {}, seedProfiles = 
     delete process.env.NFT_EXPLORER_URL;
     delete process.env.NFT_ENABLED;
     delete process.env.ROSTER_INDEX_ENABLED;
+    delete process.env.EXPEDITION_NFT_CONTRACT;
+    delete process.env.EXPEDITION_MINTER_SECRET;
+    delete process.env.TOKEN_TREASURY_SECRET;
+    delete process.env.TOKEN_RPC_URL;
+    delete process.env.NFT_CHAIN_ID;
     process.env.INTERNAL_API_SECRET = "petix-expeditions-internal-secret-0123";
     process.env.SOLANA_AUTH_SECRET = "petix-expeditions-test-session-secret-0123456789";
     process.env.ADMIN_WALLETS = ADMIN;
@@ -108,6 +119,7 @@ async function withExpeditionEnv(fn, { env = {}, overrides = {}, seedProfiles = 
     const economy = fresh("api/_lib/economy-config.js");
     const energy = fresh("api/_lib/battle-energy.js");
     const expeditionsConfig = fresh("api/_lib/expeditions-config.js");
+    const expeditionNft = fresh("api/_lib/expedition-nft.js");
     const engine = require(path.join(ROOT, "assets/expeditions/engine.js"));
     await economyStore.writeOverrides({ EXPEDITIONS_ENABLED: 1, EXPEDITIONS_ADMIN_ONLY: 0, ...overrides });
     if (typeof economy.invalidateCache === "function") economy.invalidateCache();
@@ -125,7 +137,7 @@ async function withExpeditionEnv(fn, { env = {}, overrides = {}, seedProfiles = 
       await economyStore.writeOverrides({ ...current, ...patch });
       if (typeof economy.invalidateCache === "function") economy.invalidateCache();
     };
-    return await fn({ store, economy, economyStore, energy, expeditionsConfig, engine, dispatcher, adminDispatcher, patchConfig, tempDir });
+    return await fn({ store, economy, economyStore, energy, expeditionsConfig, expeditionNft, engine, dispatcher, adminDispatcher, patchConfig, tempDir });
   } finally {
     process.chdir(originalCwd);
     for (const [key, value] of Object.entries(originalEnv)) {
@@ -211,8 +223,43 @@ function playGreedy(engine, state, { maxMoves = 300 } = {}) {
   return moves;
 }
 
+/**
+ * In-memory trophy contract: mints succeed unless `failNext` is set; receipts
+ * appear after `receiptDelay` polls. `minted` records every (wallet, boss).
+ */
+function createFakeTrophyChain({ configured = true, receiptDelay = 0 } = {}) {
+  const chain = {
+    env: { configured, contract: configured ? "0x" + "c".repeat(40) : "", minterAddress: "0x" + "d".repeat(40) },
+    minted: [],
+    receipts: {},
+    polls: {},
+    failNext: null,
+    nextTokenId: 1,
+    async sendMint(to, bossId) {
+      if (chain.failNext) { const e = new Error(chain.failNext); e.code = chain.failNext; chain.failNext = null; throw e; }
+      if (chain.minted.some((m) => m.to === to && m.bossId === bossId)) { const e = new Error("AlreadyClaimed"); e.code = "ALREADY_CLAIMED"; throw e; }
+      const tokenId = chain.nextTokenId++;
+      const txHash = "0x" + String(tokenId).padStart(64, "0");
+      chain.minted.push({ to, bossId, tokenId, txHash });
+      chain.receipts[txHash] = { status: 1, tokenId, serial: chain.minted.filter((m) => m.bossId === bossId).length, blockNumber: 100 + tokenId };
+      chain.polls[txHash] = 0;
+      return { txHash, nonce: tokenId };
+    },
+    async getReceipt(txHash) {
+      chain.polls[txHash] = (chain.polls[txHash] || 0) + 1;
+      if (chain.polls[txHash] <= receiptDelay) return null;
+      return chain.receipts[txHash] || null;
+    },
+    async hasClaimed(wallet, bossId) { return chain.minted.some((m) => m.to === wallet && m.bossId === bossId); },
+    async bossOf(tokenId) { const m = chain.minted.find((x) => x.tokenId === Number(tokenId)); return m ? m.bossId : 0; },
+    async getMinterSnapshot() { return { minterAddress: chain.env.minterAddress, contractMinter: chain.env.minterAddress, minterMatches: true, ethWei: 10n ** 16n, totalMinted: chain.minted.length, baseUri: "https://petix.test/api/expeditions/metadata/" }; },
+  };
+  return chain;
+}
+
 module.exports = {
   ADMIN,
+  createFakeTrophyChain,
   OTHER,
   OTHER_PETS,
   PLAYER,

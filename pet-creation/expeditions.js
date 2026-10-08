@@ -369,7 +369,9 @@
         try {
           var claimed = await bridge.apiRequest('/api/expeditions/claim-nft', { bossIndex: bossIndex });
           STATE.progress[bossIndex] = claimed.progress || STATE.progress[bossIndex];
-          return claimed.status === 'minted' ? 'claimed' : 'claim';
+          if (claimed.status === 'minted') return 'claimed';
+          showToast('The NFT will be sent to your wallet a little later');
+          return 'claiming';
         } catch (error) {
           showToast(error.code === 'MINT_DISABLED' ? 'The NFT will be sent to your wallet later' : "Couldn't send the NFT, try again later");
           return 'claim';
