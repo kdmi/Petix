@@ -164,6 +164,14 @@ function resolveEnergyPurchased(rawBattleState) {
   return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
 }
 
+// Granted energy (026): a bank of bonus battle energy handed out for holding boss
+// collections / capsules. Never resets with the day; spent after the free
+// allowance (which would expire anyway) and before purchased energy (paid for).
+function resolveEnergyGranted(rawBattleState) {
+  const raw = Number(rawBattleState?.energyGranted);
+  return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
+}
+
 function resolveEnergyPacks(rawBattleState) {
   const raw = rawBattleState?.energyPacks;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -183,6 +191,7 @@ function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 
   const energyFreeMax = BATTLE_ENERGY_MAX + Math.max(0, Math.floor(Number(bonusEnergy) || 0));
   let energyUsed = resolveEnergyUsed(rawBattleState);
   const energyPurchased = resolveEnergyPurchased(rawBattleState);
+  const energyGranted = resolveEnergyGranted(rawBattleState);
   const energyPacks = resolveEnergyPacks(rawBattleState);
   let lastResetDate = String(rawBattleState?.lastResetDate || "").trim();
   let updatedAt = String(rawBattleState?.updatedAt || "").trim();
@@ -196,12 +205,13 @@ function normalizeBattleState(rawBattleState, { now = new Date(), bonusEnergy = 
   const energyFree = clamp(energyFreeMax - energyUsed, 0, energyFreeMax);
 
   return {
-    energyCurrent: energyFree + energyPurchased,
-    energyMax: energyFreeMax + energyPurchased,
+    energyCurrent: energyFree + energyGranted + energyPurchased,
+    energyMax: energyFreeMax + energyGranted + energyPurchased,
     energyFree,
     energyFreeMax,
     energyUsed,
     energyPurchased,
+    energyGranted,
     energyPacks,
     lastResetDate,
     updatedAt: updatedAt || now.toISOString(),
@@ -219,6 +229,7 @@ function buildBattleStateView(rawBattleState, { now = new Date(), wallet = "", b
     energyFree: isUnlimited ? normalized.energyFreeMax : normalized.energyFree,
     energyFreeMax: normalized.energyFreeMax,
     energyPurchased: normalized.energyPurchased,
+    energyGranted: normalized.energyGranted,
     canStartFight: isUnlimited || energyCurrent > 0,
     resetsAt: getNextBattleResetAt(now).toISOString(),
     timezone: BATTLE_TIMEZONE,
@@ -249,12 +260,25 @@ function assertBattleEnergyAvailable(rawBattleState, { now = new Date(), wallet 
 
 function withRecomputedTotals(state) {
   const energyFree = clamp(state.energyFreeMax - state.energyUsed, 0, state.energyFreeMax);
+  const energyGranted = Math.max(0, Math.floor(Number(state.energyGranted) || 0));
   return {
     ...state,
     energyFree,
-    energyCurrent: energyFree + state.energyPurchased,
-    energyMax: state.energyFreeMax + state.energyPurchased,
+    energyGranted,
+    energyCurrent: energyFree + energyGranted + state.energyPurchased,
+    energyMax: state.energyFreeMax + energyGranted + state.energyPurchased,
   };
+}
+
+/** Add bonus energy to the wallet's bank (026). Returns the new battle state. */
+function grantBattleEnergy(rawBattleState, { now = new Date(), amount = 1, bonusEnergy = 0 } = {}) {
+  const normalized = normalizeBattleState(rawBattleState, { now, bonusEnergy });
+  const add = Math.max(0, Math.floor(Number(amount) || 0));
+  return withRecomputedTotals({
+    ...normalized,
+    energyGranted: normalized.energyGranted + add,
+    updatedAt: now.toISOString(),
+  });
 }
 
 function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wallet = "", bonusEnergy = 0 } = {}) {
@@ -273,13 +297,15 @@ function consumeBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wal
     throw createNoEnergyError();
   }
 
-  // Сначала бесплатная (она всё равно сгорит в полночь), потом купленная.
+  // Сначала бесплатная (она всё равно сгорит в полночь), потом подаренная (026), потом купленная.
   const fromFree = Math.min(spendAmount, normalized.energyFree);
-  const fromPurchased = spendAmount - fromFree;
+  const fromGranted = Math.min(spendAmount - fromFree, normalized.energyGranted);
+  const fromPurchased = spendAmount - fromFree - fromGranted;
 
   return withRecomputedTotals({
     ...normalized,
     energyUsed: normalized.energyUsed + fromFree,
+    energyGranted: normalized.energyGranted - fromGranted,
     energyPurchased: normalized.energyPurchased - fromPurchased,
     updatedAt: now.toISOString(),
   });
@@ -296,7 +322,9 @@ function refundBattleEnergy(rawBattleState, { now = new Date(), amount = 1, wall
   }
 
   const refundAmount = Math.max(1, normalizeInteger(amount, 1));
-  // Зеркально трате: сначала возвращаем в бесплатную, остаток — в купленную.
+  // Зеркально трате: сначала возвращаем в бесплатную, остаток — в купленную
+  // (подаренную не восстанавливаем: её нельзя отличить от потраченной купленной,
+  // а переплата игроку безопаснее недоплаты).
   const toFree = Math.min(refundAmount, normalized.energyUsed);
   const toPurchased = refundAmount - toFree;
 
@@ -318,6 +346,7 @@ module.exports = {
   createNoEnergyError,
   getBattleDateKey,
   getNextBattleResetAt,
+  grantBattleEnergy,
   isSameBattleDay,
   normalizeBattleState,
   refundBattleEnergy,

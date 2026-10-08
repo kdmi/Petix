@@ -13,7 +13,13 @@ const {
 const RARITY_KEYS = ["Common", "Rare", "Epic", "Legendary"];
 const TIER_KEYS = ["glass", "bronze", "silver", "gold", "prismatic"];
 // Карты «тир капсулы → число» (018). Мержатся и валидируются одинаково.
-const TIER_MAP_KEYS = ["NFT_TIER_EXTRA_BATTLES", "NFT_TIER_FARM_BONUS_PCT", "NFT_TIER_WIN_BONUS_PCT"];
+const TIER_MAP_KEYS = ["NFT_TIER_EXTRA_BATTLES", "NFT_TIER_FARM_BONUS_PCT", "NFT_TIER_WIN_BONUS_PCT", "EXPEDITION_CAPSULE_ENERGY"];
+// Expeditions (026): one value per boss, always exactly EXPEDITION_BOSS_COUNT entries.
+const EXPEDITION_BOSS_COUNT = 10;
+const EXPEDITION_BOSS_NUMBER_KEYS = ["EXPEDITION_BOSS_OPEN", "EXPEDITION_BOSS_OPENED_BLOCK", "EXPEDITION_FEES", "EXPEDITION_COLLECTION_ENERGY"];
+const EXPEDITION_BOSS_ADDRESS_KEYS = ["EXPEDITION_COLLECTION_CONTRACTS"];
+const EXPEDITION_ADDRESS_LIST_KEYS = ["EXPEDITION_MARKETPLACE_CONTRACTS"];
+const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 const DEFAULTS = Object.freeze({
   FARM_BASE: 10, // Points/hour for Common L1 (×10 scale)
@@ -99,6 +105,21 @@ const DEFAULTS = Object.freeze({
     Object.freeze({ fights: 5, price: 500 }),
   ]),
   ENERGY_PACK_COOLDOWN_HOURS: 24,
+
+  // ---- Expeditions (026): PvE bosses, Points fee + 1 energy per attempt, NFT for 3★ ----
+  EXPEDITIONS_ENABLED: 0, // стоп-кран режима (0 = выкл: вкладки нет, API 404)
+  EXPEDITIONS_ADMIN_ONLY: 1, // тихий тест: режим виден только админам
+  EXPEDITION_NFT_MINT_ENABLED: 0, // минт NFT босса за 3★ (0 = право записывается, минт ждёт в очереди)
+  EXPEDITION_ENERGY_PER_ATTEMPT: 1, // энергия арены за попытку (решение 2026-10-08)
+  EXPEDITION_FREE_BOSS_REWARD_BASE: 1000, // база наград бесплатного босса (взнос 0)
+  EXPEDITION_REWARD_MULTS: Object.freeze({ 1: 0.5, 2: 1, 3: 2 }), // доля взноса за каждую звезду, платится один раз
+  EXPEDITION_BOSS_OPEN: Object.freeze([1, 1, 1, 0, 0, 0, 0, 0, 0, 0]), // открыт ли босс (ручное открытие из админки)
+  EXPEDITION_BOSS_OPENED_BLOCK: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // блок открытия — точка отсчёта для клейма энергии
+  EXPEDITION_FEES: Object.freeze([0, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000]), // взнос в Points по боссам
+  EXPEDITION_COLLECTION_CONTRACTS: Object.freeze(["", "", "", "", "", "", "", "", "", ""]), // ERC-721 партнёрских коллекций (только рантайм, не в коде)
+  EXPEDITION_COLLECTION_ENERGY: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // энергия за клейм, фиксированно за кошелёк
+  EXPEDITION_CAPSULE_ENERGY: Object.freeze({ glass: 2, bronze: 3, silver: 4, gold: 5, prismatic: 6 }), // раздача за каждую капсулу по тиру
+  EXPEDITION_MARKETPLACE_CONTRACTS: Object.freeze([]), // контракты маркетплейсов: перевод через них = покупка
 });
 
 const CACHE_TTL_MS = Number(process.env.ECONOMY_CONFIG_CACHE_TTL_MS) || 15000;
@@ -114,6 +135,14 @@ function deepCloneDefaults() {
     NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
     NFT_TIER_FARM_BONUS_PCT: { ...DEFAULTS.NFT_TIER_FARM_BONUS_PCT },
     NFT_TIER_WIN_BONUS_PCT: { ...DEFAULTS.NFT_TIER_WIN_BONUS_PCT },
+    EXPEDITION_CAPSULE_ENERGY: { ...DEFAULTS.EXPEDITION_CAPSULE_ENERGY },
+    EXPEDITION_REWARD_MULTS: { ...DEFAULTS.EXPEDITION_REWARD_MULTS },
+    EXPEDITION_BOSS_OPEN: [...DEFAULTS.EXPEDITION_BOSS_OPEN],
+    EXPEDITION_BOSS_OPENED_BLOCK: [...DEFAULTS.EXPEDITION_BOSS_OPENED_BLOCK],
+    EXPEDITION_FEES: [...DEFAULTS.EXPEDITION_FEES],
+    EXPEDITION_COLLECTION_CONTRACTS: [...DEFAULTS.EXPEDITION_COLLECTION_CONTRACTS],
+    EXPEDITION_COLLECTION_ENERGY: [...DEFAULTS.EXPEDITION_COLLECTION_ENERGY],
+    EXPEDITION_MARKETPLACE_CONTRACTS: [...DEFAULTS.EXPEDITION_MARKETPLACE_CONTRACTS],
   };
 }
 
@@ -144,6 +173,13 @@ function mergeConfig(overrides) {
       base.PET_PRICES_USD = [...overrides.PET_PRICES_USD];
     } else if (key === "ENERGY_PACKS" && Array.isArray(overrides.ENERGY_PACKS)) {
       base.ENERGY_PACKS = cloneEnergyPacks(overrides.ENERGY_PACKS);
+    } else if (key === "EXPEDITION_REWARD_MULTS" && overrides[key] && typeof overrides[key] === "object") {
+      base[key] = { ...base[key], ...overrides[key] };
+    } else if (
+      (EXPEDITION_BOSS_NUMBER_KEYS.includes(key) || EXPEDITION_BOSS_ADDRESS_KEYS.includes(key) || EXPEDITION_ADDRESS_LIST_KEYS.includes(key)) &&
+      Array.isArray(overrides[key])
+    ) {
+      base[key] = [...overrides[key]];
     } else if (typeof overrides[key] === "number" && Number.isFinite(overrides[key])) {
       base[key] = overrides[key];
     }
@@ -190,6 +226,11 @@ function validateConfigPatch(patch) {
     "NFT_UNBIND_DELAY_MS",
     "ENERGY_SHOP_ENABLED",
     "ENERGY_PACK_COOLDOWN_HOURS",
+    "EXPEDITIONS_ENABLED",
+    "EXPEDITIONS_ADMIN_ONLY",
+    "EXPEDITION_NFT_MINT_ENABLED",
+    "EXPEDITION_ENERGY_PER_ATTEMPT",
+    "EXPEDITION_FREE_BOSS_REWARD_BASE",
   ];
   for (const key of numericKeys) {
     if (key in patch) {
@@ -246,6 +287,61 @@ function validateConfigPatch(patch) {
           errors.push({ field: "ENERGY_PACKS", message: `ENERGY_PACKS[${index}].price must be a number ≥ 0` });
         }
       });
+    }
+  }
+
+  // Expeditions (026): per-boss arrays must always carry one value per boss.
+  for (const key of EXPEDITION_BOSS_NUMBER_KEYS) {
+    if (!(key in patch)) continue;
+    const list = patch[key];
+    if (!Array.isArray(list) || list.length !== EXPEDITION_BOSS_COUNT) {
+      errors.push({ field: key, message: `${key} must be an array of ${EXPEDITION_BOSS_COUNT} numbers` });
+      continue;
+    }
+    list.forEach((v, i) => {
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+        errors.push({ field: key, message: `${key}[${i}] must be a number ≥ 0` });
+      }
+    });
+  }
+  for (const key of EXPEDITION_BOSS_ADDRESS_KEYS) {
+    if (!(key in patch)) continue;
+    const list = patch[key];
+    if (!Array.isArray(list) || list.length !== EXPEDITION_BOSS_COUNT) {
+      errors.push({ field: key, message: `${key} must be an array of ${EXPEDITION_BOSS_COUNT} addresses (empty string = not set)` });
+      continue;
+    }
+    list.forEach((v, i) => {
+      if (!(v === "" || (typeof v === "string" && EVM_ADDRESS_RE.test(v)))) {
+        errors.push({ field: key, message: `${key}[${i}] must be an 0x address or empty` });
+      }
+    });
+  }
+  for (const key of EXPEDITION_ADDRESS_LIST_KEYS) {
+    if (!(key in patch)) continue;
+    const list = patch[key];
+    if (!Array.isArray(list)) {
+      errors.push({ field: key, message: `${key} must be an array of 0x addresses` });
+      continue;
+    }
+    list.forEach((v, i) => {
+      if (!(typeof v === "string" && EVM_ADDRESS_RE.test(v))) {
+        errors.push({ field: key, message: `${key}[${i}] must be an 0x address` });
+      }
+    });
+  }
+  if ("EXPEDITION_REWARD_MULTS" in patch) {
+    const mults = patch.EXPEDITION_REWARD_MULTS;
+    if (!mults || typeof mults !== "object" || Array.isArray(mults)) {
+      errors.push({ field: "EXPEDITION_REWARD_MULTS", message: "EXPEDITION_REWARD_MULTS must be an object {1,2,3}" });
+    } else {
+      for (const [star, value] of Object.entries(mults)) {
+        if (!["1", "2", "3"].includes(star)) {
+          errors.push({ field: "EXPEDITION_REWARD_MULTS", message: `EXPEDITION_REWARD_MULTS.${star} is not a star tier` });
+        } else if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+          errors.push({ field: "EXPEDITION_REWARD_MULTS", message: `EXPEDITION_REWARD_MULTS.${star} must be a number ≥ 0` });
+        }
+      }
     }
   }
 
@@ -342,6 +438,7 @@ async function setEconomyConfig(patch, { adminWallet = "", reason = "", now = Da
 }
 
 module.exports = {
+  EXPEDITION_BOSS_COUNT,
   DEFAULTS,
   RARITY_KEYS,
   getDefaults,

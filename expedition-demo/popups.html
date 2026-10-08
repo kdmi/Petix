@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Petix — Expedition popups</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Figtree:wght@400;500;600;700&family=Fraunces:SOFT,opsz,wght@100,72,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=1791462993" />
+  <style>
+    /* Gallery chrome: every overlay is rendered inline instead of fixed over the page. */
+    body { background: #e4e7ec; }
+    .gal { max-width: 1400px; margin: 0 auto; padding: 32px 24px 80px; }
+    .gal > h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; margin: 0 0 4px; }
+    .gal > p { margin: 0 0 28px; color: var(--gray-500); }
+    .gal > h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 36px 0 12px; }
+    .gal-grid { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+    .gal-item { display: flex; flex-direction: column; gap: 10px; }
+    .gal-item > h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--gray-700); }
+    .gal-item > h3 small { display: block; font-weight: 400; color: var(--gray-400); }
+    .gal-item .fade, .gal-item .result, .gal-item .howto { position: relative; inset: auto; display: block; background: none; backdrop-filter: none; animation: none; z-index: auto; padding: 0; }
+    .gal-item .modal, .gal-item .result-card, .gal-item .howto-card { animation: none; box-shadow: 0 24px 48px -12px rgba(16,24,40,0.25); }
+    .gal-item .res-stars .rs, .gal-item .res-reward, .gal-item .res-nft, .gal-item .slot, .gal-item .slot-remove, .gal-item .nft-note, .gal-item .btn-fight, .gal-item .divider, .gal-item .squad-label, .gal-item .modal-info > *, .gal-item .pet-row { animation: none !important; opacity: 1; }
+    .gal-item .slot.is-filled .slot-pet { animation: none; }
+    .gal-item .btn-fight.is-ready { animation: none; }
+    .gal-item .btn-fight.is-ready::after { display: none; }
+    .gal-item .dropdown { animation: none; }
+  </style>
+</head>
+<body>
+  <div class="gal">
+    <h1>Expedition popups</h1>
+    <p>Все состояния окон режима экспедиций на живых стилях демки. Числа взяты из engine.js для третьего босса (взнос 1 500).</p>
+
+    <h2>Сбор отряда перед боем</h2>
+    <div class="gal-grid" id="g-modal"></div>
+
+    <h2>Результат боя</h2>
+    <div class="gal-grid" id="g-result"></div>
+
+    <h2>Правила</h2>
+    <div class="gal-grid" id="g-howto"></div>
+  </div>
+
+  <script src="engine.js?v=1791462993"></script>
+  <script src="bosses.js?v=1791462993"></script>
+  <script src="battle.js?v=1791462993"></script>
+  <script src="tutorial.js?v=1791462993"></script>
+  <script>
+  (function () {
+    var E = window.ExpeditionEngine, ROSTER = window.EXPEDITION_BOSSES, ICONS = 'assets/icons/';
+    var BOSS = 3, boss = ROSTER[BOSS - 1];
+    var fmt = function (n) { return Number(n).toLocaleString('en-US'); };
+    var feeLabel = function (fee) { return fee >= 1000 ? (fee / 1000).toFixed(fee % 1000 ? 1 : 0) + ' K' : String(fee); };
+    var PETS = [
+      { name: 'Sweet Rich', img: '085_Sparky-Swindler_Common.jpg', lvl: 2, hp: 3, spd: 3, atk: 3, int: 2 },
+      { name: 'Scully Nightmare', img: '088_Stone-Swarm_Common.jpg', lvl: 1, hp: 2, spd: 2, atk: 4, int: 2 },
+      { name: 'Red Madness', img: '091_Gooey-Hook_Common.jpg', lvl: 3, hp: 3, spd: 1, atk: 5, int: 3 },
+      { name: 'Dragon Destroyer', img: '094_Fluffy-Warden_Common.jpg', lvl: 2, hp: 4, spd: 3, atk: 2, int: 2 },
+      { name: 'Terra Kratos', img: '087_Terra-Kratos_Common.jpg', lvl: 1, hp: 4, spd: 2, atk: 3, int: 1 }
+    ];
+
+    function item(title, note, html) {
+      return '<div class="gal-item"><h3>' + title + (note ? '<small>' + note + '</small>' : '') + '</h3>' + html + '</div>';
+    }
+
+    // ---------- squad picker (mirrors app.js openModal/renderSlots) ----------
+    function modal(o) {
+      var stars = o.stars || 0, fee = E.entryFee(BOSS, stars), points = o.points === undefined ? 23500 : o.points;
+      var energy = o.energy === undefined ? 3 : o.energy, noEnergy = energy <= 0;
+      var filled = o.squad.filter(Boolean).length, broke = fee > points, blocked = noEnergy || broke;
+      var slots = o.squad.map(function (p, i) {
+        if (p) return '<button class="slot is-filled is-settled" type="button"><img class="slot-pet" src="assets/pets/' + p.img + '" alt=""><span class="slot-remove"><img src="' + ICONS + 'close.svg" alt=""></span></button>';
+        return '<button class="slot' + (o.open === i ? ' is-open' : '') + '" type="button"><div class="slot-inner"><img src="' + ICONS + (o.open === i ? 'plus-active.svg' : 'plus.svg') + '" alt=""></div></button>';
+      }).join('');
+      var dropdown = '';
+      if (o.open !== undefined) {
+        dropdown = '<div class="dropdown" style="left:16px;top:101px">' + PETS.filter(function (p) { return o.squad.indexOf(p) < 0; }).map(function (p) {
+          return '<button class="pet-row" type="button"><div class="pet-thumb"><img src="assets/pets/' + p.img + '" alt=""></div><div class="pet-body">' +
+            '<div class="pet-head"><span class="pet-name">' + p.name + '</span><span class="pet-level">Lvl.' + p.lvl + '</span></div>' +
+            '<div class="pet-stats"><span><img src="' + ICONS + 'heart-12.svg" alt="">' + p.hp + '</span><span><img src="' + ICONS + 'wind-12.svg" alt="">' + p.spd + '</span><span><img src="' + ICONS + 'attack-12.svg" alt="">' + p.atk + '</span><span><img src="' + ICONS + 'brain-12.svg" alt="">' + p.int + '</span></div></div></button>';
+        }).join('') + '</div>';
+      }
+      var label = noEnergy ? 'Not enough energy' : broke ? 'Not enough Points' : filled === 0 ? 'Pick your squad' : 'Fight';
+      var btn = '<button class="btn-fight' + (filled === 4 && !blocked ? ' is-ready' : '') + (blocked ? ' is-blocked' : '') + '" type="button"' + (filled === 0 || blocked ? ' disabled' : '') + '>' +
+        '<span class="btn-fight-label">' + (label === 'Fight' ? '<img src="' + ICONS + 'bolt-white.svg" alt="">' : '') + label + '</span>' +
+        (fee && !blocked ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(fee) + '</span>' : '') + '</button>';
+      var rewards = '<div class="modal-rewards">' + ExpeditionBattle.modalStripHtml(BOSS, stars) + '<p class="reward-note">' + (stars >= 3 ? 'All rewards claimed · replay is free' : stars ? 'Best ' + stars + '★ · each reward pays once' : 'Each reward pays once') + '</p></div>';
+      return '<div class="fade"><div class="modal">' +
+        '<div class="modal-hero"><img src="assets/' + boss.hero + '" alt=""><button class="modal-close" type="button" aria-label="Close"><img src="' + ICONS + 'close-dark.svg" alt=""></button><div class="modal-hero-stats"><span class="stat"><img src="' + ICONS + 'heart-16.svg" alt=""> ' + fmt(boss.hp) + '</span><span class="stat"><img src="' + ICONS + 'attack-16.svg" alt=""> ' + boss.power + '</span></div></div>' +
+        '<div class="modal-info"><h2 class="modal-title">' + boss.title + '</h2><p class="modal-subtitle"><a href="' + boss.url + '" target="_blank" rel="noopener">' + boss.name + '</a></p></div>' +
+        '<div class="divider"><span class="divider-line"></span><img class="divider-gem" src="' + ICONS + 'diamond.svg" alt=""><span class="divider-line"></span></div>' +
+        '<p class="squad-label">YOUR SQUAD</p><div class="slots">' + slots + '</div>' + dropdown + btn + rewards +
+        '</div></div>';
+    }
+
+    document.getElementById('g-modal').innerHTML = [
+      item('Пустой отряд', 'кнопка неактивна: Pick your squad', modal({ squad: [null, null, null, null] })),
+      item('Выбор персонажа', 'открыт список, занятые петы скрыты', modal({ squad: [PETS[2], null, null, null], open: 1 })),
+      item('Полный отряд', 'кнопка Fight подсвечена, взнос 1.5 K', modal({ squad: [PETS[0], PETS[1], PETS[2], PETS[3]] })),
+      item('Переигровка после 1★', 'первый тир награды уже получен', modal({ squad: [PETS[0], PETS[1], null, null], stars: 1 })),
+      item('Всё собрано (3★)', 'награды закрыты, переигровка бесплатная', modal({ squad: [PETS[0], PETS[1], PETS[2], PETS[3]], stars: 3 })),
+      item('Не хватает Points', 'баланс 900 при взносе 1 500', modal({ squad: [PETS[0], PETS[1], PETS[2], PETS[3]], points: 900 })),
+      item('Не хватает энергии', 'бой стоит 1 энергию и взнос; энергии 0', modal({ squad: [PETS[0], PETS[1], PETS[2], PETS[3]], energy: 0 }))
+    ].join('');
+
+    // ---------- result: the exact markup battle.js renders ----------
+    function result(o) {
+      var won = o.stars > 0;
+      return '<div class="result' + (won ? ' is-win' : ' is-lose') + '">' +
+        ExpeditionBattle.resultCardHtml({ bossIndex: BOSS, bossTitle: boss.title, won: won, stars: o.stars, prev: o.prev || 0, nft: o.nft || 'locked', points: o.points, energy: o.energy }) + '</div>';
+    }
+    document.getElementById('g-result').innerHTML = [
+      item('Апгрейд 1★ → 2★', 'первый тир получен раньше (зачёркнут), второй выплачен сейчас', result({ stars: 2, prev: 1 })),
+      item('Победа на 3★', 'сумма за все тиры, кнопка Claim boss NFT и Next boss', result({ stars: 3, nft: 'claim' })),
+      item('Клейм в процессе', 'лоадер на кнопке, пока сервер минтит и отправляет NFT', result({ stars: 3, nft: 'claiming' })),
+      item('Переигровка после 3★', 'наград больше нет, NFT уже получена', result({ stars: 3, prev: 3, nft: 'claimed' })),
+      item('Поражение', 'без наград, все тиры приглушены, Retry с ценой', result({ stars: 0 })),
+      item('Победа на 1★ впервые', 'выплачен первый тир', result({ stars: 1 })),
+      item('Победа на 2★ впервые', 'выплачены два тира сразу, оба зелёные', result({ stars: 2 })),
+      item('Победа на 1★ после 2★', 'хуже прежнего результата, награды нет', result({ stars: 1, prev: 2 })),
+      item('Нет энергии на ретрай', 'Retry неактивен: Not enough energy to retry', result({ stars: 0, energy: 0 })),
+      item('Нет Points на ретрай', 'Retry неактивен: баланс 900 при взносе 1 500', result({ stars: 1, points: 900 }))
+    ].join('');
+
+    // ---------- how to play: the real animated tutorial card (tutorial.js), mounted inline and running ----------
+    document.getElementById('g-howto').innerHTML = item('How to play', 'тот самый анимированный гайд из боя: открывается сам перед первым боем, дальше по «How to play?» / «?»; Back / Next / точки работают',
+      '<div id="howto-mount"></div>');
+    ExpeditionTutorial.open(20, document.getElementById('howto-mount'));
+  })();
+  </script>
+</body>
+</html>

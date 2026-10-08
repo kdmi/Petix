@@ -23,6 +23,7 @@ const SKIP_DIRS = new Set([
   ".plea",
   "artifacts", // compiled contract artifacts (gitignored) embed bytecode-looking words
   "vendor", // third-party bundles
+  "specs", // design docs, excluded from git locally (.git/info/exclude); partner-collections.md lists public partner contracts
 ]);
 const EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".json", ".md", ".html", ".css", ".sol", ".txt", ".yml", ".yaml"]);
 const ADDRESS = /0x[0-9a-fA-F]{40}/g;

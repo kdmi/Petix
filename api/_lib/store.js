@@ -61,8 +61,33 @@ const EMPTY_WALLET_PROFILE = {
   spend: [],
   withdrawals: [],
   deposits: [],
+  // Expeditions (026): active attempt, per-boss progress (stars, payouts, NFT),
+  // holder-energy claims by boss, tutorial flag.
+  expeditions: { active: null, progress: {}, energyClaims: {}, tutorialSeen: false },
   profileUpdatedAt: null,
 };
+
+function normalizeExpeditions(raw) {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const progress = {};
+  if (source.progress && typeof source.progress === "object" && !Array.isArray(source.progress)) {
+    for (const [key, value] of Object.entries(source.progress)) {
+      if (value && typeof value === "object") progress[key] = cloneRecord(value);
+    }
+  }
+  const energyClaims = {};
+  if (source.energyClaims && typeof source.energyClaims === "object" && !Array.isArray(source.energyClaims)) {
+    for (const [key, value] of Object.entries(source.energyClaims)) {
+      if (value && typeof value === "object") energyClaims[key] = cloneRecord(value);
+    }
+  }
+  return {
+    active: source.active && typeof source.active === "object" ? cloneRecord(source.active) : null,
+    progress,
+    energyClaims,
+    tutorialSeen: source.tutorialSeen === true,
+  };
+}
 
 let writeQueue = Promise.resolve();
 const walletWriteQueues = new Map();
@@ -183,6 +208,7 @@ function cloneWalletProfile(profile) {
     deposits: Array.isArray(profile?.deposits)
       ? profile.deposits.map((record) => cloneRecord(record))
       : [],
+    expeditions: normalizeExpeditions(profile?.expeditions),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };
 }
