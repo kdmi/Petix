@@ -46,7 +46,7 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
 
 ## Holder energy
 
-- Partner collections: the player presses Claim on the Expeditions page; the server checks the wallet (Blockscout → RPC fallback),
+- Partner collections: the player presses Claim on the Expeditions page; the server checks the wallet over RPC (`balanceOf`, Transfer logs since the boss was opened, `ownerOf`; Blockscout is Cloudflare-gated for server fetches and is only a fallback),
   counts NFTs that did **not** arrive by plain transfer after the boss's `openedBlock` (mints and marketplace purchases count),
   and grants a flat `EXPEDITION_COLLECTION_ENERGY[boss]` once per collection per wallet. *(Routes land in the last phase of 026.)*
 - Capsules: one-off airdrop from the admin panel (`capsule-airdrop`, per capsule by tier `EXPEDITION_CAPSULE_ENERGY`), idempotent
