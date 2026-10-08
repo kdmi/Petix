@@ -37,3 +37,15 @@ test("state: an attempt older than 24h is reported stale, not active", async () 
     assert.equal(res.body.staleAttempt, started.body.attempt.attemptId);
   });
 });
+
+test("tutorial-seen flips the flag once and is idempotent", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store }) => {
+    const first = await invoke(dispatcher(), { method: "POST", url: "/api/expeditions/tutorial-seen", headers: sessionHeaders(PLAYER), body: {} });
+    assert.equal(first.status, 200);
+    assert.equal((await store.getWalletProfile(PLAYER)).expeditions.tutorialSeen, true);
+    const second = await invoke(dispatcher(), { method: "POST", url: "/api/expeditions/tutorial-seen", headers: sessionHeaders(PLAYER), body: {} });
+    assert.equal(second.status, 200);
+    const state = await invoke(dispatcher(), { url: "/api/expeditions/state", headers: sessionHeaders(PLAYER) });
+    assert.equal(state.body.tutorialSeen, true);
+  });
+});

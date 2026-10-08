@@ -28,6 +28,7 @@
       }
     </style>
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260925a" />
+    <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261009b" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -38,6 +39,7 @@
         <nav class="dashboard-tabs" id="dashboardTabs" aria-label="Dashboard pages">
           <button class="dashboard-tab active" id="dashboardTabMyPets" type="button">My Pets</button>
           <button class="dashboard-tab" id="dashboardTabArena" type="button">Arena</button>
+          <button class="dashboard-tab hidden" id="dashboardTabExpeditions" type="button">Expeditions</button>
         </nav>
         <div class="topbar-actions">
           <!-- Публичный просмотр боя по ссылке: у гостя в шапке только логотип и вход. -->
@@ -411,6 +413,85 @@
         </div>
       </section>
 
+      <section class="screen hidden xp" id="screenExpeditions">
+        <main class="content">
+          <section class="holder-banner" aria-label="Holder bonus">
+            <div class="holder-banner-body">
+              <span class="holder-banner-icon"><i class="glow"></i><img src="/assets/expeditions/icons/bolt-banner.svg" alt="" /></span>
+              <div class="holder-banner-text">
+                <h2 class="holder-banner-title">Holder bonus: extra energy</h2>
+                <p class="holder-banner-sub">Bonus battle energy for holders of boss collections. Claim once per collection.</p>
+              </div>
+            </div>
+            <button class="btn-claim" id="btn-holder-claim" type="button">Claim</button>
+          </section>
+
+          <section class="season season--live">
+            <div class="season-head">
+              <p class="season-label">Season 1</p>
+              <div class="season-title-row">
+                <h1 class="season-title">Heroes of Hood and Magic</h1>
+                <span class="pill-live">Live</span>
+              </div>
+              <p class="season-progress"><span class="num">0</span><span class="of"> of </span><span class="num">10</span></p>
+            </div>
+            <div class="path">
+              <div class="path-line path-line--row1"></div>
+              <div class="path-line path-line--row1-done-dark"></div>
+              <div class="path-line path-line--row1-done"></div>
+              <div class="path-line path-line--row2"></div>
+              <div class="boss-row" id="boss-row-1"></div>
+              <div class="boss-row" id="boss-row-2"></div>
+            </div>
+          </section>
+
+          <section class="season season--soon">
+            <p class="season-label">Season 2</p>
+            <h2 class="season-title">Coming soon...</h2>
+          </section>
+        </main>
+        <section class="battle" id="battle" hidden></section>
+
+        <!-- Squad popup -->
+        <div class="fade" id="fade" hidden>
+          <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-hero">
+              <img id="modal-hero" src="" alt="" />
+              <button class="modal-close" id="modal-close" type="button" aria-label="Close"><img src="/assets/expeditions/icons/close-dark.svg" alt="" /></button>
+              <div class="modal-hero-stats">
+                <span class="stat"><img src="/assets/expeditions/icons/heart-16.svg" alt="" /> <span id="modal-hp">0</span></span>
+                <span class="stat"><img src="/assets/expeditions/icons/attack-16.svg" alt="" /> <span id="modal-power">0</span></span>
+              </div>
+            </div>
+            <div class="modal-info">
+              <h2 class="modal-title" id="modal-title"></h2>
+              <p class="modal-subtitle"><a id="modal-subtitle" href="#" target="_blank" rel="noopener"></a></p>
+            </div>
+            <div class="divider">
+              <span class="divider-line"></span>
+              <img class="divider-gem" src="/assets/expeditions/icons/diamond.svg" alt="" />
+              <span class="divider-line"></span>
+            </div>
+            <p class="squad-label">YOUR SQUAD</p>
+            <div class="slots" id="slots"></div>
+            <div class="dropdown" id="dropdown" hidden></div>
+            <button class="btn-fight" id="btn-fight" type="button">Fight</button>
+            <div class="modal-rewards" id="modal-rewards"></div>
+          </div>
+        </div>
+
+        <!-- Holder energy claim: placeholder layout until the popup design lands -->
+        <div class="fade" id="claim-fade" hidden>
+          <div class="claim-modal" role="dialog" aria-modal="true" aria-labelledby="claim-title">
+            <button class="claim-x" id="claim-close" type="button" aria-label="Close"><img src="/assets/expeditions/icons/close-dark.svg" alt="" /></button>
+            <h2 class="claim-title" id="claim-title">Claim extra energy</h2>
+            <p class="claim-sub">Hold NFTs from a boss collection? Get bonus battle energy. One claim per collection, new collections unlock with every boss.</p>
+            <ul class="claim-list" id="claim-list"></ul>
+            <button class="btn-claim-check" id="claim-check" type="button">Check my wallet</button>
+          </div>
+        </div>
+      </section>
+
       <section class="screen hidden" id="screenAdmin">
         <div class="admin-panel">
           <div class="admin-header">
@@ -542,6 +623,11 @@
     <script src="/pet-creation/admin-panel-state.js?v=20260419a"></script>
     <script src="/pet-creation/upgrade-screen-state.js?v=20260418a"></script>
     <script src="/assets/petix-config.js"></script>
-    <script src="/pet-creation/app.js?v=20260925a"></script>
+    <div class="xp" id="expeditionsOverlay"></div>
+    <script src="/assets/expeditions/engine.js?v=20261009b"></script>
+    <script src="/pet-creation/expedition-tutorial.js?v=20261009b"></script>
+    <script src="/pet-creation/expedition-battle.js?v=20261009b"></script>
+    <script src="/pet-creation/expeditions.js?v=20261009b"></script>
+    <script src="/pet-creation/app.js?v=20261009b"></script>
   </body>
 </html>

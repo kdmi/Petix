@@ -10,6 +10,7 @@ const HANDLERS = {
   state: require("../../server-routes/expeditions/state"),
   start: require("../../server-routes/expeditions/start"),
   finish: require("../../server-routes/expeditions/finish"),
+  "tutorial-seen": require("../../server-routes/expeditions/tutorial-seen"),
 };
 
 module.exports = async (req, res) => {

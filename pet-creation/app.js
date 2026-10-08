@@ -621,6 +621,8 @@ const screenSuccess = document.getElementById("screenSuccess");
 const screenCabinet = document.getElementById("screenCabinet");
 const screenArena = document.getElementById("screenArena");
 const screenAdmin = document.getElementById("screenAdmin");
+const screenExpeditions = document.getElementById("screenExpeditions");
+const expeditionsOverlay = document.getElementById("expeditionsOverlay");
 const typeContinueBtn = document.getElementById("typeContinueBtn");
 const otherInputWrap = document.getElementById("otherInputWrap");
 const otherTypeInput = document.getElementById("otherTypeInput");
@@ -667,6 +669,7 @@ const dashboardTabs = document.getElementById("dashboardTabs");
 const topbarSignIn = document.getElementById("topbarSignIn");
 const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
 const dashboardTabArena = document.getElementById("dashboardTabArena");
+const dashboardTabExpeditions = document.getElementById("dashboardTabExpeditions");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
 const dashboardEnergy = document.getElementById("dashboardEnergy");
 const dashboardEnergyCurrent = document.getElementById("dashboardEnergyCurrent");
@@ -2923,6 +2926,9 @@ async function buyEnergyPack(packIndex) {
 function showLoggedWalletState({ walletAddress, isAdmin = false }) {
   exitPublicReplayMode();
   state.isAuthenticated = true;
+  // Expeditions (026): decide tab visibility as soon as the session is known.
+  expeditionsConfigPromise = null;
+  void ensureExpeditionsTab();
   state.isAdmin = Boolean(isAdmin) || isAdminWalletAddress(walletAddress);
   state.walletAddress = walletAddress || "";
   walletAuthPanel.classList.add("hidden");
@@ -3404,6 +3410,8 @@ function syncStateWithPayload(payload = {}) {
   setCharacterImages(DEFAULT_CHARACTER_IMAGE, "");
   syncDisplayedRarity(null);
   updateCreatePetMenuState();
+  // Expeditions (026): the tab shows only when the feature answers 200 for this wallet.
+  void ensureExpeditionsTab();
 }
 
 function resetCharacterState({ keepTypeSelection = false, keepCharacters = false } = {}) {
@@ -3446,10 +3454,15 @@ function syncDashboardTabs(step = state.step) {
   if (!dashboardTabMyPets || !dashboardTabArena) return;
 
   const isArena = step === "arena";
-  dashboardTabMyPets.classList.toggle("active", !isArena);
+  const isExpeditions = step === "expeditions";
+  dashboardTabMyPets.classList.toggle("active", !isArena && !isExpeditions);
   dashboardTabArena.classList.toggle("active", isArena);
-  dashboardTabMyPets.setAttribute("aria-selected", isArena ? "false" : "true");
+  dashboardTabMyPets.setAttribute("aria-selected", isArena || isExpeditions ? "false" : "true");
   dashboardTabArena.setAttribute("aria-selected", isArena ? "true" : "false");
+  if (dashboardTabExpeditions) {
+    dashboardTabExpeditions.classList.toggle("active", isExpeditions);
+    dashboardTabExpeditions.setAttribute("aria-selected", isExpeditions ? "true" : "false");
+  }
 }
 
 function openAdminPanelFromMenu() {
@@ -3514,7 +3527,7 @@ function getRequestedScreen() {
     return "";
   }
 
-  return ["type", "cabinet", "admin", "arena", "upgrade"].includes(screen) ? screen : "";
+  return ["type", "cabinet", "admin", "arena", "upgrade", "expeditions"].includes(screen) ? screen : "";
 }
 
 function getArenaPreviewMode() {
@@ -3544,6 +3557,8 @@ function syncDashboardRouteState(step, { battleId = "", petId = "", replace = tr
     url.searchParams.set("screen", "upgrade");
   } else if (step === "admin") {
     url.searchParams.set("screen", "admin");
+  } else if (step === "expeditions") {
+    url.searchParams.set("screen", "expeditions");
   } else {
     url.searchParams.delete("screen");
   }
@@ -3584,6 +3599,7 @@ function getPageMode() {
   if (requestedScreen === "cabinet") return "dashboard";
   if (requestedScreen === "arena") return "dashboard";
   if (requestedScreen === "upgrade") return "dashboard";
+  if (requestedScreen === "expeditions") return "dashboard";
   if (requestedScreen === "admin") return "admin";
   return "creation";
 }
@@ -3642,6 +3658,8 @@ async function restoreCharacterState() {
             ? "arena"
             : requestedScreen === "upgrade"
               ? "upgrade"
+              : requestedScreen === "expeditions"
+                ? "expeditions"
             : "cabinet"
       );
       return true;
@@ -3675,6 +3693,8 @@ async function restoreCharacterState() {
           ? "arena"
           : requestedScreen === "upgrade"
             ? "upgrade"
+            : requestedScreen === "expeditions"
+              ? "expeditions"
             : "cabinet"
       );
       return true;
@@ -3879,7 +3899,7 @@ function resetStepScroll() {
 }
 
 function showScreen(targetId) {
-  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenArena, screenAdmin].forEach(
+  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenArena, screenAdmin, screenExpeditions].forEach(
     (screen) => {
       if (!screen) return;
       screen.classList.toggle("hidden", screen.id !== targetId);
@@ -3897,7 +3917,8 @@ function setProgress(step) {
         step === "cabinet" ||
         step === "arena" ||
         step === "admin" ||
-        step === "upgrade"
+        step === "upgrade" ||
+        step === "expeditions"
     );
   }
 
@@ -11475,6 +11496,51 @@ function triggerArenaBattleHitEffects(battle, round) {
   fireArenaHitConfetti(targetCard, round.accentSide);
 }
 
+// === Expeditions (026): tab visibility + bridge into pet-creation/expeditions.js ===
+let expeditionsConfigPromise = null;
+async function ensureExpeditionsTab() {
+  if (!dashboardTabExpeditions || !state.isAuthenticated) return false;
+  if (!expeditionsConfigPromise) {
+    expeditionsConfigPromise = apiRequest("/api/expeditions/config", {}, "GET")
+      .then((config) => Boolean(config && config.enabled))
+      .catch(() => false);
+  }
+  const enabled = await expeditionsConfigPromise;
+  dashboardTabExpeditions.classList.toggle("hidden", !enabled);
+  return enabled;
+}
+
+function applyExpeditionWallet(wallet) {
+  if (!wallet) return;
+  if (Number.isFinite(Number(wallet.points))) {
+    state.currency = { ...(state.currency || {}), balance: Math.max(0, Math.floor(Number(wallet.points))) };
+    updateDashboardPointsUi();
+  }
+  if (Number.isFinite(Number(wallet.energy))) {
+    state.energyCurrent = Math.max(0, Math.floor(Number(wallet.energy)));
+    updateEnergyUi();
+  }
+}
+
+async function mountExpeditions() {
+  if (!window.PetixExpeditions || !screenExpeditions) return;
+  // Boot: the session is restored asynchronously; restoreCharacterState()
+  // re-enters this screen once the wallet is known, so just wait here.
+  if (!state.isAuthenticated) return;
+  const enabled = await ensureExpeditionsTab();
+  if (!enabled) {
+    moveTo("cabinet");
+    return;
+  }
+  await window.PetixExpeditions.mount({
+    host: screenExpeditions,
+    overlayRoot: expeditionsOverlay,
+    apiRequest,
+    getCharacters: () => state.characters,
+    onWallet: applyExpeditionWallet,
+  });
+}
+
 function moveTo(step, { replace = true } = {}) {
   if (!ENABLE_ARENA && step === "arena") {
     step = "cabinet";
@@ -11532,6 +11598,15 @@ function moveTo(step, { replace = true } = {}) {
     showScreen("screenArena");
     renderArena();
     void ensureArenaHistoryLoaded().catch(() => {});
+  }
+  if (step !== "expeditions" && window.PetixExpeditions) {
+    window.PetixExpeditions.leave();
+  }
+  if (step === "expeditions") {
+    showScreen("screenExpeditions");
+    if (dashboardTabs) dashboardTabs.classList.remove("hidden");
+    syncDashboardTabs(step);
+    void mountExpeditions();
   }
   if (step === "admin") {
     showScreen("screenAdmin");
@@ -12076,6 +12151,14 @@ function init() {
     });
   }
 
+  if (dashboardTabExpeditions) {
+    dashboardTabExpeditions.addEventListener("click", () => {
+      clearArenaAnimation();
+      state.activeBattle = null;
+      moveTo("expeditions");
+    });
+  }
+
   if (dashboardTabArena) {
     dashboardTabArena.addEventListener("click", () => {
       clearArenaAnimation();
@@ -12501,6 +12584,8 @@ function init() {
         ? "arena"
         : requestedScreen === "upgrade"
           ? "upgrade"
+          : requestedScreen === "expeditions"
+            ? "expeditions"
           : "cabinet"
     );
     return;
