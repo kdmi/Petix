@@ -15,6 +15,7 @@ const MODULES = [
   "api/_lib/expeditions-config.js",
   "api/_lib/expeditions.js",
   "api/_lib/expedition-nft.js",
+  "api/_lib/expedition-collections.js",
   "api/_lib/roster.js",
   "api/expeditions/[action].js",
 ];
@@ -120,6 +121,7 @@ async function withExpeditionEnv(fn, { env = {}, overrides = {}, seedProfiles = 
     const energy = fresh("api/_lib/battle-energy.js");
     const expeditionsConfig = fresh("api/_lib/expeditions-config.js");
     const expeditionNft = fresh("api/_lib/expedition-nft.js");
+    const expeditionCollections = fresh("api/_lib/expedition-collections.js");
     const engine = require(path.join(ROOT, "assets/expeditions/engine.js"));
     await economyStore.writeOverrides({ EXPEDITIONS_ENABLED: 1, EXPEDITIONS_ADMIN_ONLY: 0, ...overrides });
     if (typeof economy.invalidateCache === "function") economy.invalidateCache();
@@ -137,7 +139,7 @@ async function withExpeditionEnv(fn, { env = {}, overrides = {}, seedProfiles = 
       await economyStore.writeOverrides({ ...current, ...patch });
       if (typeof economy.invalidateCache === "function") economy.invalidateCache();
     };
-    return await fn({ store, economy, economyStore, energy, expeditionsConfig, expeditionNft, engine, dispatcher, adminDispatcher, patchConfig, tempDir });
+    return await fn({ store, economy, economyStore, energy, expeditionsConfig, expeditionNft, expeditionCollections, engine, dispatcher, adminDispatcher, patchConfig, tempDir });
   } finally {
     process.chdir(originalCwd);
     for (const [key, value] of Object.entries(originalEnv)) {

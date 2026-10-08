@@ -43,7 +43,7 @@ function fail(status, code, message, extra) {
 function sendDomainError(res, error) {
   if (error?.httpStatus) {
     const payload = { error: error.message, code: error.httpCode };
-    for (const key of ["fee", "energy", "points", "bossIndex", "attemptId"]) {
+    for (const key of ["fee", "energy", "points", "bossIndex", "attemptId", "tokenId"]) {
       if (error[key] != null) payload[key] = error[key];
     }
     json(res, error.httpStatus, payload);

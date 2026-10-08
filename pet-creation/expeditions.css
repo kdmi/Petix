@@ -171,6 +171,10 @@
 .xp .claim-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--gray-100); font-size: 14px; font-weight: 600; }
 .xp .claim-row a { color: var(--gray-900); text-decoration: underline; text-decoration-color: var(--gray-300); text-underline-offset: 3px; }
 .xp .claim-status { color: var(--gray-400); font-weight: 500; }
+.xp .claim-row.is-claimed a { text-decoration: line-through; color: var(--gray-400); }
+.xp .claim-row.is-claimed .claim-status { color: #2e9e4f; }
+.xp .claim-empty { justify-content: center; color: var(--gray-400); }
+.xp .btn-claim-check:disabled { background: var(--gray-200); color: var(--gray-400); box-shadow: none; cursor: default; transform: none; }
 .xp .btn-claim-check {
   width: 100%;
   height: 48px;

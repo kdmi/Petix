@@ -9235,3 +9235,9 @@ body.is-public-replay[data-page="dashboard"] .dashboard-topbar {
 .xa-btn-primary { background: var(--gray-900); color: #fff; border-color: var(--gray-900); }
 .xa-btn-primary:disabled { opacity: 0.5; }
 @media (max-width: 900px) { .xa-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .xa-fields--3, .xa-fields--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .xa-journal li { grid-template-columns: 1fr; } }
+
+/* Expeditions (026): three dashboard tabs must stay on one row on phones. */
+@media (max-width: 640px) {
+  body[data-page="dashboard"] .dashboard-tabs { display: flex; width: 100%; box-sizing: border-box; justify-self: stretch; }
+  body[data-page="dashboard"] .dashboard-tab { flex: 1 1 0; min-width: 0; width: auto; padding: 0 6px; font-size: 13px; justify-content: center; }
+}

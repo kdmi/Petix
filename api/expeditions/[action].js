@@ -13,6 +13,7 @@ const HANDLERS = {
   "tutorial-seen": require("../../server-routes/expeditions/tutorial-seen"),
   "claim-nft": require("../../server-routes/expeditions/claim-nft"),
   "mint-sync": require("../../server-routes/expeditions/mint-sync"),
+  "energy-claim": require("../../server-routes/expeditions/energy-claim"),
 };
 
 module.exports = async (req, res) => {

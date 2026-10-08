@@ -416,18 +416,66 @@
     return true;
   }
 
-  // ---------- Holder bonus banner → claim popup (placeholder until the Figma popup lands) ----------
-  var claimFade;
-  function openClaim() {
+  // ---------- Holder bonus banner → claim popup (layout is a placeholder until the Figma popup lands; the flow is real) ----------
+  var claimFade, claimBusy = false, claimCollections = null;
+  function claimStatusLabel(c) {
+    if (c.status === 'claimed') return 'Claimed · +' + c.energy;
+    if (c.status === 'granted') return '+' + c.energy + ' energy';
+    if (c.status === 'not_held') return 'Not in wallet';
+    if (c.status === 'not_eligible') return 'Transferred after opening';
+    return '+' + c.energy + ' energy';
+  }
+  function renderClaimList() {
     var list = byId('claim-list');
     list.innerHTML = '';
-    ROSTER.filter(function (b) { return b.state !== 'hidden'; }).forEach(function (b) {
-      var row = el('li', 'claim-row');
-      row.innerHTML = '<a href="' + escapeHtml(b.url) + '" target="_blank" rel="noopener">' + escapeHtml(b.name) + '</a><span class="claim-status">Not checked</span>';
+    var rows = claimCollections || [];
+    if (!rows.length) {
+      list.innerHTML = '<li class="claim-row claim-empty">No collections open for claims yet</li>';
+    }
+    rows.forEach(function (c) {
+      var row = el('li', 'claim-row' + (c.status === 'claimed' ? ' is-claimed' : ''));
+      row.innerHTML = '<a href="' + escapeHtml(c.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(c.name) + '</a><span class="claim-status">' + escapeHtml(claimStatusLabel(c)) + '</span>';
       list.appendChild(row);
     });
+    var btn = byId('claim-check');
+    var claimable = rows.some(function (c) { return c.status === 'claimable' || c.status === 'not_held' || c.status === 'not_eligible'; });
+    btn.disabled = claimBusy || !claimable;
+    btn.textContent = claimBusy ? 'Checking your wallet…' : claimable ? 'Check my wallet' : rows.length ? 'All collections claimed' : 'Nothing to claim yet';
+  }
+  async function openClaim() {
     claimFade.hidden = false;
     document.body.style.overflow = 'hidden';
+    claimCollections = null;
+    claimBusy = true; renderClaimList();
+    try {
+      var data = await bridge.apiRequest('/api/expeditions/energy-claim', {}, 'GET');
+      claimCollections = data.collections || [];
+    } catch (e) {
+      claimCollections = [];
+      showToast(e && e.message ? e.message : 'Could not load collections');
+    }
+    claimBusy = false; renderClaimList();
+  }
+  async function runClaim() {
+    if (claimBusy) return;
+    var wanted = (claimCollections || []).filter(function (c) { return c.status !== 'claimed'; }).map(function (c) { return c.bossIndex; });
+    if (!wanted.length) return;
+    claimBusy = true; renderClaimList();
+    try {
+      var data = await bridge.apiRequest('/api/expeditions/energy-claim', { collections: wanted });
+      var byBoss = {};
+      (data.results || []).forEach(function (r) { byBoss[r.bossIndex] = r; });
+      claimCollections = (data.collections || []).map(function (c) {
+        var r = byBoss[c.bossIndex];
+        return r && r.status !== 'granted' ? Object.assign({}, c, { status: r.status }) : c;
+      });
+      if (data.wallet) { STATE.wallet = data.wallet; if (bridge.onWallet) bridge.onWallet(data.wallet); }
+      if (data.energyAdded > 0) showToast('+' + data.energyAdded + ' energy added to your balance');
+      else showToast('No eligible NFTs found in your wallet');
+    } catch (e) {
+      showToast(e && e.message ? e.message : 'Could not check your wallet — try again later');
+    }
+    claimBusy = false; renderClaimList();
   }
   function closeClaim() { claimFade.hidden = true; document.body.style.overflow = ''; }
 
@@ -439,7 +487,7 @@
     byId('modal-close').addEventListener('click', closeModal);
     byId('btn-holder-claim').addEventListener('click', openClaim);
     byId('claim-close').addEventListener('click', closeClaim);
-    byId('claim-check').addEventListener('click', function () { showToast('Holder energy claims open soon'); });
+    byId('claim-check').addEventListener('click', runClaim);
     claimFade.addEventListener('click', function (e) { if (e.target === claimFade) closeClaim(); });
     document.addEventListener('keydown', function (e) {
       if (!mounted || host.classList.contains('hidden')) return;
