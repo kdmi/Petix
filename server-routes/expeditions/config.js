@@ -1,6 +1,7 @@
 const { handleCors, json } = require("../../api/_lib/auth");
 const { ROSTER, bossViews, isMintEnabled, rulesFromConfig } = require("../../api/_lib/expeditions-config");
 const { assertExpeditionsAccess, requireMethod } = require("./_shared");
+const { applyPendingGrants } = require("../../api/_lib/expedition-energy");
 
 // Public view of the season: roster, fees, flags. No contract addresses, no
 // opened blocks — those stay in the admin API.
@@ -9,7 +10,8 @@ module.exports = async (req, res) => {
   const access = await assertExpeditionsAccess(req, res, { allowAnonymous: true });
   if (!access) return;
   if (!requireMethod(req, res, "GET")) return;
-  const { cfg, admin } = access;
+  const { cfg, admin, session } = access;
+  if (session) await applyPendingGrants(session.wallet).catch(() => 0);
   json(res, 200, {
     enabled: true,
     adminOnly: Number(cfg.EXPEDITIONS_ADMIN_ONLY) === 1,

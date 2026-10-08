@@ -63,7 +63,7 @@ const EMPTY_WALLET_PROFILE = {
   deposits: [],
   // Expeditions (026): active attempt, per-boss progress (stars, payouts, NFT),
   // holder-energy claims by boss, tutorial flag.
-  expeditions: { active: null, progress: {}, energyClaims: {}, tutorialSeen: false },
+  expeditions: { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false },
   profileUpdatedAt: null,
 };
 
@@ -81,10 +81,25 @@ function normalizeExpeditions(raw) {
       if (value && typeof value === "object") energyClaims[key] = cloneRecord(value);
     }
   }
+  const daily = {};
+  if (source.daily && typeof source.daily === "object" && !Array.isArray(source.daily)) {
+    for (const [key, value] of Object.entries(source.daily)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(key) && value && typeof value === "object") daily[key] = cloneRecord(value);
+    }
+  }
+  const grants = {};
+  if (source.grants && typeof source.grants === "object" && !Array.isArray(source.grants)) {
+    for (const [key, value] of Object.entries(source.grants)) {
+      if (value && typeof value === "object") grants[key] = cloneRecord(value);
+    }
+  }
   return {
     active: source.active && typeof source.active === "object" ? cloneRecord(source.active) : null,
     progress,
     energyClaims,
+    daily,
+    // Energy grants applied to this wallet, keyed by the campaign label (idempotency).
+    grants,
     tutorialSeen: source.tutorialSeen === true,
   };
 }

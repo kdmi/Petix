@@ -3,6 +3,7 @@ const { getWalletProfile } = require("../../api/_lib/store");
 const { bossViews, isMintEnabled, rulesFromConfig } = require("../../api/_lib/expeditions-config");
 const X = require("../../api/_lib/expeditions");
 const { assertExpeditionsAccess, requireMethod } = require("./_shared");
+const { applyPendingGrants } = require("../../api/_lib/expedition-energy");
 
 // GET /api/expeditions/state — everything the Expeditions screen needs for this wallet.
 module.exports = async (req, res) => {
@@ -11,6 +12,7 @@ module.exports = async (req, res) => {
   if (!access) return;
   if (!requireMethod(req, res, "GET")) return;
   const { session, cfg } = access;
+  await applyPendingGrants(session.wallet).catch(() => 0);
   const profile = await getWalletProfile(session.wallet);
   const active = profile.expeditions.active;
   const progress = {};

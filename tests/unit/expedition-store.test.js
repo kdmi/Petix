@@ -6,7 +6,7 @@ const { PLAYER, withExpeditionEnv } = require("./helpers/expedition-fixtures");
 test("wallet profile carries a normalized expeditions block", async () => {
   await withExpeditionEnv(async ({ store }) => {
     const profile = await store.getWalletProfile(PLAYER);
-    assert.deepEqual(profile.expeditions, { active: null, progress: {}, energyClaims: {}, tutorialSeen: false });
+    assert.deepEqual(profile.expeditions, { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false });
 
     await store.updateWalletProfile(PLAYER, (current) => ({
       ...current,

@@ -91,9 +91,28 @@ function progressOf(profile, bossIndex) {
     wins: Math.max(0, Math.floor(Number(existing?.wins) || 0)),
     forfeits: Math.max(0, Math.floor(Number(existing?.forfeits) || 0)),
     paidStars: Array.isArray(existing?.paidStars) ? existing.paidStars.map(Number).filter((n) => n >= 1 && n <= 3) : [],
+    feesPaid: Math.max(0, Math.floor(Number(existing?.feesPaid) || 0)),
+    rewardsPaid: Math.max(0, Math.floor(Number(existing?.rewardsPaid) || 0)),
+    stars3: Math.max(0, Math.floor(Number(existing?.stars3) || 0)),
     nft: existing?.nft && typeof existing.nft === "object" ? { ...existing.nft } : null,
     lastResult: existing?.lastResult && typeof existing.lastResult === "object" ? { ...existing.lastResult } : null,
   };
+}
+
+// Per-wallet daily counters (last 8 days) so the admin stats can answer
+// "today / 7 days" without a hot shared document.
+const DAILY_KEEP_DAYS = 8;
+function dayKey(now) { return new Date(now).toISOString().slice(0, 10); }
+function bumpDaily(profile, now, patch) {
+  const x = profile.expeditions;
+  const daily = x.daily && typeof x.daily === "object" ? x.daily : {};
+  const key = dayKey(now);
+  const day = daily[key] || { attempts: 0, fees: 0, rewards: 0, wins: 0, stars3: 0, forfeits: 0 };
+  for (const [k, v] of Object.entries(patch)) day[k] = (Number(day[k]) || 0) + v;
+  daily[key] = day;
+  const keys = Object.keys(daily).sort();
+  while (keys.length > DAILY_KEEP_DAYS) delete daily[keys.shift()];
+  x.daily = daily;
 }
 
 function bestStarsMap(profile) {
@@ -115,6 +134,7 @@ function forfeitActive(profile, { now = new Date() } = {}) {
   if (!active) return null;
   const progress = progressOf(profile, active.bossIndex);
   progress.forfeits += 1;
+  bumpDaily(profile, now, { forfeits: 1 });
   progress.lastResult = { attemptId: active.attemptId, status: "forfeited", at: now.toISOString(), stars: 0, won: false };
   profile.expeditions.progress[active.bossIndex] = progress;
   profile.expeditions.active = null;
@@ -178,8 +198,10 @@ function startAttempt(profile, { wallet, bossIndex, squadIds, cfg, rosterEntries
   // Re-read after forfeitActive(): it may have bumped this boss's counters.
   const progress = progressOf(profile, index);
   progress.attempts += 1;
+  progress.feesPaid = (Number(progress.feesPaid) || 0) + fee;
   profile.expeditions.progress[index] = progress;
   profile.expeditions.active = attempt;
+  bumpDaily(profile, now, { attempts: 1, fees: fee });
   return attempt;
 }
 
@@ -250,7 +272,10 @@ function settleAttempt(profile, attempt, result, cfg, { now = new Date() } = {})
   }
   progress.paidStars.sort();
   if (result.won) progress.wins += 1;
+  if (stars >= 3) progress.stars3 += 1;
+  progress.rewardsPaid += paid;
   progress.bestStars = Math.max(progress.bestStars, stars);
+  bumpDaily(profile, now, { rewards: paid, wins: result.won ? 1 : 0, stars3: stars >= 3 ? 1 : 0 });
   progress.lastResult = { attemptId: attempt.attemptId, status: result.finished ? "finished" : "forfeited", at: now.toISOString(), won: result.won, stars, paid, paidNow, moves: result.moves, hpPct: result.hpPct };
   profile.expeditions.progress[index] = progress;
   if (profile.expeditions.active && profile.expeditions.active.attemptId === attempt.attemptId) profile.expeditions.active = null;
@@ -273,6 +298,8 @@ function attemptView(attempt) {
 
 module.exports = {
   ATTEMPT_TTL_MS,
+  DAILY_KEEP_DAYS,
+  dayKey,
   MAX_MOVES,
   MAX_OWN_PETS,
   WILD_COUNT,
