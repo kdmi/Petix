@@ -21,7 +21,13 @@ function resolveChain() {
   return {
     async isErc721(address) {
       const c = new Contract(address, ["function supportsInterface(bytes4) view returns (bool)"], provider);
-      return Boolean(await c.supportsInterface(ERC721_INTERFACE));
+      try {
+        return Boolean(await c.supportsInterface(ERC721_INTERFACE));
+      } catch (error) {
+        // No code at the address or a contract without ERC-165 → "0x" / revert: not an ERC-721.
+        if (error?.code === "BAD_DATA" || error?.code === "CALL_EXCEPTION") return false;
+        const wrapped = new Error("Chain RPC is unavailable."); wrapped.code = "RPC_UNAVAILABLE"; wrapped.cause = error; throw wrapped;
+      }
     },
     async blockNumber() { return Number(await provider.getBlockNumber()); },
   };

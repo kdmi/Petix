@@ -931,6 +931,8 @@ const adminNavBattles = document.getElementById("adminNavBattles");
 const adminNavWaitlist = document.getElementById("adminNavWaitlist");
 const adminNavEconomy = document.getElementById("adminNavEconomy");
 const adminEconomyPanel = document.getElementById("adminEconomyPanel");
+const adminNavExpeditions = document.getElementById("adminNavExpeditions");
+const adminExpeditionsPanel = document.getElementById("adminExpeditionsPanel");
 const adminTableWrap = document.getElementById("adminTableWrap");
 const adminSearchWrap = document.getElementById("adminSearchWrap");
 const adminStatsGridEl = document.getElementById("adminStatsGrid");
@@ -10267,6 +10269,7 @@ function setAdminNavActiveStates() {
     [adminNavBattles, "battles"],
     [adminNavWaitlist, "waitlist"],
     [adminNavEconomy, "economy"],
+    [adminNavExpeditions, "expeditions"],
   ].forEach(([btn, section]) => {
     if (!btn) return;
     const isActive = state.adminSection === section;
@@ -10275,8 +10278,10 @@ function setAdminNavActiveStates() {
   });
 }
 
-function updateAdminSectionVisibility(isEconomy) {
+function updateAdminSectionVisibility(isEconomy, isExpeditions = false) {
+  if (adminExpeditionsPanel) adminExpeditionsPanel.classList.toggle("hidden", !isExpeditions);
   if (adminEconomyPanel) adminEconomyPanel.classList.toggle("hidden", !isEconomy);
+  isEconomy = isEconomy || isExpeditions; // both hide the shared table/search/stats
   if (adminTableWrap) adminTableWrap.classList.toggle("hidden", isEconomy);
   if (adminSearchWrap) adminSearchWrap.classList.toggle("hidden", isEconomy);
   if (adminStatsGridEl) adminStatsGridEl.classList.toggle("hidden", isEconomy);
@@ -10289,8 +10294,13 @@ function updateAdminSectionVisibility(isEconomy) {
 
 function renderAdminTable() {
   const isEconomy = state.adminSection === "economy";
-  updateAdminSectionVisibility(isEconomy);
+  const isExpeditions = state.adminSection === "expeditions";
+  updateAdminSectionVisibility(isEconomy, isExpeditions);
   setAdminNavActiveStates();
+  if (isExpeditions) {
+    if (window.PetixAdminExpeditions) window.PetixAdminExpeditions.render();
+    return;
+  }
   if (isEconomy) {
     renderAdminEconomy();
     return;
@@ -10672,6 +10682,10 @@ function loadActiveAdminSection({ force = false } = {}) {
     return loadAdminEconomy({ force });
   }
 
+  if (state.adminSection === "expeditions") {
+    return loadAdminExpeditions({ force });
+  }
+
   return loadAdminCharacters({ force });
 }
 
@@ -10683,6 +10697,8 @@ function switchAdminSection(section) {
         ? "battles"
         : section === "economy"
           ? "economy"
+          : section === "expeditions"
+            ? "expeditions"
           : "characters";
   if (state.adminSection === nextSection) {
     renderAdminTable();
@@ -10691,6 +10707,17 @@ function switchAdminSection(section) {
 
   state.adminSection = nextSection;
   loadActiveAdminSection();
+}
+
+// Expeditions tab (026): the heavy lifting lives in pet-creation/admin-expeditions.js.
+async function loadAdminExpeditions({ force = false } = {}) {
+  if (!state.isAdmin || !adminExpeditionsPanel || !window.PetixAdminExpeditions) {
+    renderAdminTable();
+    return;
+  }
+  renderAdminTable();
+  window.PetixAdminExpeditions.mount(adminExpeditionsPanel, { apiRequest, showToast, escapeHtml, formatPoints });
+  await window.PetixAdminExpeditions.load({ force });
 }
 
 async function loadAdminEconomy({ force = false } = {}) {
@@ -12468,6 +12495,12 @@ function init() {
   if (adminNavEconomy) {
     adminNavEconomy.addEventListener("click", () => {
       switchAdminSection("economy");
+    });
+  }
+
+  if (adminNavExpeditions) {
+    adminNavExpeditions.addEventListener("click", () => {
+      switchAdminSection("expeditions");
     });
   }
 
