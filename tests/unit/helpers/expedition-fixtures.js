@@ -145,12 +145,22 @@ function sessionHeaders(wallet, walletType = "metamask") {
 
 async function invoke(handler, { method = "GET", url = "/", headers = {}, body } = {}) {
   const listeners = { data: [], end: [], error: [] };
+  const raw = body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body);
+  let emitted = false;
   const req = {
     method,
     url,
     headers: { host: "localhost:3000", ...headers },
+    // Handlers may attach their body listeners after an await (config/session
+    // lookups come first), so replay the buffered body to late subscribers.
     on(event, callback) {
-      if (listeners[event]) listeners[event].push(callback);
+      if (!listeners[event]) return this;
+      if (emitted) {
+        if (event === "data" && raw) callback(raw);
+        if (event === "end") callback();
+      } else {
+        listeners[event].push(callback);
+      }
       return this;
     },
   };
@@ -169,8 +179,8 @@ async function invoke(handler, { method = "GET", url = "/", headers = {}, body }
     },
   };
   const pending = Promise.resolve().then(() => handler(req, res));
-  const raw = body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body);
   process.nextTick(() => {
+    emitted = true;
     if (raw) listeners.data.forEach((cb) => cb(raw));
     listeners.end.forEach((cb) => cb());
   });

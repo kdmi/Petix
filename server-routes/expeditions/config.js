@@ -6,9 +6,9 @@ const { assertExpeditionsAccess, requireMethod } = require("./_shared");
 // opened blocks — those stay in the admin API.
 module.exports = async (req, res) => {
   if (handleCors(req, res)) return;
-  if (!requireMethod(req, res, "GET")) return;
   const access = await assertExpeditionsAccess(req, res, { allowAnonymous: true });
   if (!access) return;
+  if (!requireMethod(req, res, "GET")) return;
   const { cfg, admin } = access;
   json(res, 200, {
     enabled: true,
