@@ -10,7 +10,9 @@ test("roster: 10 bosses, art paths under /assets/expeditions, OpenSea links, cal
   assert.equal(X.ROSTER[6].name, "WIF Outlaws");
   assert.equal(X.ROSTER[2].img, "/assets/expeditions/bosses/3.png");
   assert.equal(X.ROSTER[9].url, "https://opensea.io/collection/cashcatss");
-  assert.deepEqual(X.ROSTER.map((b) => b.par), [17, 17, 20, 19, 21, 21, 21, 20, 21, 20]);
+  assert.deepEqual(X.ROSTER.map((b) => b.par), [18, 22, 27, 26, 25, 26, 26, 24, 24, 22]); // rebalance 2026-10-10
+  assert.deepEqual(X.ROSTER.map((b) => b.shields), [2, 3, 4, 4, 5, 7, 6, 7, 8, 8]);
+  assert.deepEqual(X.ROSTER.slice(0, 3).map((b) => [b.hp, b.power]), [[2600, 9], [3600, 17], [5000, 29]]);
 });
 
 test("bossViews: hidden / current / locked / done follow the open flags and progress", () => {
