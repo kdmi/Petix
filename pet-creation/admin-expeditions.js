@@ -230,16 +230,17 @@
   async function withSaving(fn, okMessage) {
     if (view.saving) return;
     view.saving = true;
+    render();
     try {
       await fn();
       if (okMessage) ctx.showToast(okMessage);
+      view.saving = false; // before the reload: load() renders, and it must not paint the panel as still saving
       await load({ force: true });
     } catch (error) {
       ctx.showToast(error.message || "Action failed.");
-      view.saving = false;
-      render();
     } finally {
       view.saving = false;
+      render();
     }
   }
 
