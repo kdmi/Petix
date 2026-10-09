@@ -428,9 +428,11 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
       attributes: [{ trait_type: "Boss number", value: boss.index, display_type: "number" }],
     };
   }
-  // Owner decision 2026-10-09: name = boss name; traits Level (boss order), Family (partner collection), Season 1.
+  // Owner decisions 2026-10-09/10: name = boss name + per-boss serial (#1 = first wallet to clear this boss);
+  // traits Level (boss order), Family (partner collection), Season 1, Number (the same serial).
+  const serial = entry.serial != null && Number(entry.serial) > 0 ? Number(entry.serial) : null;
   return {
-    name: boss.title,
+    name: serial ? `${boss.title} #${serial}` : boss.title,
     description: `Boss trophy of Petix Expeditions, Season 1. ${boss.title} is a tribute to ${boss.name}. Earned with a perfect three-star run.`,
     image: `${base}${boss.nftImage || boss.img}`,
     external_url: `${base}/dashboard/?screen=expeditions`,
@@ -438,6 +440,7 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
       { trait_type: "Level", value: boss.index },
       { trait_type: "Family", value: boss.name },
       { trait_type: "Season", value: 1 },
+      ...(serial ? [{ trait_type: "Number", value: serial, display_type: "number" }] : []),
     ],
   };
 }
