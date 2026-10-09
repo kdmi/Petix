@@ -11003,6 +11003,23 @@ function renderAdminEconomy() {
           ecoNumberRow("Battle level k", "BATTLE_LEVEL_K", cfg.BATTLE_LEVEL_K),
           ecoNumberRow("Burn cost", "BURN_COST", cfg.BURN_COST),
         ])}
+      </section>
+      <section>
+        <h3 style="margin:0 0 4px;font-size:15px;">Battle pacing</h3>
+        <p style="margin:0 0 10px;font-size:12px;color:#667085;">
+          HP = base + per-stamina × stamina<sup>exp</sup> &nbsp;·&nbsp;
+          Damage = base + per-strength × strength<sup>exp</sup><br />
+          Exponent 1 = linear. Below 1 it damps the extremes — the all-tank and
+          all-damage builds that make fights last either 2 rounds or 50.
+        </p>
+        ${grid([
+          ecoNumberRow("HP base", "BATTLE_HP_BASE", cfg.BATTLE_HP_BASE),
+          ecoNumberRow("HP per stamina", "BATTLE_HP_PER_STAMINA", cfg.BATTLE_HP_PER_STAMINA),
+          ecoNumberRow("HP exponent (0.3–1)", "BATTLE_HP_EXPONENT", cfg.BATTLE_HP_EXPONENT),
+          ecoNumberRow("Damage base", "BATTLE_DAMAGE_BASE", cfg.BATTLE_DAMAGE_BASE),
+          ecoNumberRow("Damage per strength", "BATTLE_DAMAGE_PER_STRENGTH", cfg.BATTLE_DAMAGE_PER_STRENGTH),
+          ecoNumberRow("Damage exponent (0.3–1)", "BATTLE_DAMAGE_EXPONENT", cfg.BATTLE_DAMAGE_EXPONENT),
+        ])}
         ${saveFooter}
       </section>`;
   } else {
@@ -11226,7 +11243,7 @@ async function saveAdminEconomy() {
   }
 
   const patch = {};
-  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "FREE_SLOTS", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS"].forEach((key) => {
+  ["FARM_BASE", "FARM_LEVEL_K", "BATTLE_REWARD_BASE", "BATTLE_LEVEL_K", "BURN_COST", "FREE_SLOTS", "MIN_WITHDRAW", "WITHDRAW_FEE_PCT", "WITHDRAW_ENABLED", "WITHDRAW_MAX_PER_TX", "WITHDRAW_REQUIRE_NFT", "WITHDRAW_NFT_HOLD_HOURS", "NFT_BIND_ENABLED", "ENERGY_SHOP_ENABLED", "ENERGY_PACK_COOLDOWN_HOURS", "BATTLE_HP_BASE", "BATTLE_HP_PER_STAMINA", "BATTLE_HP_EXPONENT", "BATTLE_DAMAGE_BASE", "BATTLE_DAMAGE_PER_STRENGTH", "BATTLE_DAMAGE_EXPONENT"].forEach((key) => {
     const value = readEcoNumberInput(key);
     if (value !== undefined) patch[key] = value;
   });
