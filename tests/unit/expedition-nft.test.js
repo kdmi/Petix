@@ -29,7 +29,7 @@ test("claim: minting on → trophy minted, tokenId stored, registry feeds metada
 
     const meta = await expeditionNft.getTrophyMetadata(1, "https://petix.test");
     assert.equal(meta.name, "Sporebeak");
-    assert.equal(meta.image, "https://petix.test/assets/expeditions/bosses/1.png");
+    assert.equal(meta.image, "https://petix.test/assets/expeditions/nft/1.png");
     assert.deepEqual(meta.attributes, [
       { trait_type: "Level", value: 1 },
       { trait_type: "Family", value: "Rubber Hoodie Ducks" },

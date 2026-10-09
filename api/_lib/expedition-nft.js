@@ -432,7 +432,7 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
   return {
     name: boss.title,
     description: `Boss trophy of Petix Expeditions, Season 1. ${boss.title} is a tribute to ${boss.name}. Earned with a perfect three-star run.`,
-    image: `${base}${boss.img}`,
+    image: `${base}${boss.nftImage || boss.img}`,
     external_url: `${base}/dashboard/?screen=expeditions`,
     attributes: [
       { trait_type: "Level", value: boss.index },
@@ -455,7 +455,7 @@ function buildCollectionMetadata(origin, { testMode = getMintEnv().testMode } = 
   return {
     name: "Petix Expeditions",
     description: "Boss trophies of Petix Expeditions: one per wallet per boss, minted after a verified three-star run.",
-    image: `${base}/assets/expeditions/bosses/1.png`,
+    image: `${base}/assets/expeditions/nft/1.png`,
     external_link: `${base}/dashboard/?screen=expeditions`,
   };
 }
