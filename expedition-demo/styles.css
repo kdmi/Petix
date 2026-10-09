@@ -571,7 +571,7 @@ img { display: block; }
   position: absolute;
   z-index: 5;
   width: 289px;
-  height: 277px;
+  max-height: 277px;
   padding: 7px;
   background: #fff;
   border: 1px solid var(--gray-300);
