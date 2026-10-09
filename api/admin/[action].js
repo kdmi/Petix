@@ -10,6 +10,7 @@ const HANDLERS = {
   "expedition-stats": require("../../server-routes/admin/expedition-stats"),
   "expedition-boss": require("../../server-routes/admin/expedition-boss"),
   "expedition-nft-refresh": require("../../server-routes/admin/expedition-nft-refresh"),
+  "economy-config-audit": require("../../server-routes/admin/economy-config-audit"),
   "energy-grant": require("../../server-routes/admin/energy-grant"),
   "capsule-airdrop": require("../../server-routes/admin/capsule-airdrop"),
   "farm-stats": require("../../server-routes/admin/farm-stats"),
