@@ -442,6 +442,24 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
   };
 }
 
+/**
+ * Ask OpenSea to re-read a trophy's metadata (after an art or trait change). Same
+ * call the capsules use; needs NFT_OPENSEA_API_KEY. Returns { ok, status }.
+ */
+async function requestTrophyRefresh(tokenId, { fetchImpl = globalThis.fetch } = {}) {
+  const apiKey = String(process.env.NFT_OPENSEA_API_KEY || "").trim();
+  const contract = getMintEnv().contract;
+  if (!apiKey || !contract) return { ok: false, status: 0, reason: !apiKey ? "NO_API_KEY" : "NO_CONTRACT" };
+  const chain = process.env.NFT_OPENSEA_CHAIN || "robinhood";
+  const url = `https://api.opensea.io/api/v2/chain/${chain}/contract/${contract}/nfts/${tokenId}/refresh`;
+  try {
+    const response = await fetchImpl(url, { method: "POST", headers: { "x-api-key": apiKey, accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+    return { ok: response.ok, status: response.status };
+  } catch (error) {
+    return { ok: false, status: 0, reason: error.message };
+  }
+}
+
 function buildCollectionMetadata(origin, { testMode = getMintEnv().testMode } = {}) {
   const base = String(origin || "").replace(/\/$/, "");
   if (testMode) {
@@ -469,6 +487,7 @@ module.exports = {
   createMintClient,
   isCurrentTrophy,
   queueDocFor,
+  requestTrophyRefresh,
   emptyQueue,
   getMintEnv,
   getTrophyMetadata,
