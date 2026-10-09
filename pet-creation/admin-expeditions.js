@@ -190,6 +190,7 @@
         <div class="xa-toolbar">
           <div><h3>Boss NFTs</h3><p class="xa-hint">${s.flags.mintConfigured ? `minter ${esc(shortWallet(minter && minter.minterAddress))}${minter && minter.contractMinter ? ` · on-chain minter ${esc(shortWallet(minter.contractMinter))}` : ""}${minter && minter.baseUri ? ` · base URI ${esc(minter.baseUri)}` : ""}` : "Contract and minter are not configured in env — claims wait in the queue."}</p></div>
           <button type="button" class="admin-secondary-btn xa-btn-sm" data-xa-action="mint-sync">Run mint queue now</button>
+          <button type="button" class="admin-secondary-btn xa-btn-sm" data-xa-action="nft-refresh" title="Ask OpenSea to re-read the metadata of every minted trophy (after an art change)">Refresh on OpenSea</button>
         </div>
         <ul class="xa-journal">${pending || '<li class="xa-muted">Queue is empty.</li>'}</ul>
         ${failed ? `<h4>Recent failures</h4><ul class="xa-journal">${failed}</ul>` : ""}
@@ -300,6 +301,8 @@
         if (!window.confirm(`Grant ${amount} energy to ${wallets.length} wallets under "${label}"?`)) return undefined;
         return withSaving(async () => { const r = await ctx.apiRequest("/api/admin/energy-grant", { label, grants: wallets.map((wallet) => ({ wallet, amount })) }); ctx.showToast(`Granted: ${r.applied} applied, ${r.parked} parked, ${r.skipped} skipped.`); });
       }
+      case "nft-refresh":
+        return withSaving(async () => { const r = await ctx.apiRequest("/api/admin/expedition-nft-refresh", { all: true }); ctx.showToast(`OpenSea refresh requested for ${r.requested} of ${r.results.length} trophies.`); });
       case "mint-sync":
         return withSaving(async () => { const r = await ctx.apiRequest("/api/expeditions/mint-sync", {}); ctx.showToast(r.skipped ? `Mint queue skipped: ${r.reason}` : `Mint queue: ${r.minted} minted, ${r.failed} failed, ${r.pending} pending.`); });
       case "refresh":

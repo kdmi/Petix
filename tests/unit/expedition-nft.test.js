@@ -189,3 +189,28 @@ test("EXPEDITION_NFT_TEST_MODE=1: metadata carries neutral names and the placeho
     assert.equal(collection.image, "https://petix.test/assets/nft/placeholder.png");
   }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
 });
+
+
+test("admin expedition-nft-refresh: asks OpenSea for the trophy contract, single token or every minted one", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store, expeditionNft }) => {
+    const chain = createFakeTrophyChain();
+    expeditionNft.configureDeps(fastDeps(chain));
+    process.env.EXPEDITION_NFT_CONTRACT = chain.env.contract;
+    process.env.NFT_OPENSEA_API_KEY = "test-key";
+    const calls = [];
+    const fetchImpl = async (url, init) => { calls.push({ url, key: init.headers["x-api-key"] }); return { ok: true, status: 200 }; };
+    const r = await expeditionNft.requestTrophyRefresh(7, { fetchImpl });
+    assert.deepEqual(r, { ok: true, status: 200 });
+    assert.equal(calls[0].url, `https://api.opensea.io/api/v2/chain/robinhood/contract/${chain.env.contract}/nfts/7/refresh`);
+    assert.equal(calls[0].key, "test-key");
+    delete process.env.NFT_OPENSEA_API_KEY;
+    assert.equal((await expeditionNft.requestTrophyRefresh(7, { fetchImpl })).reason, "NO_API_KEY");
+    const path = require("path");
+    const admin = require(path.resolve(__dirname, "../../api/admin/[action].js"));
+    const denied = await invoke(admin, { method: "POST", url: "/api/admin/expedition-nft-refresh", headers: sessionHeaders(PLAYER), body: { tokenId: 1 } });
+    assert.equal(denied.status, 403);
+    const bad = await invoke(admin, { method: "POST", url: "/api/admin/expedition-nft-refresh", headers: sessionHeaders(ADMIN), body: {} });
+    assert.equal(bad.status, 400);
+    delete process.env.EXPEDITION_NFT_CONTRACT;
+  }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
+});

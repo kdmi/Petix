@@ -74,6 +74,7 @@ current block as `openedBlock` (claim cut-off). A boss with attempts can't be hi
 | `NFT_RPC_URL`, `NFT_CHAIN_ID` | yes | Chain RPC (Alchemy) and chain id, shared with capsules |
 | `PUBLIC_BASE_URL` | for deploy | Base of the metadata URL baked into the contract |
 | `CRON_SECRET` | yes | Already used by the other crons |
+| `NFT_OPENSEA_API_KEY` | optional | Lets the admin tab ask OpenSea to re-read trophy metadata (shared with capsules) |
 
 Trophy records in profiles and the mint registry are keyed by the contract address: a test collection and the real one never
 mix, and switching `EXPEDITION_NFT_CONTRACT` lets every wallet claim again on the new contract.
