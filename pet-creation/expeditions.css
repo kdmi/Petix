@@ -236,6 +236,7 @@
   font-weight: 600;
   font-size: 48px;
   line-height: 48px;
+  color: var(--gray-900); /* the dashboard's <p> colour is gray-500; Figma wants the numbers in gray-900 */
   white-space: pre;
 }
 .xp .season-progress .of { color: var(--gray-400); font-size: 24px; }
