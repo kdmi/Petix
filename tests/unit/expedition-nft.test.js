@@ -28,12 +28,13 @@ test("claim: minting on → trophy minted, tokenId stored, registry feeds metada
     assert.equal(chain.minted.length, 1);
 
     const meta = await expeditionNft.getTrophyMetadata(1, "https://petix.test");
-    assert.equal(meta.name, "Sporebeak");
+    assert.equal(meta.name, "Sporebeak #1");
     assert.equal(meta.image, "https://petix.test/assets/expeditions/nft/1.png");
     assert.deepEqual(meta.attributes, [
       { trait_type: "Level", value: 1 },
       { trait_type: "Family", value: "Rubber Hoodie Ducks" },
       { trait_type: "Season", value: 1 },
+      { trait_type: "Number", value: 1, display_type: "number" },
     ]);
     assert.equal(await expeditionNft.getTrophyMetadata(99, "https://petix.test"), null);
   }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
@@ -121,7 +122,7 @@ test("metadata endpoint is public: token, collection, unknown id", async () => {
     const handler = require(path.resolve(__dirname, "../../api/expeditions/metadata/[tokenId].js"));
     const token = await invoke(handler, { url: "/api/expeditions/metadata/1", headers: { host: "petix.test", "x-forwarded-proto": "https" } });
     assert.equal(token.status, 200);
-    assert.equal(token.body.name, "Hatlaw");
+    assert.equal(token.body.name, "Hatlaw #1");
     assert.equal(token.headers["access-control-allow-origin"], "*");
     const collection = await invoke(handler, { url: "/api/expeditions/metadata/collection" });
     assert.equal(collection.status, 200);
@@ -155,7 +156,7 @@ test("contract swap: trophies minted on the test collection are invisible on the
     const first = await claim(dispatcher(), PLAYER, 1);
     assert.equal(first.status, 200);
     assert.equal(first.body.progress.nft.contract, testChain.env.contract);
-    assert.equal((await expeditionNft.getTrophyMetadata(1, "https://petix.test")).name, "Sporebeak");
+    assert.equal((await expeditionNft.getTrophyMetadata(1, "https://petix.test")).name, "Sporebeak #1");
 
     // Launch: a fresh contract. The old record no longer counts, the queue starts empty.
     const realChain = createFakeTrophyChain();
