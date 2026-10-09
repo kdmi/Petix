@@ -57,6 +57,9 @@ function getMintEnv() {
     chainId,
     explorerUrl: String(process.env.NFT_EXPLORER_URL || "").trim() || null,
     configured: Boolean(contract && minterAddress && rpcUrl && chainId),
+    // Quiet test on prod with a throwaway collection: neutral names and a
+    // placeholder image in the metadata, so no boss art reaches the chain/OpenSea.
+    testMode: String(process.env.EXPEDITION_NFT_TEST_MODE || "").trim() === "1",
   };
 }
 
@@ -168,11 +171,18 @@ function normalizeQueue(raw) {
     failed: Array.isArray(q.failed) ? q.failed.slice(-200) : [],
   };
 }
-const queueDoc = createBlobDocument({ path: QUEUE_PATH, empty: emptyQueue, normalize: normalizeQueue });
+// One registry per contract: a test collection and the real one never share
+// tokenIds, and swapping EXPEDITION_NFT_CONTRACT starts from a clean queue.
+const queueDocs = new Map();
+function queueDocFor(contract) {
+  const key = contract ? QUEUE_PATH.replace(/\.json$/, `-${contract}.json`) : QUEUE_PATH;
+  if (!queueDocs.has(key)) queueDocs.set(key, createBlobDocument({ path: key, empty: emptyQueue, normalize: normalizeQueue }));
+  return queueDocs.get(key);
+}
 
 const DEFAULT_DEPS = {
   chain: null, // lazily created
-  queue: queueDoc,
+  queue: null, // resolved per contract
   profiles: { getWalletProfile, updateWalletProfile },
   getConfig: getEconomyConfig,
   now: () => Date.now(),
@@ -188,6 +198,7 @@ function configureDeps(overrides) { configuredDeps = overrides || {}; }
 function resolveDeps(overrides) {
   const deps = { ...DEFAULT_DEPS, ...configuredDeps, ...(overrides || {}) };
   if (!deps.chain) deps.chain = createMintClient();
+  if (!deps.queue) deps.queue = queueDocFor(deps.chain.env.contract);
   return deps;
 }
 
@@ -227,15 +238,23 @@ async function releaseLock(deps, owner) {
   await updateQueue(deps, (q) => { if (!q.lock || q.lock.owner !== owner) return null; q.lock = null; return q; }).catch(() => null);
 }
 
-function nftOf(profile, bossIndex) {
+/** The wallet's trophy record for this boss — only if it belongs to the current contract. */
+function nftOf(profile, bossIndex, contract) {
   const p = profile?.expeditions?.progress?.[bossIndex];
-  return p && p.nft && typeof p.nft === "object" ? p.nft : null;
+  const nft = p && p.nft && typeof p.nft === "object" ? p.nft : null;
+  return isCurrentTrophy(nft, contract) ? nft : null;
+}
+function isCurrentTrophy(nft, contract = getMintEnv().contract) {
+  if (!nft) return false;
+  if (nft.contract && contract && nft.contract !== contract) return false; // minted on another (test) collection
+  return true;
 }
 
 async function setNftStatus(deps, wallet, bossIndex, patch) {
   await deps.profiles.updateWalletProfile(wallet, (profile) => {
     const progress = profile.expeditions.progress[bossIndex] || { bestStars: 0, attempts: 0, wins: 0, forfeits: 0, paidStars: [], nft: null, lastResult: null };
-    progress.nft = { ...(progress.nft || {}), ...patch, updatedAt: new Date(deps.now()).toISOString() };
+    const same = isCurrentTrophy(progress.nft, deps.chain.env.contract) ? progress.nft : null;
+    progress.nft = { ...(same || {}), ...patch, contract: deps.chain.env.contract || null, updatedAt: new Date(deps.now()).toISOString() };
     profile.expeditions.progress[bossIndex] = progress;
     return profile;
   });
@@ -289,7 +308,7 @@ async function claimTrophy(wallet, bossIndex, depOverrides) {
   const profile = await deps.profiles.getWalletProfile(wallet);
   const progress = profile.expeditions.progress[index];
   if (!progress || Number(progress.bestStars) < 3) throw fail(403, "NOT_EARNED", "Earn 3 stars to claim the boss NFT.");
-  const current = nftOf(profile, index);
+  const current = nftOf(profile, index, deps.chain.env.contract);
   if (current && current.status === "minted") throw fail(409, "ALREADY_MINTED", "This boss NFT is already in your wallet.", { tokenId: current.tokenId });
   if (current && current.status === "sent") return { status: "pending", txHash: current.txHash };
 
@@ -401,6 +420,15 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
   if (!boss) return null;
   const base = String(origin || "").replace(/\/$/, "");
   const serial = entry.serial != null ? ` #${entry.serial}` : "";
+  if (deps.chain.env.testMode) {
+    return {
+      name: `Petix test trophy${serial || ` #${id}`}`,
+      description: "Test collection of Petix Expeditions. Not a real boss trophy.",
+      image: `${base}/assets/nft/placeholder.png`,
+      external_url: `${base}/dashboard/?screen=expeditions`,
+      attributes: [{ trait_type: "Boss number", value: boss.index, display_type: "number" }],
+    };
+  }
   return {
     name: `${boss.title}${serial}`,
     description: `Boss trophy of Petix Expeditions, Season 1. ${boss.title} is a tribute to ${boss.name}. Earned with a perfect three-star run.`,
@@ -416,8 +444,16 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
   };
 }
 
-function buildCollectionMetadata(origin) {
+function buildCollectionMetadata(origin, { testMode = getMintEnv().testMode } = {}) {
   const base = String(origin || "").replace(/\/$/, "");
+  if (testMode) {
+    return {
+      name: "Petix test trophies",
+      description: "Test collection of Petix Expeditions. Not real boss trophies.",
+      image: `${base}/assets/nft/placeholder.png`,
+      external_link: `${base}/dashboard/?screen=expeditions`,
+    };
+  }
   return {
     name: "Petix Expeditions",
     description: "Boss trophies of Petix Expeditions: one per wallet per boss, minted after a verified three-star run.",
@@ -433,6 +469,8 @@ module.exports = {
   claimTrophy,
   configureDeps,
   createMintClient,
+  isCurrentTrophy,
+  queueDocFor,
   emptyQueue,
   getMintEnv,
   getTrophyMetadata,

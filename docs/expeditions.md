@@ -69,10 +69,14 @@ current block as `openedBlock` (claim cut-off). A boss with attempts can't be hi
 | Variable | Required | Meaning |
 |---|---|---|
 | `EXPEDITION_NFT_CONTRACT` | for minting | Deployed `ExpeditionTrophies` address |
-| `EXPEDITION_MINTER_SECRET` | optional | Minter key; defaults to `TOKEN_TREASURY_SECRET` (the $PETIX operator) |
+| `EXPEDITION_MINTER_SECRET` | no | Not needed: the minter is the $PETIX operator (`TOKEN_TREASURY_SECRET`). Only for a separate key |
+| `EXPEDITION_NFT_TEST_MODE` | quiet test | `1` → trophy metadata uses neutral names and `/assets/nft/placeholder.png` (no boss art on chain) |
 | `NFT_RPC_URL`, `NFT_CHAIN_ID` | yes | Chain RPC (Alchemy) and chain id, shared with capsules |
 | `PUBLIC_BASE_URL` | for deploy | Base of the metadata URL baked into the contract |
 | `CRON_SECRET` | yes | Already used by the other crons |
+
+Trophy records in profiles and the mint registry are keyed by the contract address: a test collection and the real one never
+mix, and switching `EXPEDITION_NFT_CONTRACT` lets every wallet claim again on the new contract.
 
 Runtime levers live in the economy config (`EXPEDITION_*`), never in env — see `api/_lib/economy-config.js`.
 

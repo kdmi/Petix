@@ -141,3 +141,47 @@ test("mint-sync: cron secret or admin only; skipped while minting is off", async
     assert.equal(admin.status, 200);
   }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 0 } });
 });
+
+test("contract swap: trophies minted on the test collection are invisible on the real one and can be claimed again; the registry is per contract", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store, expeditionNft }) => {
+    const testChain = createFakeTrophyChain();
+    testChain.env.contract = "0x" + "a".repeat(40);
+    expeditionNft.configureDeps(fastDeps(testChain));
+    await give3Stars(store, PLAYER, 1);
+    const first = await claim(dispatcher(), PLAYER, 1);
+    assert.equal(first.status, 200);
+    assert.equal(first.body.progress.nft.contract, testChain.env.contract);
+    assert.equal((await expeditionNft.getTrophyMetadata(1, "https://petix.test")).name, "Sporebeak #1");
+
+    // Launch: a fresh contract. The old record no longer counts, the queue starts empty.
+    const realChain = createFakeTrophyChain();
+    realChain.env.contract = "0x" + "b".repeat(40);
+    expeditionNft.configureDeps(fastDeps(realChain));
+    process.env.EXPEDITION_NFT_CONTRACT = realChain.env.contract;
+    const state = await invoke(dispatcher(), { url: "/api/expeditions/state", headers: sessionHeaders(PLAYER) });
+    assert.equal(state.body.progress[1].nft, null, "the test-collection trophy is hidden on the real contract");
+    assert.equal(await expeditionNft.getTrophyMetadata(1, "https://petix.test"), null, "registry is per contract");
+    const second = await claim(dispatcher(), PLAYER, 1);
+    assert.equal(second.status, 200, JSON.stringify(second.body));
+    assert.equal(realChain.minted.length, 1);
+    assert.equal(second.body.progress.nft.contract, realChain.env.contract);
+    delete process.env.EXPEDITION_NFT_CONTRACT;
+  }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
+});
+
+test("EXPEDITION_NFT_TEST_MODE=1: metadata carries neutral names and the placeholder image, no boss art", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store, expeditionNft }) => {
+    const chain = createFakeTrophyChain();
+    chain.env.testMode = true;
+    expeditionNft.configureDeps(fastDeps(chain));
+    await give3Stars(store, PLAYER, 2);
+    await claim(dispatcher(), PLAYER, 2);
+    const meta = await expeditionNft.getTrophyMetadata(1, "https://petix.test");
+    assert.equal(meta.name, "Petix test trophy #1");
+    assert.equal(meta.image, "https://petix.test/assets/nft/placeholder.png");
+    assert.ok(!JSON.stringify(meta).includes("Minty Pix") && !JSON.stringify(meta).includes("/assets/expeditions/"));
+    const collection = expeditionNft.buildCollectionMetadata("https://petix.test", { testMode: true });
+    assert.equal(collection.name, "Petix test trophies");
+    assert.equal(collection.image, "https://petix.test/assets/nft/placeholder.png");
+  }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
+});

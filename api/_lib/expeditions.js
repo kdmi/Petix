@@ -6,6 +6,7 @@ const E = require("../../assets/expeditions/engine.js");
 const { creditCurrency, debitCurrency, normalizeCurrency, recordSpend } = require("./currency");
 const { consumeBattleEnergy, normalizeBattleState } = require("./battle-energy");
 const { attemptGate, getBoss, rulesFromConfig } = require("./expeditions-config");
+const { isCurrentTrophy } = require("./expedition-nft");
 const { buildCharacterImageUrl } = require("./character");
 
 const MAX_OWN_PETS = 4; // squad slots on the board (engine SLOTS)
@@ -94,7 +95,7 @@ function progressOf(profile, bossIndex) {
     feesPaid: Math.max(0, Math.floor(Number(existing?.feesPaid) || 0)),
     rewardsPaid: Math.max(0, Math.floor(Number(existing?.rewardsPaid) || 0)),
     stars3: Math.max(0, Math.floor(Number(existing?.stars3) || 0)),
-    nft: existing?.nft && typeof existing.nft === "object" ? { ...existing.nft } : null,
+    nft: isCurrentTrophy(existing?.nft) ? { ...existing.nft } : null,
     lastResult: existing?.lastResult && typeof existing.lastResult === "object" ? { ...existing.lastResult } : null,
   };
 }

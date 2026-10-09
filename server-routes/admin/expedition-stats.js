@@ -2,12 +2,10 @@ const { handleCors, json } = require("../../api/_lib/auth");
 const { readDb } = require("../../api/_lib/store");
 const { ROSTER, getBossSettings, getExpeditionConfig, isMintEnabled } = require("../../api/_lib/expeditions-config");
 const { dayKey } = require("../../api/_lib/expeditions");
-const { createMintClient, normalizeQueue, getMintEnv } = require("../../api/_lib/expedition-nft");
-const { createBlobDocument } = require("../../api/_lib/blob-doc");
+const { createMintClient, normalizeQueue, getMintEnv, isCurrentTrophy, queueDocFor } = require("../../api/_lib/expedition-nft");
 const { summarizeGrants } = require("../../api/_lib/expedition-energy");
 const { requireAdmin } = require("./_expeditions-shared");
 
-const queueDoc = createBlobDocument({ path: "expedition-mint-queue.json", empty: () => ({ version: 1, pending: [], minted: {}, failed: [] }), normalize: normalizeQueue });
 
 // Everything the admin Expeditions tab shows, computed from wallet profiles
 // (no hot shared document): today / 7 days, per boss, holder claims, mint
@@ -52,9 +50,10 @@ module.exports = async (req, res) => {
       boss.feesPaid += Number(p.feesPaid) || 0;
       boss.rewardsPaid += Number(p.rewardsPaid) || 0;
       if (Number(p.bestStars) > 0) boss.cleared += 1;
-      if (p.nft?.status === "minted") boss.nftMinted += 1;
-      if (p.nft?.status === "pending" || p.nft?.status === "sent") boss.nftPending += 1;
-      if (p.lastResult?.at) attempts.push({ at: p.lastResult.at, wallet, bossIndex: Number(key), status: p.lastResult.status, won: !!p.lastResult.won, stars: Number(p.lastResult.stars) || 0, moves: p.lastResult.moves ?? null, par: boss.par, paid: Number(p.lastResult.paid) || 0, nft: p.nft?.status || null });
+      const nft = isCurrentTrophy(p.nft) ? p.nft : null;
+      if (nft?.status === "minted") boss.nftMinted += 1;
+      if (nft?.status === "pending" || nft?.status === "sent") boss.nftPending += 1;
+      if (p.lastResult?.at) attempts.push({ at: p.lastResult.at, wallet, bossIndex: Number(key), status: p.lastResult.status, won: !!p.lastResult.won, stars: Number(p.lastResult.stars) || 0, moves: p.lastResult.moves ?? null, par: boss.par, paid: Number(p.lastResult.paid) || 0, nft: nft?.status || null });
     }
     for (const [key, claim] of Object.entries(x.energyClaims || {})) {
       const boss = bosses[Number(key) - 1];
@@ -65,7 +64,7 @@ module.exports = async (req, res) => {
   }
   attempts.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
-  const queue = normalizeQueue((await queueDoc.read().catch(() => ({ data: null }))).data);
+  const queue = normalizeQueue((await queueDocFor(getMintEnv().contract).read().catch(() => ({ data: null }))).data);
   const mintEnv = getMintEnv();
   let minter = null;
   if (mintEnv.configured) {
