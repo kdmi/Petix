@@ -460,6 +460,9 @@ module.exports = async (req, res) => {
       attackerParticipant: attacker,
       defenderParticipant: defender,
       matchmaking,
+      // Темп боя задаётся экономикой (029), чтобы длину боя можно было
+      // править из админки, не выкатывая код.
+      pacing: economyConfig,
     });
     const defenderCapsuleBonus = await getWalletCapsuleBonus(defender.wallet);
     const { amount: coinReward, winnerRole } = resolveWinnerCoinReward({

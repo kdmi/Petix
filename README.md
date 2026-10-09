@@ -98,6 +98,17 @@ Minimum recommended variables:
 | `BLOB_GC_MAX_DURATION_MS` | Optional | Wall-clock budget per run, default `45000` |
 | `BLOB_GC_MAX_SCAN` | Optional | Blobs listed per prefix per run, default `20000` (bounds the memory one run needs) |
 | `BATTLE_SHARDS_ENABLED` | Optional | `1` stores each battle in its own blob with per-wallet and per-hour indexes (feature 025); `0` (default) keeps the single legacy battles document. While the flag is on, a record the shards do not have yet is still served from the legacy document and adopted on read |
+
+#### Battle pacing (feature 029)
+
+Fight length is tuned from the admin panel (Economy → Farm & battles → Battle pacing), not from env or code:
+
+```
+HP     = BATTLE_HP_BASE     + BATTLE_HP_PER_STAMINA      × stamina  ^ BATTLE_HP_EXPONENT
+Damage = BATTLE_DAMAGE_BASE + BATTLE_DAMAGE_PER_STRENGTH × strength ^ BATTLE_DAMAGE_EXPONENT
+```
+
+Defaults reproduce the pre-029 numbers (52 / 8 / 1 and 7 / 2 / 1). An exponent of 1 is linear; below 1 it damps the extremes, which is what keeps an all-tank build from stretching a fight to fifty rounds while a glass cannon ends it in two. Exponents are clamped to 0.3–1 on save.
 | `BATTLE_MIGRATION_BATCH` | Optional | Battles imported per batch by `/api/storage/battle-migrate`, default `100`. Progress is saved after every batch, so a run the platform cuts short is not redone |
 | `BATTLE_MIGRATION_MAX_DURATION_MS` | Optional | Wall-clock budget for one migration call, default `120000`; the cron continues from the cursor. Blob writes are rate limited (~400 records took ~160 s on production), so this paces the run, not the batch size |
 

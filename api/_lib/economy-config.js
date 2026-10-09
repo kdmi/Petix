@@ -22,6 +22,19 @@ const DEFAULTS = Object.freeze({
   FARM_CAP_HOURS: 24,
   BATTLE_REWARD_BASE: 100,
   BATTLE_LEVEL_K: 0.05,
+  // Темп боя (029). Живучесть и урон считаются из статов так:
+  //   HP   = BATTLE_HP_BASE     + BATTLE_HP_PER_STAMINA      × выносливость^BATTLE_HP_EXPONENT
+  //   урон = BATTLE_DAMAGE_BASE + BATTLE_DAMAGE_PER_STRENGTH × сила^BATTLE_DAMAGE_EXPONENT
+  // Значения по умолчанию — ровно те, что работали до вынесения в конфиг, так
+  // что сам по себе апдейт ничего не меняет. Показатель 1 = линейно; меньше
+  // единицы добавляет затухание и сжимает крайние билды (танк / стеклянная
+  // пушка), из-за которых бой длится то 2 раунда, то 50.
+  BATTLE_HP_BASE: 52,
+  BATTLE_HP_PER_STAMINA: 8,
+  BATTLE_HP_EXPONENT: 1,
+  BATTLE_DAMAGE_BASE: 7,
+  BATTLE_DAMAGE_PER_STRENGTH: 2,
+  BATTLE_DAMAGE_EXPONENT: 1,
   // Один бесплатный питомец на кошелёк (решение владельца 2026-09-20; было 3).
   // Три бесплатных приводили к тому, что 78% кошельков заводили ровно 2-3 пета
   // и ставили их на ферму, а каждая генерация стоит нам денег.
@@ -190,12 +203,25 @@ function validateConfigPatch(patch) {
     "NFT_UNBIND_DELAY_MS",
     "ENERGY_SHOP_ENABLED",
     "ENERGY_PACK_COOLDOWN_HOURS",
+    "BATTLE_HP_BASE",
+    "BATTLE_HP_PER_STAMINA",
+    "BATTLE_DAMAGE_BASE",
+    "BATTLE_DAMAGE_PER_STRENGTH",
   ];
   for (const key of numericKeys) {
     if (key in patch) {
       const v = patch[key];
       if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
         errors.push({ field: key, message: `${key} must be a number ≥ 0` });
+      }
+    }
+  }
+
+  for (const key of ["BATTLE_HP_EXPONENT", "BATTLE_DAMAGE_EXPONENT"]) {
+    if (key in patch) {
+      const v = patch[key];
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0.3 || v > 1) {
+        errors.push({ field: key, message: `${key} must be a number between 0.3 and 1` });
       }
     }
   }
