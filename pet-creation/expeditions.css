@@ -1190,7 +1190,7 @@
 .xp .nft-claim:active:not(:disabled) { transform: scale(0.98); }
 .xp .nft-claim.is-claimed { background: #ecfdf3; color: #027a48; cursor: default; }
 /* ---- dashboard integration ---- */
-#screenExpeditions { text-align: left; align-items: center; margin-top: 24px; width: 100%; }
+#screenExpeditions { text-align: left; align-items: center; margin-top: 24px; width: 100%; max-width: none; } /* .screen caps at 640px; the 780px battle would hug the left edge otherwise */
 #screenExpeditions .content { margin-top: 0; }
 #screenExpeditions.is-battle .content { display: none; }
 .xp .xp-error { margin: 48px auto; color: var(--gray-500); text-align: center; }
