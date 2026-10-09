@@ -503,7 +503,7 @@
   position: absolute;
   z-index: 5;
   width: 289px;
-  height: 277px;
+  max-height: 277px; /* shrinks with the list; scrolls past 4 pets */
   padding: 7px;
   background: #fff;
   border: 1px solid var(--gray-300);

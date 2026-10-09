@@ -299,7 +299,8 @@
     var slotLeft = 24 + i * 96;
     var maxLeft = modalEl.offsetWidth - 16 - 289;
     dropdownEl.style.left = Math.max(16, Math.min(slotLeft - 8, maxLeft)) + 'px';
-    dropdownEl.style.top = (slotsEl.offsetTop - 4 - 277) + 'px';
+    dropdownEl.hidden = false; // measure the real height: the list shrinks when pets are already picked
+    dropdownEl.style.top = (slotsEl.offsetTop - 4 - dropdownEl.offsetHeight) + 'px';
     clearTimeout(dropdownTimer);
     dropdownEl.hidden = false;
     dropdownEl.scrollTop = 0;
