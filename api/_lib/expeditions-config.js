@@ -10,16 +10,16 @@ const ART_BASE = "/assets/expeditions";
 // title = the boss, name = the partner collection it pays tribute to.
 const ROSTER = Object.freeze(
   [
-    { title: "Sporebeak", name: "Rubber Hoodie Ducks", slug: "rubber-hoodie-ducks", bg: "#caf3fd", art: [5.7, 4.9, 86.3], hp: 2000, power: 7, shields: 2, par: 17 },
-    { title: "Minty Pix", name: "Pixel Hood Minis", slug: "pixelhoodminis", bg: "#d5f7df", art: [-1.3, -3.15, 102.6], hp: 2600, power: 12, shields: 3, par: 17 },
-    { title: "Mr. Pressstart", name: "Never Fucking Trade", slug: "never-fucking-trade", bg: "#d1d1fd", art: [6.9, 5, 86.2], hp: 3800, power: 22, shields: 4, par: 20 },
-    { title: "Jean Phil", name: "Jean Phil NFT", slug: "jeanphil-nft", bg: "#fce2cb", art: [2.7, 3.3, 95.6], hp: 5600, power: 36, shields: 3, par: 19 },
-    { title: "Nova Bro", name: "STARHOODZ", slug: "starhoodz", bg: "#e4e6fd", art: [10, 9.3, 79.9], hp: 6200, power: 42, shields: 5, par: 21 },
-    { title: "Chainface", name: "OnChainHoodies", slug: "onchainhoodies-", bg: "#eef991", art: [4.9, 3.4, 90.1], hp: 6800, power: 50, shields: 7, par: 21 },
-    { title: "Hatlaw", name: "WIF Outlaws", slug: "wif-outlaws", bg: "#c1e7fc", art: [2.2, 1.9, 95.6], hp: 9500, power: 58, shields: 4, par: 21 },
-    { title: "Ninja Bear", name: "Clay StonKz", slug: "claystonkz", bg: "#f7d1cc", art: [10.2, 7.6, 78.5], hp: 9500, power: 68, shields: 6, par: 20 },
-    { title: "Forest Hero", name: "CCFF00", slug: "ccff00-161927574", bg: "#ccff00", art: [0, -5.2, 100], hp: 11500, power: 80, shields: 7, par: 21 },
-    { title: "Sad Cat", name: "Cash Cats", slug: "cashcatss", bg: "#feebd9", art: [0.2, -3.5, 100.2], hp: 13000, power: 95, shields: 5, par: 20 },
+    { title: "Sporebeak", name: "Rubber Hoodie Ducks", slug: "rubber-hoodie-ducks", bg: "#caf3fd", art: [5.7, 4.9, 86.3], hp: 2600, power: 9, shields: 2, par: 18 },
+    { title: "Minty Pix", name: "Pixel Hood Minis", slug: "pixelhoodminis", bg: "#d5f7df", art: [-1.3, -3.15, 102.6], hp: 3600, power: 17, shields: 3, par: 22 },
+    { title: "Mr. Pressstart", name: "Never Fucking Trade", slug: "never-fucking-trade", bg: "#d1d1fd", art: [6.9, 5, 86.2], hp: 5000, power: 29, shields: 4, par: 27 },
+    { title: "Jean Phil", name: "Jean Phil NFT", slug: "jeanphil-nft", bg: "#fce2cb", art: [2.7, 3.3, 95.6], hp: 5600, power: 36, shields: 4, par: 26 },
+    { title: "Nova Bro", name: "STARHOODZ", slug: "starhoodz", bg: "#e4e6fd", art: [10, 9.3, 79.9], hp: 6200, power: 42, shields: 5, par: 25 },
+    { title: "Chainface", name: "OnChainHoodies", slug: "onchainhoodies-", bg: "#eef991", art: [4.9, 3.4, 90.1], hp: 6800, power: 50, shields: 7, par: 26 },
+    { title: "Hatlaw", name: "WIF Outlaws", slug: "wif-outlaws", bg: "#c1e7fc", art: [2.2, 1.9, 95.6], hp: 9500, power: 58, shields: 6, par: 26 },
+    { title: "Ninja Bear", name: "Clay StonKz", slug: "claystonkz", bg: "#f7d1cc", art: [10.2, 7.6, 78.5], hp: 9500, power: 68, shields: 7, par: 24 },
+    { title: "Forest Hero", name: "CCFF00", slug: "ccff00-161927574", bg: "#ccff00", art: [0, -5.2, 100], hp: 11500, power: 80, shields: 8, par: 24 },
+    { title: "Sad Cat", name: "Cash Cats", slug: "cashcatss", bg: "#feebd9", art: [0.2, -3.5, 100.2], hp: 13000, power: 95, shields: 8, par: 22 },
   ].map((boss, i) =>
     Object.freeze({
       index: i + 1,

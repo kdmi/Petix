@@ -31,9 +31,9 @@
     dodgePerAgi: 0.04, dodgeCap: 0.4,
     cascadePerAgi: 0.015,        // extra dmg per cascade level per avg agility
     cascadeStep: 0.15,           // base bonus per cascade level
-    chargeBase: 5,               // ring charge per matched tile for any real pet
-    chargePerInt: 3,             // ... extra per intelligence point
-    chargePerAgi: 1.5,           // ... extra per agility point
+    chargeBase: 6,               // ring charge per matched tile for any real pet
+    chargePerInt: 1.5,           // ... extra per intelligence point (owner 2026-10-10: int 10 ≈ 75% per 3-match, not 100%)
+    chargePerAgi: 1,             // ... extra per agility point
     smashTiles: 6,               // SMASH = this many tiles of the pet's damage
     shieldEfficiency: 9,         // tiles-worth of charge per move the par assumes
     sizeMult: { 3: 1, 4: 1.5, 5: 2.2 },

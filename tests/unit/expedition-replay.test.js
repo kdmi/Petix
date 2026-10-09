@@ -57,3 +57,18 @@ test("wild picks are deterministic by seed and never the player's own pets", () 
   assert.equal(new Set(a.map((w) => w.id)).size, 3);
   assert.equal(X.pickWildPets([], "0x" + "1".repeat(40), 2, 1).length, 0, "empty roster → engine uses placeholder wilds");
 });
+
+test("replay uses the boss numbers frozen in the attempt, so a balance change mid-fight cannot change the outcome", () => {
+  const attempt = attemptFor(7);
+  const client = E.createBattle({ squad: attempt.squad, wilds: attempt.wilds, boss: X.engineBoss(2), seed: 7 });
+  const moves = playGreedy(E, client);
+  // Same attempt, but the snapshot says the boss was twice as tough: the replay must follow the snapshot, not the roster.
+  const tougher = { ...attempt, boss: { hp: X.engineBoss(2).hp * 2, power: X.engineBoss(2).power * 2, shields: X.engineBoss(2).shields, par: X.engineBoss(2).par } };
+  const snapBoss = X.attemptBoss(tougher);
+  assert.equal(snapBoss.hp, X.engineBoss(2).hp * 2);
+  const serverSnap = X.replayMoves(tougher, moves.slice(0, 5));
+  const serverLive = X.replayMoves(attempt, moves.slice(0, 5));
+  assert.equal(serverSnap.boss.maxHp ?? serverSnap.boss.hp + serverSnap.totalDamage, X.engineBoss(2).hp * 2);
+  assert.notEqual(serverSnap.boss.hp, serverLive.boss.hp, "the snapshot boss has more hp left after the same moves");
+  assert.deepEqual(X.attemptBoss(attempt), X.engineBoss(2), "no snapshot → roster numbers");
+});
