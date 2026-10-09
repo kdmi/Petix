@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Petix admin — Expeditions (mockup)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --gray-50:#f9fafb; --gray-100:#f2f4f7; --gray-200:#eaecf0; --gray-300:#d0d5dd; --gray-400:#98a2b3; --gray-500:#667085; --gray-700:#344054; --gray-900:#101828;
+            --success-50:#ecfdf3; --success-500:#12b76a; --success-700:#027a48; --warn-50:#fffaeb; --warn-500:#f79009; --warn-700:#b54708; --error-50:#fef3f2; --error-500:#f04438; --error-700:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--gray-50); color: var(--gray-900); font-family: Figtree, system-ui, sans-serif; font-size: 14px; line-height: 20px; }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 24px 24px 64px; display: flex; flex-direction: column; gap: 20px; }
+    .admin-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+    .admin-header h1 { margin: 0; font-size: 28px; line-height: 34px; }
+    .admin-header p { margin: 8px 0 0; color: var(--gray-500); font-size: 16px; line-height: 24px; }
+    .admin-nav { display: inline-flex; gap: 4px; padding: 4px; background: var(--gray-200); border: 1px solid var(--gray-300); border-radius: 999px; }
+    .admin-nav-btn { height: 36px; padding: 0 16px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--gray-900); font: inherit; font-weight: 700; cursor: pointer; }
+    .admin-nav-btn.active { background: #fff; border-color: var(--gray-300); }
+    .card { background: #fff; border: 1px solid var(--gray-200); border-radius: 24px; padding: 20px; }
+    .card h3 { margin: 0 0 4px; font-size: 16px; line-height: 24px; }
+    .card .hint { margin: 0 0 14px; color: var(--gray-500); font-size: 13px; }
+    .stats { display: grid; gap: 12px; grid-template-columns: repeat(6, minmax(0,1fr)); }
+    .stat { background: #fff; border: 1px solid var(--gray-200); border-radius: 20px; min-height: 96px; padding: 18px; }
+    .stat b { display: block; color: var(--gray-500); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 18px; }
+    .stat strong { display: block; margin-top: 10px; font-size: 28px; line-height: 34px; font-weight: 700; }
+    .stat small { display: block; margin-top: 2px; color: var(--gray-500); font-size: 12px; }
+    .stat.warn { border-color: #fedf89; background: var(--warn-50); }
+    .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .seg { display: inline-flex; padding: 3px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 999px; }
+    .seg button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-weight: 600; color: var(--gray-500); cursor: pointer; }
+    .seg button.on { background: var(--gray-900); color: #fff; }
+    .seg.danger button.on { background: var(--error-500); }
+    .seg.ok button.on { background: var(--success-500); }
+    .label { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+    .btn { height: 36px; padding: 0 16px; border: 1px solid var(--gray-300); border-radius: 999px; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+    .btn.primary { background: var(--gray-900); color: #fff; border-color: var(--gray-900); }
+    .btn.small { height: 28px; padding: 0 12px; font-size: 13px; }
+    .btn.danger { color: var(--error-700); border-color: #fda29b; background: var(--error-50); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .tw { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    td .muted { white-space: nowrap; }
+    th { text-align: left; color: var(--gray-500); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 8px 10px; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+    td { padding: 10px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .boss { display: flex; align-items: center; gap: 10px; }
+    .boss img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--gray-200); }
+    .boss .n { font-weight: 700; }
+    .boss .c { color: var(--gray-500); font-size: 12px; }
+    .boss .c a { color: inherit; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .pill.open { background: var(--success-50); color: var(--success-700); }
+    .pill.hidden { background: var(--gray-100); color: var(--gray-500); }
+    .pill.cleared { background: #eff8ff; color: #175cd3; }
+    .pill.err { background: var(--error-50); color: var(--error-700); }
+    .pill.warn { background: var(--warn-50); color: var(--warn-700); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    input[type=number], input[type=text], select, textarea { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 8px; background: #fff; }
+    input[type=number] { width: 84px; text-align: right; }
+    input.addr { width: 150px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+    .ok { color: var(--success-700); font-weight: 600; font-size: 12px; white-space: nowrap; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .fields { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px 16px; }
+    .field label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--gray-700); }
+    .field input, .field select { width: 100%; text-align: left; }
+    .bar { position: relative; height: 6px; border-radius: 3px; background: var(--gray-100); min-width: 80px; }
+    .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--success-500); }
+    .bar.gold i { background: var(--warn-500); }
+    .journal li { display: grid; grid-template-columns: 150px 1fr 110px 120px; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 12px; }
+    .journal { list-style: none; margin: 0; padding: 0; }
+    .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gray-700); }
+    .muted { color: var(--gray-500); }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .note { padding: 10px 14px; border-radius: 12px; background: var(--warn-50); color: var(--warn-700); font-size: 13px; }
+    @media (max-width: 900px) { .stats { grid-template-columns: repeat(3, minmax(0,1fr)); } .grid2 { grid-template-columns: 1fr; } .fields { grid-template-columns: repeat(2, minmax(0,1fr)); } table { font-size: 12px; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="admin-header">
+    <div><h1>Admin panel</h1><p>Mockup of the Expeditions tab · sample data · nothing here is wired</p></div>
+    <nav class="admin-nav"><button class="admin-nav-btn">Characters</button><button class="admin-nav-btn">Battles</button><button class="admin-nav-btn">Waitlist</button><button class="admin-nav-btn">Economy</button><button class="admin-nav-btn active">Expeditions</button></nav>
+  </div>
+
+  <!-- 1. Master switches + today -->
+  <section class="card">
+    <div class="toolbar">
+      <div><h3>Expeditions</h3><p class="hint" style="margin:0">Who can see the tab and whether 3★ wins mint NFTs. Changes apply instantly, no redeploy.</p></div>
+      <div class="row">
+        <span class="label">Access</span>
+        <div class="seg"><button>Off</button><button class="on">Admins only</button><button>Everyone</button></div>
+        <span class="label" style="margin-left:12px">NFT minting</span>
+        <div class="seg ok"><button class="on">On</button><button>Paused</button></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>Attempts today</b><strong>138</strong><small>31 wallets · 7d: 812</small></div>
+      <div class="stat"><b>Points collected</b><strong>164 K</strong><small>fees today · 7d: 1.02 M</small></div>
+      <div class="stat"><b>Rewards paid</b><strong>92 K</strong><small>today · net sink +72 K</small></div>
+      <div class="stat"><b>3★ runs</b><strong>9</strong><small>today · 7d: 61</small></div>
+      <div class="stat"><b>NFTs minted</b><strong>58</strong><small>total · 2 in queue</small></div>
+      <div class="stat warn"><b>Minter ETH</b><strong>0.012</strong><small>≈ 5 400 mints · top up at 0.005</small></div>
+    </div>
+  </section>
+
+  <!-- 2. Season board -->
+  <section class="card">
+    <div class="toolbar">
+      <div><h3>Season 1 · Heroes of Hood and Magic</h3><p class="hint" style="margin:0">Open bosses one by one as the community clears the previous one. Opening records the block number used by the holder-energy check.</p></div>
+      <div class="row"><span class="pill open"><i class="dot"></i>3 open</span><span class="pill hidden">7 hidden</span></div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th>Boss · collection</th><th>Status</th><th class="num">Fee</th><th class="num">Attempts</th><th>Win / 3★</th><th class="num">Points in → out</th><th class="num">NFTs</th><th>Holder energy</th><th class="num">Claims</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><div class="boss"><img src="assets/bosses/map/1.png" alt=""><div><div class="n">Sporebeak</div><div class="c"><a href="https://opensea.io/collection/rubber-hoodie-ducks" target="_blank" rel="noopener">Rubber Hoodie Ducks</a> · <span class="mono">0x2D6f…5a12</span> <span class="ok">✓ ERC-721</span></div></div></div></td>
+            <td><span class="pill open"><i class="dot"></i>Open · Sep 30</span></td><td class="num">free</td><td class="num">412</td><td><div class="bar" title="win 71% · 3★ 23%"><i style="width:71%"></i></div><div class="muted">71 % · 3★ 23 %</div></td><td class="num">0 → 41 K</td><td class="num">31</td><td><div class="row" style="gap:6px"><input type="number" value="3"> <span class="muted">per wallet</span></div></td><td class="num">14</td><td><button class="btn small">Hide</button></td></tr>
+        <tr><td>2</td><td><div class="boss"><img src="assets/bosses/map/2.png" alt=""><div><div class="n">Minty Pix</div><div class="c"><a href="https://opensea.io/collection/pixelhoodminis" target="_blank" rel="noopener">Pixel Hood Minis</a> · <span class="mono">0x8215…7cd5</span> <span class="ok">✓ ERC-721</span></div></div></div></td>
+            <td><span class="pill open"><i class="dot"></i>Open · Sep 30</span></td><td class="num">1 000</td><td class="num">268</td><td><div class="bar"><i style="width:44%"></i></div><div class="muted">44 % · 3★ 9 %</div></td><td class="num">268 K → 38 K</td><td class="num">19</td><td><div class="row" style="gap:6px"><input type="number" value="4"> <span class="muted">per wallet</span></div></td><td class="num">37</td><td><button class="btn small">Hide</button></td></tr>
+        <tr><td>3</td><td><div class="boss"><img src="assets/bosses/map/3.png" alt=""><div><div class="n">Mr. Pressstart</div><div class="c"><a href="https://opensea.io/collection/never-fucking-trade" target="_blank" rel="noopener">Never Fucking Trade</a> · <span class="mono">0xdc7f…4ce6</span> <span class="ok">✓ ERC-721</span></div></div></div></td>
+            <td><span class="pill open"><i class="dot"></i>Open · Oct 4</span></td><td class="num">1 500</td><td class="num">132</td><td><div class="bar"><i style="width:28%"></i></div><div class="muted">28 % · 3★ 4 %</div></td><td class="num">198 K → 13 K</td><td class="num">8</td><td><div class="row" style="gap:6px"><input type="number" value="3"> <span class="muted">per wallet</span></div></td><td class="num">22</td><td><button class="btn small">Hide</button></td></tr>
+        <tr><td>4</td><td><div class="boss"><img src="assets/bosses/map/4.png" alt="" style="filter:grayscale(1);opacity:.6"><div><div class="n">Jean Phil</div><div class="c"><a href="https://opensea.io/collection/jeanphil-nft" target="_blank" rel="noopener">Jean Phil NFT</a> · <input class="addr" type="text" value="0x4444444444444444444444444444444444444444"> <span class="ok">✓ ERC-721</span></div></div></div></td>
+            <td><span class="pill hidden">Hidden</span></td><td class="num">2 000</td><td class="num muted">—</td><td class="muted">—</td><td class="num muted">—</td><td class="num muted">—</td><td><div class="row" style="gap:6px"><input type="number" value="2"> <span class="muted">per wallet</span></div></td><td class="num muted">—</td><td><button class="btn small primary">Open boss</button></td></tr>
+        <tr><td>5</td><td><div class="boss"><img src="assets/bosses/map/5.png" alt="" style="filter:grayscale(1);opacity:.6"><div><div class="n">Nova Bro</div><div class="c"><a href="https://opensea.io/collection/starhoodz" target="_blank" rel="noopener">STARHOODZ</a> · <input class="addr" type="text" value="0x5555555555555555555555555555555555555555"> <span class="ok">✓ ERC-721</span></div></div></div></td>
+            <td><span class="pill hidden">Hidden</span></td><td class="num">2 500</td><td class="num muted">—</td><td class="muted">—</td><td class="num muted">—</td><td class="num muted">—</td><td><div class="row" style="gap:6px"><input type="number" value="3"> <span class="muted">per wallet</span></div></td><td class="num muted">—</td><td><button class="btn small primary">Open boss</button></td></tr>
+        <tr><td>6</td><td><div class="boss"><img src="assets/bosses/map/6.png" alt="" style="filter:grayscale(1);opacity:.6"><div><div class="n">Chainface</div><div class="c"><a href="https://opensea.io/collection/onchainhoodies-" target="_blank" rel="noopener">OnChainHoodies</a> · <input class="addr" type="text" value="" placeholder="0x… contract"> <span class="pill warn">no contract</span></div></div></div></td>
+            <td><span class="pill hidden">Hidden</span></td><td class="num">3 000</td><td class="num muted">—</td><td class="muted">—</td><td class="num muted">—</td><td class="num muted">—</td><td><div class="row" style="gap:6px"><input type="number" value="2"> <span class="muted">per wallet</span></div></td><td class="num muted">—</td><td><button class="btn small primary" disabled title="Add the collection contract first">Open boss</button></td></tr>
+        <tr><td colspan="11" class="muted" style="text-align:center">… bosses 7–10 hidden, same row layout</td></tr>
+      </tbody>
+    </table></div>
+    <p class="hint" style="margin:12px 0 0">«Open boss» asks to confirm, then: boss visible on the map · its collection appears in the holder-energy list · the current block is stored as the claim cut-off. «Hide» only hides unplayed bosses; a boss with attempts can't be hidden, only paused via Access.</p>
+  </section>
+
+  <div class="grid2">
+    <!-- 3. Economy levers -->
+    <section class="card">
+      <h3>Economy</h3>
+      <p class="hint">Same values the demo uses. Fees are per boss (edit in the table above), these are global. Partner energy is a flat amount per wallet (holding ≥ 1 qualifying NFT); capsules add up per token by tier.</p>
+      <div class="fields" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="field"><label>1★ reward, × fee<input type="number" step="0.1" value="0.5"></label></div>
+        <div class="field"><label>2★ reward, × fee<input type="number" step="0.1" value="1"></label></div>
+        <div class="field"><label>3★ reward, × fee<input type="number" step="0.1" value="2"></label></div>
+        <div class="field"><label>Free boss base, Points<input type="number" value="1000"></label></div>
+        <div class="field"><label>Energy per attempt<input type="number" value="1"></label></div>
+      </div>
+      <h3 style="margin-top:18px">Capsule airdrop · energy per capsule, by tier <span class="muted" style="font-weight:500">· partner collections pay a flat amount per wallet</span></h3>
+      <div class="fields">
+        <div class="field"><label>Glass<input type="number" value="2"></label></div>
+        <div class="field"><label>Bronze<input type="number" value="3"></label></div>
+        <div class="field"><label>Silver<input type="number" value="4"></label></div>
+        <div class="field"><label>Gold<input type="number" value="5"></label></div>
+        <div class="field"><label>Prismatic<input type="number" value="6"></label></div>
+      </div>
+      <h3 style="margin-top:18px">Marketplaces (purchases count, plain transfers don't)</h3>
+      <textarea style="width:100%;height:56px" placeholder="0x… one contract per line (Seaport 1.6 on Robinhood Chain)"></textarea>
+      <div class="row" style="margin-top:14px;justify-content:flex-end"><span class="muted">Last saved 12:40 by 0x0e8C…40c1</span><button class="btn primary">Save</button></div>
+    </section>
+
+    <!-- 4. Holder energy claims -->
+    <section class="card">
+      <h3>Holder energy</h3>
+      <p class="hint">Players claim it themselves on the Expeditions page. This is what happened.</p>
+      <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="stat"><b>Claims today</b><strong>23</strong><small>7d: 141</small></div>
+        <div class="stat"><b>Energy granted</b><strong>67</strong><small>today · 7d: 402</small></div>
+        <div class="stat"><b>Rejected</b><strong>4</strong><small>plain transfers after open</small></div>
+      </div>
+      <table style="margin-top:14px">
+        <thead><tr><th>Collection</th><th class="num">Claims</th><th class="num">Energy</th><th class="num">Holders</th><th>Uptake</th></tr></thead>
+        <tbody>
+          <tr><td>Rubber Hoodie Ducks</td><td class="num">14</td><td class="num">42</td><td class="num">62</td><td><div class="bar gold"><i style="width:23%"></i></div></td></tr>
+          <tr><td>Pixel Hood Minis</td><td class="num">37</td><td class="num">148</td><td class="num">432</td><td><div class="bar gold"><i style="width:9%"></i></div></td></tr>
+          <tr><td>Never Fucking Trade</td><td class="num">22</td><td class="num">66</td><td class="num">524</td><td><div class="bar gold"><i style="width:4%"></i></div></td></tr>
+        </tbody>
+      </table>
+      <h3 style="margin-top:18px">Capsule airdrop <span class="muted" style="font-weight:500">· one-off, from the capsule index</span></h3>
+      <div class="row" style="justify-content:space-between">
+        <div class="muted">503 wallets · 777 capsules: 469 Glass · 210 Bronze · 70 Silver · 21 Gold · 7 Prismatic → <b style="color:var(--gray-900)">1 995 energy</b> at current tier rates</div>
+        <button class="btn primary">Airdrop capsule energy</button>
+      </div>
+      <p class="hint" style="margin:6px 0 0">Asks to confirm. Runs once (label <span class="mono">capsules-s1</span>); players see a toast on their next visit. Not yet run.</p>
+      <h3 style="margin-top:18px">Manual grant <span class="muted" style="font-weight:500">· backup tool for one-off campaigns</span></h3>
+      <div class="row"><textarea style="flex:1;height:56px" placeholder="wallets, one per line"></textarea><div style="display:flex;flex-direction:column;gap:8px"><input type="number" value="3" style="width:100px" title="energy each"><input type="text" placeholder="label (idempotent)" style="width:160px"><button class="btn">Grant energy</button></div></div>
+    </section>
+  </div>
+
+  <!-- 5. NFT mint queue -->
+  <section class="card">
+    <div class="toolbar"><div><h3>Boss NFTs</h3><p class="hint" style="margin:0">Collection <span class="mono">0x…</span> · minter <span class="mono">0xc28A…685B</span> · base URI petix.fun/api/expeditions/metadata/</p></div><button class="btn small">Retry all failed</button></div>
+    <ul class="journal">
+      <li><span class="mono">12:41:07</span><span><span class="mono">0x3f9a…c21d</span> · boss 2 Minty Pix</span><span class="pill open"><i class="dot"></i>minted #58</span><span class="mono"><a href="#" style="color:inherit">tx ↗</a></span></li>
+      <li><span class="mono">12:38:52</span><span><span class="mono">0x81b0…e4f7</span> · boss 1 Sporebeak</span><span class="pill warn">pending · retry 2/5</span><span class="muted">nonce busy</span></li>
+      <li><span class="mono">12:30:10</span><span><span class="mono">0xa77c…0b19</span> · boss 3 Mr. Pressstart</span><span class="pill err">failed · player sees toast</span><span><button class="btn small">Retry</button></span></li>
+      <li><span class="mono">11:58:44</span><span><span class="mono">0x5d21…9a30</span> · boss 1 Sporebeak</span><span class="pill open"><i class="dot"></i>minted #57</span><span class="mono"><a href="#" style="color:inherit">tx ↗</a></span></li>
+    </ul>
+  </section>
+
+  <!-- 6. Attempt log -->
+  <section class="card">
+    <div class="toolbar"><div><h3>Attempts</h3><p class="hint" style="margin:0">Latest finished fights. Click a wallet to see its expedition profile.</p></div><div class="row"><select><option>All bosses</option><option>1 · Sporebeak</option><option>2 · Minty Pix</option><option>3 · Mr. Pressstart</option></select><select><option>Any result</option><option>3★</option><option>Won</option><option>Lost</option><option>Forfeited</option></select></div></div>
+    <div class="tw"><table>
+      <thead><tr><th>When</th><th>Wallet</th><th>Boss</th><th>Result</th><th class="num">Turns / par</th><th class="num">Fee</th><th class="num">Paid</th><th>NFT</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">12:41</td><td class="mono">0x3f9a…c21d</td><td>2 · Minty Pix</td><td>★★★ 3★ (was 2★)</td><td class="num">15 / 17</td><td class="num">1 000</td><td class="num">+2 000</td><td><span class="pill open"><i class="dot"></i>#58</span></td></tr>
+        <tr><td class="mono">12:39</td><td class="mono">0x81b0…e4f7</td><td>3 · Mr. Pressstart</td><td>Lost · HP 0</td><td class="num">22 / 20</td><td class="num">1 500</td><td class="num">0</td><td class="muted">—</td></tr>
+        <tr><td class="mono">12:36</td><td class="mono">0xa77c…0b19</td><td>1 · Sporebeak</td><td>★★ 2★ first</td><td class="num">19 / 17</td><td class="num">free</td><td class="num">+1 500</td><td class="muted">—</td></tr>
+        <tr><td class="mono">12:31</td><td class="mono">0x5d21…9a30</td><td>2 · Minty Pix</td><td>Forfeited · new attempt started</td><td class="num">6 / 17</td><td class="num">1 000</td><td class="num">0</td><td class="muted">—</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</div>
+</body>
+</html>

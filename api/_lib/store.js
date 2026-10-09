@@ -61,8 +61,48 @@ const EMPTY_WALLET_PROFILE = {
   spend: [],
   withdrawals: [],
   deposits: [],
+  // Expeditions (026): active attempt, per-boss progress (stars, payouts, NFT),
+  // holder-energy claims by boss, tutorial flag.
+  expeditions: { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false },
   profileUpdatedAt: null,
 };
+
+function normalizeExpeditions(raw) {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const progress = {};
+  if (source.progress && typeof source.progress === "object" && !Array.isArray(source.progress)) {
+    for (const [key, value] of Object.entries(source.progress)) {
+      if (value && typeof value === "object") progress[key] = cloneRecord(value);
+    }
+  }
+  const energyClaims = {};
+  if (source.energyClaims && typeof source.energyClaims === "object" && !Array.isArray(source.energyClaims)) {
+    for (const [key, value] of Object.entries(source.energyClaims)) {
+      if (value && typeof value === "object") energyClaims[key] = cloneRecord(value);
+    }
+  }
+  const daily = {};
+  if (source.daily && typeof source.daily === "object" && !Array.isArray(source.daily)) {
+    for (const [key, value] of Object.entries(source.daily)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(key) && value && typeof value === "object") daily[key] = cloneRecord(value);
+    }
+  }
+  const grants = {};
+  if (source.grants && typeof source.grants === "object" && !Array.isArray(source.grants)) {
+    for (const [key, value] of Object.entries(source.grants)) {
+      if (value && typeof value === "object") grants[key] = cloneRecord(value);
+    }
+  }
+  return {
+    active: source.active && typeof source.active === "object" ? cloneRecord(source.active) : null,
+    progress,
+    energyClaims,
+    daily,
+    // Energy grants applied to this wallet, keyed by the campaign label (idempotency).
+    grants,
+    tutorialSeen: source.tutorialSeen === true,
+  };
+}
 
 let writeQueue = Promise.resolve();
 const walletWriteQueues = new Map();
@@ -183,6 +223,7 @@ function cloneWalletProfile(profile) {
     deposits: Array.isArray(profile?.deposits)
       ? profile.deposits.map((record) => cloneRecord(record))
       : [],
+    expeditions: normalizeExpeditions(profile?.expeditions),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };
 }

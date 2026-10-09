@@ -20,3 +20,6 @@ scripts/nft/artifacts/
 # Внутренние планы — не для публичного репозитория
 PLAN.md
 BLOB_OPTIMIZATION_PLAN.md
+
+# compiled trophy contract (026) — rebuild with node scripts/expeditions/compile.js
+scripts/expeditions/artifacts/

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Petix — Expeditions (demo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Figtree:wght@400;500;600;700&family=Fraunces:SOFT,opsz,wght@100,72,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=1791462993" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <a class="logo" href="#"><img src="assets/logo.png" alt="Petix" /></a>
+      <nav class="tabs">
+        <button class="tab" type="button">My Pets</button>
+        <button class="tab" type="button">Arena</button>
+        <button class="tab is-active" type="button">Expeditions</button>
+      </nav>
+      <div class="hud">
+        <div class="hud-item">
+          <span class="hud-badge hud-badge--points"><img src="assets/icons/points.svg" alt="" /></span>
+          <span id="hud-points">23.5 K</span>
+        </div>
+        <div class="hud-item hud-item--tight">
+          <span class="hud-badge hud-badge--energy"><img src="assets/icons/bolt.svg" alt="" /></span>
+          <span id="hud-energy">3</span>
+        </div>
+        <button class="burger" type="button" aria-label="Menu"><img src="assets/icons/burger.svg" alt="" /></button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="holder-banner" aria-label="Holder bonus">
+        <div class="holder-banner-body">
+          <span class="holder-banner-icon"><i class="glow"></i><img src="assets/icons/bolt-banner.svg" alt="" /></span>
+          <div class="holder-banner-text">
+            <h2 class="holder-banner-title">Holder bonus: extra energy</h2>
+            <p class="holder-banner-sub">Bonus battle energy for holders of boss collections. Claim once per collection.</p>
+          </div>
+        </div>
+        <button class="btn-claim" id="btn-holder-claim" type="button">Claim</button>
+      </section>
+
+      <section class="season season--live">
+        <div class="season-head">
+          <p class="season-label">Season 1</p>
+          <div class="season-title-row">
+            <h1 class="season-title">Heroes of Hood and Magic</h1>
+            <span class="pill-live">Live</span>
+          </div>
+          <p class="season-progress"><span class="num">2</span><span class="of"> of </span><span class="num">10</span></p>
+        </div>
+
+        <div class="path">
+          <div class="path-line path-line--row1"></div>
+          <div class="path-line path-line--row1-done-dark"></div>
+          <div class="path-line path-line--row1-done"></div>
+          <div class="path-line path-line--row2"></div>
+          <div class="boss-row" id="boss-row-1"></div>
+          <div class="boss-row" id="boss-row-2"></div>
+        </div>
+      </section>
+
+      <section class="season season--soon">
+        <p class="season-label">Season 2</p>
+        <h2 class="season-title">Coming soon...</h2>
+      </section>
+      <p class="demo-foot"><a href="#" id="demo-reset">Reset demo progress</a></p>
+    </main>
+    <section class="battle" id="battle" hidden></section>
+  </div>
+
+  <!-- Fight popup -->
+  <div class="fade" id="fade" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-hero">
+        <img id="modal-hero" src="assets/boss-hero.png" alt="" />
+        <button class="modal-close" id="modal-close" type="button" aria-label="Close"><img src="assets/icons/close-dark.svg" alt="" /></button>
+        <div class="modal-hero-stats">
+          <span class="stat"><img src="assets/icons/heart-16.svg" alt="" /> <span id="modal-hp">3,600</span></span>
+          <span class="stat"><img src="assets/icons/attack-16.svg" alt="" /> <span id="modal-power">100</span></span>
+        </div>
+      </div>
+      <div class="modal-info">
+        <h2 class="modal-title" id="modal-title">Hoodiepix Overminted</h2>
+        <p class="modal-subtitle"><a id="modal-subtitle" href="#" target="_blank" rel="noopener">Pixel Hood Clan</a></p>
+      </div>
+      <div class="divider">
+        <span class="divider-line"></span>
+        <img class="divider-gem" src="assets/icons/diamond.svg" alt="" />
+        <span class="divider-line"></span>
+      </div>
+      <p class="squad-label">YOUR SQUAD</p>
+      <div class="slots" id="slots"></div>
+      <div class="dropdown" id="dropdown" hidden></div>
+      <button class="btn-fight" id="btn-fight" type="button">Fight</button>
+      <div class="modal-rewards" id="modal-rewards"></div>
+    </div>
+  </div>
+
+  <!-- Claim popup: placeholder layout, the real one is being designed -->
+  <div class="fade" id="claim-fade" hidden>
+    <div class="claim-modal" role="dialog" aria-modal="true" aria-labelledby="claim-title">
+      <button class="claim-x" id="claim-close" type="button" aria-label="Close"><img src="assets/icons/close-dark.svg" alt="" /></button>
+      <h2 class="claim-title" id="claim-title">Claim extra energy</h2>
+      <p class="claim-sub">Hold NFTs from a boss collection? Get bonus battle energy. One claim per collection, new collections unlock with every boss.</p>
+      <ul class="claim-list" id="claim-list"></ul>
+      <button class="btn-claim-check" id="claim-check" type="button">Check my wallet</button>
+      <p class="claim-note">Popup design pending · placeholder</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="engine.js?v=1791462993"></script>
+  <script src="bosses.js?v=1791462993"></script>
+  <script src="tutorial.js?v=1791462993"></script>
+  <script src="battle.js?v=1791462993"></script>
+  <script src="app.js?v=1791462993"></script>
+</body>
+</html>

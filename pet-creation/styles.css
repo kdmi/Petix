@@ -9168,3 +9168,76 @@ body.is-public-replay .arena-panel-actions {
 body.is-public-replay[data-page="dashboard"] .dashboard-topbar {
   grid-template-columns: max-content minmax(0, 1fr) max-content;
 }
+
+/* ---- Admin · Expeditions tab (026) — mirrors expedition-demo/admin.html ---- */
+.xa { display: flex; flex-direction: column; gap: 20px; text-align: left; }
+.xa.is-saving { opacity: 0.6; pointer-events: none; }
+.xa-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 24px; padding: 20px; }
+.xa-card h3 { margin: 0 0 4px; font-size: 16px; line-height: 24px; }
+.xa-card h4 { margin: 18px 0 8px; font-size: 14px; line-height: 20px; }
+.xa-hint { margin: 0 0 14px; color: var(--gray-500); font-size: 13px; line-height: 18px; }
+.xa-toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.xa-toolbar .xa-hint { margin-bottom: 0; }
+.xa-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.xa-row--tight { gap: 6px; flex-wrap: nowrap; }
+.xa-row--end { justify-content: flex-end; margin-top: 14px; }
+.xa-row--between { justify-content: space-between; }
+.xa-row--grant { align-items: stretch; }
+.xa-row--grant textarea { flex: 1; min-width: 240px; }
+.xa-col { display: flex; flex-direction: column; gap: 8px; }
+.xa-reason { margin-top: 14px; }
+.xa-reason input { flex: 1; min-width: 240px; }
+.xa-label { font-size: 13px; font-weight: 600; color: #344054; }
+.xa-seg { display: inline-flex; padding: 3px; background: #f2f4f7; border: 1px solid var(--gray-200); border-radius: 999px; }
+.xa-seg button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; }
+.xa-seg button.on { background: var(--gray-900); color: #fff; }
+.xa-stats { margin-top: 4px; }
+.xa-stats--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; }
+.xa-stat-small { display: block; margin-top: 2px; color: var(--gray-500); font-size: 12px; line-height: 16px; }
+.xa-stat--warn { border-color: #fedf89; background: #fffaeb; }
+.xa-tw { overflow-x: auto; }
+.xa-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.xa-table th { text-align: left; color: var(--gray-500); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+.xa-table td { padding: 10px; border-bottom: 1px solid #f2f4f7; vertical-align: middle; }
+.xa-table tr:last-child td { border-bottom: 0; }
+.xa-table--tight td { padding: 6px 10px; }
+.xa-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.xa-row--hidden .xa-boss img { filter: grayscale(1); opacity: 0.6; }
+.xa-boss { display: flex; align-items: center; gap: 10px; min-width: 260px; }
+.xa-boss img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--gray-200); flex: 0 0 40px; }
+.xa-boss-name { font-weight: 700; }
+.xa-boss-coll { color: var(--gray-500); font-size: 12px; }
+.xa-boss-coll a { color: inherit; }
+.xa-mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #344054; }
+.xa-muted { color: var(--gray-500); white-space: nowrap; }
+.xa-ok { color: #027a48; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.xa-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.xa-pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.xa-pill--open { background: #ecfdf3; color: #027a48; }
+.xa-pill--hidden { background: #f2f4f7; color: var(--gray-500); }
+.xa-pill--warn { background: #fffaeb; color: #b54708; }
+.xa-pill--err { background: #fef3f2; color: #b42318; }
+.xa input[type="number"], .xa input[type="text"], .xa select, .xa textarea { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--gray-300); border-radius: 8px; background: #fff; }
+.xa input.xa-fee, .xa input.xa-energy { width: 84px; text-align: right; }
+.xa input.xa-addr { width: 150px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.xa textarea { width: 100%; box-sizing: border-box; }
+.xa-fields { display: grid; gap: 12px 16px; }
+.xa-fields--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.xa-fields--5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.xa-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: #344054; }
+.xa-field input { width: 100%; box-sizing: border-box; }
+.xa-bar { position: relative; height: 6px; border-radius: 3px; background: #f2f4f7; min-width: 80px; }
+.xa-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: #12b76a; }
+.xa-journal { list-style: none; margin: 0; padding: 0; }
+.xa-journal li { display: grid; grid-template-columns: 150px 1fr auto auto; gap: 8px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f2f4f7; font-size: 12px; }
+.xa-journal li:last-child { border-bottom: 0; }
+.xa-btn-sm { height: 32px; padding: 0 14px; font-size: 13px; }
+.xa-btn-primary { background: var(--gray-900); color: #fff; border-color: var(--gray-900); }
+.xa-btn-primary:disabled { opacity: 0.5; }
+@media (max-width: 900px) { .xa-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } .xa-fields--3, .xa-fields--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .xa-journal li { grid-template-columns: 1fr; } }
+
+/* Expeditions (026): three dashboard tabs must stay on one row on phones. */
+@media (max-width: 640px) {
+  body[data-page="dashboard"] .dashboard-tabs { display: flex; width: 100%; box-sizing: border-box; justify-self: stretch; }
+  body[data-page="dashboard"] .dashboard-tab { flex: 1 1 0; min-width: 0; width: auto; padding: 0 6px; font-size: 13px; justify-content: center; }
+}
