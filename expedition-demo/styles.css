@@ -689,7 +689,6 @@ img { display: block; }
   from { transform: translateX(-120%) skewX(-20deg); }
   to { transform: translateX(220%) skewX(-20deg); }
 }
-}
 @keyframes modal-out {
   to { opacity: 0; transform: translateY(16px) scale(0.96); }
 }

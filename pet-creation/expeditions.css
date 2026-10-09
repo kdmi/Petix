@@ -609,36 +609,35 @@
   from { transform: translateX(-120%) skewX(-20deg); }
   to { transform: translateX(220%) skewX(-20deg); }
 }
-.xp }
 @keyframes modal-out {
   to { opacity: 0; transform: translateY(16px) scale(0.96); }
-.xp }
-@keyframes fade-out { to { opacity: 0; }
-.xp }
+}
+@keyframes fade-out { to { opacity: 0; } }
 @keyframes slot-fill {
   0% { transform: scale(0.5) rotate(-8deg); opacity: 0; }
-.xp 60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
-.xp 100% { transform: scale(1) rotate(0); opacity: 1; }
-.xp }
+  60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
 @keyframes slot-leave {
   to { transform: scale(0.4); opacity: 0; }
-.xp }
+}
 @keyframes slot-nudge {
   0%, 100% { transform: none; }
-.xp 30% { transform: translateY(-6px) scale(1.06); }
-.xp 60% { transform: translateY(2px) scale(0.98); }
-.xp }
+  30% { transform: translateY(-6px) scale(1.06); }
+  60% { transform: translateY(2px) scale(0.98); }
+}
 @keyframes ripple {
   to { transform: scale(12); opacity: 0; }
-.xp }
+}
 @keyframes ready-glow {
   0%, 100% { box-shadow: var(--shadow-2xl), 0 0 0 0 rgba(18, 183, 106, 0.0); }
-.xp 50% { box-shadow: var(--shadow-2xl), 0 0 0 6px rgba(18, 183, 106, 0.22); }
-.xp }
+  50% { box-shadow: var(--shadow-2xl), 0 0 0 6px rgba(18, 183, 106, 0.22); }
+}
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 rgba(16, 24, 40, 0.18); }
-.xp 100% { box-shadow: 0 0 0 14px rgba(16, 24, 40, 0); }
-.xp }
+  100% { box-shadow: 0 0 0 14px rgba(16, 24, 40, 0); }
+}
+@keyframes line-fade { from { opacity: 0; } to { opacity: 1; } }
 
 
 .header { animation: drop-in 600ms var(--ease-out) both; }
@@ -648,11 +647,8 @@
 .xp .season-head .season-label { animation-delay: 240ms; }
 .xp .season-head .season-title-row { animation-delay: 300ms; }
 .xp .season-head .season-progress { animation-delay: 420ms; }
-.xp .path-line { transform-origin: left center; animation: draw-line 900ms var(--ease-out) both; }
-.xp .path-line--row1 { animation-delay: 380ms; }
-.xp .path-line--row1-done-dark { animation-delay: 520ms; animation-duration: 700ms; }
-.xp .path-line--row1-done { animation-delay: 640ms; animation-duration: 600ms; }
-.xp .path-line--row2 { animation-delay: 700ms; }
+/* Lines fade in behind the cards once the last card has landed (owner feedback 2026-10-10). */
+.xp .path-line { animation: line-fade 400ms ease both; animation-delay: 1150ms; }
 .xp .boss {
   animation: spring-in 700ms var(--ease-out) both;
   animation-delay: calc(420ms + var(--i, 0) * 70ms);
@@ -702,8 +698,8 @@
 .xp .boss--locked:hover .boss-badge .num { color: var(--gray-900); }
 .xp .boss-badge .num { transition: color 150ms ease; }
 .xp .boss--current {
-  animation: spring-in 700ms var(--ease-out) both, pulse-ring 2.4s ease-out infinite;
-  animation-delay: calc(420ms + var(--i, 0) * 70ms), 1.6s;
+  animation: spring-in 700ms var(--ease-out) both;
+  animation-delay: calc(420ms + var(--i, 0) * 70ms);
 }
 .xp .boss--current:hover, .xp .boss--current:focus-within { animation: spring-in 0ms both; transform: translateY(-10px) scale(1.05); }
 .xp .btn-fight-small {
