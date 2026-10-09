@@ -84,15 +84,45 @@ function normalizeSelectedPower(power) {
   };
 }
 
-function computeDerivedStats(attributes) {
+// Темп боя (029). Эти четыре числа решают, сколько ударов держит питомец, и
+// лежат отдельно, чтобы их можно было крутить в рантайме: формула HP и урона
+// задаётся экономикой, а не кодом боя.
+const COMBAT_PACING = {
+  BATTLE_HP_BASE: 52,
+  BATTLE_HP_PER_STAMINA: 8,
+  BATTLE_DAMAGE_BASE: 7,
+  BATTLE_DAMAGE_PER_STRENGTH: 2,
+  // Затухающая отдача: 1 = линейно, как было.
+  BATTLE_HP_EXPONENT: 1,
+  BATTLE_DAMAGE_EXPONENT: 1,
+};
+
+function resolveCombatPacing(overrides) {
+  const pacing = { ...COMBAT_PACING };
+  for (const key of Object.keys(COMBAT_PACING)) {
+    const value = Number(overrides?.[key]);
+    if (Number.isFinite(value) && value >= 0) pacing[key] = value;
+  }
+  return pacing;
+}
+
+function computeDerivedStats(attributes, pacingOverrides) {
   const stamina = Math.max(0, normalizeNumber(attributes?.stamina));
   const agility = Math.max(0, normalizeNumber(attributes?.agility));
   const strength = Math.max(0, normalizeNumber(attributes?.strength));
   const intelligence = Math.max(0, normalizeNumber(attributes?.intelligence));
+  const pacing = resolveCombatPacing(pacingOverrides);
 
   return {
-    maxHp: Math.round(52 + 8 * stamina),
-    baseDamage: 7 + 2 * strength,
+    maxHp: Math.round(
+      pacing.BATTLE_HP_BASE + pacing.BATTLE_HP_PER_STAMINA * stamina ** pacing.BATTLE_HP_EXPONENT
+    ),
+    // Округляем так же, как HP: с нелинейным показателем иначе в каждый снимок
+    // боя уезжает 41.26862590199936, а удар всё равно считается целыми.
+    baseDamage: Math.round(
+      pacing.BATTLE_DAMAGE_BASE +
+        pacing.BATTLE_DAMAGE_PER_STRENGTH * strength ** pacing.BATTLE_DAMAGE_EXPONENT
+    ),
     superpowerDamageMultiplier: 1.2 + (0.6 * intelligence) / (intelligence + 50),
     bonusCritChance: 0.02 + (0.13 * agility) / (agility + 50),
     critMultiplier: 1.5 + (0.5 * intelligence) / (intelligence + 50),
@@ -112,7 +142,7 @@ function buildBattleParticipant({ wallet, character }) {
   };
 }
 
-function buildBattleSnapshot(participant, role) {
+function buildBattleSnapshot(participant, role, pacingOverrides) {
   const character = participant.character;
   const progression = normalizeProgression(character);
   const attributes = {
@@ -121,7 +151,7 @@ function buildBattleSnapshot(participant, role) {
     strength: Math.max(0, Math.floor(normalizeNumber(character?.attributes?.strength))),
     intelligence: Math.max(0, Math.floor(normalizeNumber(character?.attributes?.intelligence))),
   };
-  const derivedStats = computeDerivedStats(attributes);
+  const derivedStats = computeDerivedStats(attributes, pacingOverrides);
 
   return {
     id: String(character.id),
@@ -449,10 +479,12 @@ function createBattleSimulation({
   matchmaking,
   createdAt = new Date().toISOString(),
   random,
+  // Темп боя (029): приходит из экономики, в тестах и старых вызовах — дефолты.
+  pacing,
 }) {
   const randomSource = createRandomSource(random);
-  const attackerSnapshot = buildBattleSnapshot(attackerParticipant, "attacker");
-  const defenderSnapshot = buildBattleSnapshot(defenderParticipant, "defender");
+  const attackerSnapshot = buildBattleSnapshot(attackerParticipant, "attacker", pacing);
+  const defenderSnapshot = buildBattleSnapshot(defenderParticipant, "defender", pacing);
   const attackerState = createCombatState(attackerSnapshot);
   const defenderState = createCombatState(defenderSnapshot);
   const rounds = [];
@@ -640,6 +672,7 @@ function formatBattleResponse(battle) {
 }
 
 module.exports = {
+  COMBAT_PACING,
   MAX_BATTLE_STEPS,
   applyProgressionToCharacterRecord,
   buildBattleParticipant,
