@@ -135,8 +135,8 @@ function attemptGate(cfg, progress, index) {
   return { ok: true, code: null, view };
 }
 
-async function getExpeditionConfig() {
-  return getEconomyConfig();
+async function getExpeditionConfig(options) {
+  return getEconomyConfig(options);
 }
 
 module.exports = {

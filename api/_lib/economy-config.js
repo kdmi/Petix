@@ -420,9 +420,9 @@ function invalidateCache() {
   cacheExpiresAt = 0;
 }
 
-/** Async: effective config (defaults ⊕ persisted overrides), cached for CACHE_TTL_MS. */
-async function getEconomyConfig({ now = Date.now() } = {}) {
-  if (cachedConfig && now < cacheExpiresAt) {
+/** Async: effective config (defaults ⊕ persisted overrides), cached for CACHE_TTL_MS; `fresh` skips the cache (admin reads right after a save). */
+async function getEconomyConfig({ now = Date.now(), fresh = false } = {}) {
+  if (!fresh && cachedConfig && now < cacheExpiresAt) {
     return cachedConfig;
   }
   const overrides = await readOverrides();

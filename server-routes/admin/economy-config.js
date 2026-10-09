@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === "GET") {
-    const config = await getEconomyConfig();
+    const config = await getEconomyConfig({ fresh: true }); // the admin must see its own save, not a 15 s stale copy on another instance
     json(res, 200, { config, defaults: getDefaults() });
     return;
   }
