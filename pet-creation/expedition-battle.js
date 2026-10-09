@@ -633,7 +633,7 @@
 
   function showResult(res, settled) {
     settled = settled || {};
-    if (settled.error) log('Could not save the result: ' + (settled.error.message || 'try again'));
+    if (settled.error) { showSaveError(res, settled.error); return; }
     var prev = opts.prevStars || 0;
     var best = Math.max(prev, res.won ? res.stars : 0);
     var claimed = settled.nft === 'claimed' || (!settled.nft && !!opts.nftClaimed);
@@ -663,6 +663,41 @@
       });
     }
     bind();
+  }
+
+  // The server did not accept the finish: no reward, no stars, no claim — say so and let the player retry the save.
+  function showSaveError(res, error) {
+    log('Could not save the result: ' + (error.message || 'try again'));
+    var code = error && error.code;
+    var text = code === 'BATTLE_NOT_OVER'
+      ? 'The server sees this fight as still going. Reload the page to continue it from your last move.'
+      : code === 'ATTEMPT_NOT_FOUND'
+        ? 'This fight is no longer active on the server. Reload the page to see the current state.'
+        : (error && error.message) || 'Could not reach the server. Your moves are saved — try again.';
+    var reloadable = code === 'BATTLE_NOT_OVER' || code === 'ATTEMPT_NOT_FOUND';
+    var ov = el('div', 'result is-lose');
+    ov.innerHTML = '<div class="result-card is-lose res-error">' +
+      '<button class="res-close" id="res-close" type="button" aria-label="Back to expedition"><img src="' + ICONS + 'close-dark.svg" alt=""></button>' +
+      '<span class="res-badge">Not saved</span>' +
+      '<h2 class="res-title">Result not saved</h2>' +
+      '<p class="res-error-text">' + text + '</p>' +
+      (reloadable
+        ? '<button class="btn-primary btn-fight-like res-primary" id="res-reload" type="button"><span class="btn-fight-label">Reload</span></button>'
+        : '<button class="btn-primary btn-fight-like res-primary" id="res-resave" type="button"><span class="btn-fight-label">Try again</span></button>') +
+      '<button class="res-back" id="res-back" type="button">Back to expedition</button></div>';
+    overlayRoot().appendChild(ov);
+    document.getElementById('res-close').addEventListener('click', function () { exit(res); });
+    document.getElementById('res-back').addEventListener('click', function () { exit(res); });
+    var reload = document.getElementById('res-reload');
+    if (reload) reload.addEventListener('click', function () { window.location.reload(); });
+    var resave = document.getElementById('res-resave');
+    if (resave) resave.addEventListener('click', async function () {
+      resave.disabled = true; resave.textContent = 'Saving…';
+      var settled = null;
+      try { settled = await opts.onFinish(moves.slice(), res); } catch (e) { settled = { error: e }; }
+      ov.remove();
+      showResult(res, settled || {});
+    });
   }
 
   function feeLabel(fee) { return fee >= 1000 ? (fee / 1000).toFixed(fee % 1000 ? 1 : 0) + ' K' : String(fee); }

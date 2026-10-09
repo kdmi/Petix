@@ -150,7 +150,7 @@
   box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.3);
   opacity: 0;
   pointer-events: none;
-  z-index: 60;
+  z-index: 120; /* above the result / how-to / claim overlays (60) so errors are never hidden behind the blur */
   transition: opacity 200ms ease, transform 260ms var(--ease-soft);
 }
 .xp .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
@@ -1200,3 +1200,4 @@
   /* Same offsets as #screenCabinet under the fixed header + tabs on phones. */
   #screenExpeditions { margin-top: 0; max-width: 100%; padding: 123px 0 112px; box-sizing: border-box; }
 }
+.xp .res-error .res-error-text { margin: 8px 0 20px; color: var(--gray-500); font-size: 14px; line-height: 20px; }
