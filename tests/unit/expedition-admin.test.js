@@ -129,3 +129,18 @@ test("capsule-airdrop: preview from the capsule index by tier, run once per labe
     assert.equal(rerun.body.applied, 0);
   });
 });
+
+test("admin economy-config-audit lists the latest config changes, admins only", async () => {
+  await withExpeditionEnv(async ({ dispatcher }) => {
+    const path = require("path");
+    const admin = require(path.resolve(__dirname, "../../api/admin/[action].js"));
+    const save = await invoke(admin, { method: "POST", url: "/api/admin/economy-config", headers: sessionHeaders(ADMIN), body: { reason: "audit test", patch: { EXPEDITION_COLLECTION_ENERGY: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0] } } });
+    assert.equal(save.status, 200, JSON.stringify(save.body));
+    const denied = await invoke(admin, { url: "/api/admin/economy-config-audit", headers: sessionHeaders(PLAYER) });
+    assert.equal(denied.status, 403);
+    const log = await invoke(admin, { url: "/api/admin/economy-config-audit?limit=5", headers: sessionHeaders(ADMIN) });
+    assert.equal(log.status, 200);
+    assert.equal(log.body.entries[0].reason, "audit test");
+    assert.deepEqual(log.body.entries[0].patch.EXPEDITION_COLLECTION_ENERGY, [3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+});
