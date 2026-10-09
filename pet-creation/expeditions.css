@@ -195,10 +195,12 @@
 .xp .season--soon { height: 96px; padding: 23px 31px; }
 .xp .content[hidden] { display: none; }
 .xp .battle[hidden] { display: none !important; }
-.xp .season-head { position: absolute; left: 31px; top: 23px; right: 31px; }
+.xp .season-head { position: absolute; left: 31px; top: 31px; right: 31px; } /* Figma 1355:2915: label at 31, title row at 55, counter at 38 */
 .xp .season-label {
   margin: 0;
   color: var(--gray-400);
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 500;
   text-transform: uppercase;
 }
@@ -228,7 +230,7 @@
 .xp .season-progress {
   position: absolute;
   right: 0;
-  top: 15px;
+  top: 7px;
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
