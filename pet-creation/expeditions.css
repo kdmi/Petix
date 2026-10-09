@@ -648,8 +648,9 @@
 .xp .season-head .season-label { animation-delay: 240ms; }
 .xp .season-head .season-title-row { animation-delay: 300ms; }
 .xp .season-head .season-progress { animation-delay: 420ms; }
-/* Lines fade in behind the cards once the last card has landed (owner feedback 2026-10-10). */
-.xp .path-line { animation: line-fade 400ms ease both; animation-delay: 1150ms; }
+/* Lines stay hidden until renderMap() inserts the cards (.path.is-ready), then fade in once the last card has landed. */
+.xp .path-line { opacity: 0; }
+.xp .path.is-ready .path-line { animation: line-fade 400ms ease both; animation-delay: 1150ms; }
 .xp .boss {
   animation: spring-in 700ms var(--ease-out) both;
   animation-delay: calc(420ms + var(--i, 0) * 70ms);
