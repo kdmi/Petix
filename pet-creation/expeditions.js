@@ -157,6 +157,9 @@
     q('.season-progress .num').textContent = cleared;
     q('.path-line--row1-done').style.width = Math.max(0, (Math.min(5, cleared) - 1) * 153) + 'px';
     q('.path-line--row1-done-dark').style.width = Math.max(0, (Math.min(5, current) - 1) * 153 + 12) + 'px';
+    // Lines are revealed only now, relative to the cards' insertion — on prod the
+    // state arrives well after page load, and page-load timers showed lines first.
+    q('.path').classList.add('is-ready');
   }
 
   // ---------- Modal ----------
