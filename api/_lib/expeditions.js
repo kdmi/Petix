@@ -193,6 +193,9 @@ function startAttempt(profile, { wallet, bossIndex, squadIds, cfg, rosterEntries
     wilds: pickWildPets(rosterEntries, wallet, wildsNeeded, seed),
     fee,
     energySpent: energyPerAttempt,
+    // Boss numbers frozen at the start: a balance change deployed mid-fight must
+    // not alter the server's replay (or the client's resume) of this attempt.
+    boss: (({ hp, power, shields, par }) => ({ hp, power, shields, par }))(engineBoss(index)),
     startedAt: now.toISOString(),
     status: "active",
   };
@@ -211,6 +214,13 @@ function engineBoss(index) {
   return { name: boss.title, img: boss.img, hp: boss.hp, power: boss.power, shields: boss.shields, par: boss.par };
 }
 
+/** The boss as this attempt saw it: the snapshot taken at start, or the roster for records predating the snapshot. */
+function attemptBoss(attempt) {
+  const live = engineBoss(attempt.bossIndex);
+  const snap = attempt.boss && typeof attempt.boss === "object" ? attempt.boss : null;
+  return snap ? { ...live, hp: Number(snap.hp) || live.hp, power: Number(snap.power) || live.power, shields: Number(snap.shields) || 0, par: Number(snap.par) || live.par } : live;
+}
+
 /**
  * Re-run the client's moves on the server. Every move is checked the way the
  * board would check it: a swap must be between neighbours and produce a match,
@@ -220,7 +230,7 @@ function engineBoss(index) {
 function replayMoves(attempt, moves) {
   if (!Array.isArray(moves)) throw fail(400, "INVALID_MOVES", "Moves must be an array.");
   if (moves.length > MAX_MOVES) throw fail(400, "INVALID_MOVES", "Too many moves.");
-  const state = E.createBattle({ squad: attempt.squad, wilds: attempt.wilds, boss: engineBoss(attempt.bossIndex), seed: attempt.seed });
+  const state = E.createBattle({ squad: attempt.squad, wilds: attempt.wilds, boss: attemptBoss(attempt), seed: attempt.seed });
   const cells = E.SIZE * E.SIZE;
   for (let i = 0; i < moves.length; i++) {
     const move = moves[i];
@@ -294,6 +304,7 @@ function attemptView(attempt) {
     squad: attempt.squad,
     wilds: attempt.wilds,
     fee: attempt.fee,
+    boss: attempt.boss || null,
     startedAt: attempt.startedAt,
   };
 }
@@ -307,6 +318,7 @@ module.exports = {
   WILD_COUNT,
   attemptView,
   bestStarsMap,
+  attemptBoss,
   engineBoss,
   fail,
   forfeitActive,

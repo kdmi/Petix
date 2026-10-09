@@ -352,7 +352,10 @@
       overlayRoot: overlayRoot,
       seed: attempt.seed,
       bossIndex: bossIndex,
-      boss: { title: boss.title, name: boss.name, img: boss.img, hero: boss.hero, squadBg: boss.squadBg, hp: boss.hp, power: boss.power, shields: boss.shields, par: boss.par },
+      // Numbers come from the attempt's snapshot when the server sent one (frozen at start), art from the roster.
+      boss: { title: boss.title, name: boss.name, img: boss.img, hero: boss.hero, squadBg: boss.squadBg,
+        hp: (attempt.boss && attempt.boss.hp) || boss.hp, power: (attempt.boss && attempt.boss.power) || boss.power,
+        shields: attempt.boss ? attempt.boss.shields : boss.shields, par: (attempt.boss && attempt.boss.par) || boss.par },
       squad: attempt.squad,
       wilds: attempt.wilds,
       moves: initialMoves,
