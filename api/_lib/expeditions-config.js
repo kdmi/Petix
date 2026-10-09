@@ -26,6 +26,7 @@ const ROSTER = Object.freeze(
       ...boss,
       url: `https://opensea.io/collection/${boss.slug}`,
       img: `${ART_BASE}/bosses/${i + 1}.png`,
+      nftImage: `${ART_BASE}/nft/${i + 1}.png`, // trophy art: card art with the background baked in (owner set, 2026-10-10)
       hero: `${ART_BASE}/hero/${i + 1}-hero.jpg`,
       squadBg: `${ART_BASE}/hero/${i + 1}-squad.jpg`,
     })

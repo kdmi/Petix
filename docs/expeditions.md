@@ -39,7 +39,7 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
   RPC down, receipt late). A failed send returns the button to the player (toast) and logs the failure.
 - Cron `/api/expeditions/mint-sync` (every minute) settles sent mints and mints the queue once `EXPEDITION_NFT_MINT_ENABLED = 1`.
 - Metadata `GET /api/expeditions/metadata/<tokenId>` (public): name `<Boss> #<serial>`, image = season-map art
-  (`/assets/expeditions/bosses/<n>.png`), attributes Season / Boss / Collection / Serial. Replace the art → call `setBaseURI` or
+  (`/assets/expeditions/nft/<n>.png`, 1000×1000 with the background baked in; the map cards use `/bosses/<n>.png`), attributes Level / Family / Season. Replace the art → call `setBaseURI` or
   `notifyBatchMetadataUpdate` so marketplaces refresh.
 - Scripts: `node scripts/expeditions/compile.js` → `deploy.js` (owner key, prints the address) → `preflight.js` (minter matches,
   ETH for gas, baseURI).
