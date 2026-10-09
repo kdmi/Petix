@@ -231,7 +231,9 @@
   async function withSaving(fn, okMessage) {
     if (view.saving) return;
     view.saving = true;
-    render();
+    // Dim in place — a full render() here would reset the inputs before fn() reads them.
+    const root = panel.querySelector(".xa");
+    if (root) root.classList.add("is-saving");
     try {
       await fn();
       if (okMessage) ctx.showToast(okMessage);
