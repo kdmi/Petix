@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
   const now = Date.now();
   const today = dayKey(now);
   const week = new Set(Array.from({ length: 7 }, (_, i) => dayKey(now - i * 86400000)));
-  const [cfg, db] = await Promise.all([getExpeditionConfig(), readDb()]);
+  const [cfg, db] = await Promise.all([getExpeditionConfig({ fresh: true }), readDb()]);
   const records = db && db.records ? db.records : {};
 
   const sum = () => ({ attempts: 0, fees: 0, rewards: 0, wins: 0, stars3: 0, forfeits: 0, wallets: 0 });
