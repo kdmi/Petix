@@ -70,7 +70,7 @@ current block as `openedBlock` (claim cut-off). A boss with attempts can't be hi
 |---|---|---|
 | `EXPEDITION_NFT_CONTRACT` | for minting | Deployed `ExpeditionTrophies` address |
 | `EXPEDITION_MINTER_SECRET` | quiet test only | Separate test operator for the throwaway collection; unset at launch → the $PETIX operator mints |
-| `EXPEDITION_NFT_TEST_MODE` | quiet test only | `1` → our metadata route answers with neutral names and a placeholder (the test contract itself points at IPFS, see quickstart) |
+| `EXPEDITION_NFT_TEST_MODE` | optional | `1` → the metadata route answers with neutral names and a placeholder image (not used in the current rollout plan) |
 | `NFT_RPC_URL`, `NFT_CHAIN_ID` | yes | Chain RPC (Alchemy) and chain id, shared with capsules |
 | `PUBLIC_BASE_URL` | for deploy | Base of the metadata URL baked into the contract |
 | `CRON_SECRET` | yes | Already used by the other crons |

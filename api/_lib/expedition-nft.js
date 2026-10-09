@@ -419,27 +419,25 @@ async function getTrophyMetadata(tokenId, origin, depOverrides) {
   const boss = getBoss(entry.bossIndex);
   if (!boss) return null;
   const base = String(origin || "").replace(/\/$/, "");
-  const serial = entry.serial != null ? ` #${entry.serial}` : "";
   if (deps.chain.env.testMode) {
     return {
-      name: `Petix test trophy${serial || ` #${id}`}`,
+      name: `Petix test trophy #${id}`,
       description: "Test collection of Petix Expeditions. Not a real boss trophy.",
       image: `${base}/assets/nft/placeholder.png`,
       external_url: `${base}/dashboard/?screen=expeditions`,
       attributes: [{ trait_type: "Boss number", value: boss.index, display_type: "number" }],
     };
   }
+  // Owner decision 2026-10-09: name = boss name; traits Level (boss order), Family (partner collection), Season 1.
   return {
-    name: `${boss.title}${serial}`,
+    name: boss.title,
     description: `Boss trophy of Petix Expeditions, Season 1. ${boss.title} is a tribute to ${boss.name}. Earned with a perfect three-star run.`,
     image: `${base}${boss.img}`,
     external_url: `${base}/dashboard/?screen=expeditions`,
     attributes: [
-      { trait_type: "Season", value: "Season 1 · Heroes of Hood and Magic" },
-      { trait_type: "Boss", value: boss.title },
-      { trait_type: "Boss number", value: boss.index, display_type: "number" },
-      { trait_type: "Collection", value: boss.name },
-      ...(entry.serial != null ? [{ trait_type: "Serial", value: entry.serial, display_type: "number" }] : []),
+      { trait_type: "Level", value: boss.index },
+      { trait_type: "Family", value: boss.name },
+      { trait_type: "Season", value: 1 },
     ],
   };
 }

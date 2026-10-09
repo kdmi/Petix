@@ -138,7 +138,7 @@ Off by default. Custodial model: the server-side **operator** pays gas and sends
 | `TOKEN_MIN_GAS_ETH` | Optional | Minimum treasury ETH to accept a withdrawal (default `0.001`) |
 | `EXPEDITION_NFT_CONTRACT` | For trophy minting | Deployed `ExpeditionTrophies` (feature 026); without it 3★ claims queue up |
 | `EXPEDITION_MINTER_SECRET` | No | Only for a separate minter key; by default the $PETIX operator (`TOKEN_TREASURY_SECRET`) mints trophies |
-| `EXPEDITION_NFT_TEST_MODE` | No | `1` during the quiet test: neutral trophy metadata with a placeholder image instead of boss art |
+| `EXPEDITION_NFT_TEST_MODE` | No | `1` → neutral trophy metadata with a placeholder image instead of boss art (optional) |
 | `PUBLIC_BASE_URL` | For deploy script | Base URL baked into the trophy contract's metadata URI |
 
 Runtime-tunable via the admin `economy-config`: `MIN_WITHDRAW` (default `1000`), `WITHDRAW_FEE_PCT`, `WITHDRAW_ENABLED` (`0` = admins only, `1` = everyone), `WITHDRAW_MAX_PER_TX` (`0` = no cap), `WITHDRAW_REQUIRE_NFT` (`1` = only wallets holding a capsule of the collection, admins exempt) and `WITHDRAW_NFT_HOLD_HOURS` (default `36`, counted from the block the capsule arrived in; requires the NFT feature and its cron to be on). Cron: `/api/token/sync` every minute (registered in `vercel.json`). Preflight: `node scripts/token/preflight.js`.
