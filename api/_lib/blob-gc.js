@@ -124,6 +124,12 @@ function getTargets() {
   const { ROSTER_BLOB_PATH, ROSTER_VERSION_PREFIX } = require("./roster");
   const { WALLET_PROFILE_BLOB_PREFIX, WALLET_PROFILE_VERSION_PREFIX } = require("./store");
   const {
+    AUDIT_BLOB_PATH: ECONOMY_AUDIT_PATH,
+    AUDIT_VERSION_PREFIX: ECONOMY_AUDIT_VERSION_PREFIX,
+    CONFIG_BLOB_PATH: ECONOMY_CONFIG_PATH,
+    CONFIG_VERSION_PREFIX: ECONOMY_CONFIG_VERSION_PREFIX,
+  } = require("./economy-config-store");
+  const {
     DAY_INDEX_PREFIX,
     HOUR_INDEX_PREFIX,
     SHARD_PREFIX,
@@ -135,6 +141,8 @@ function getTargets() {
     docTarget("roster", ROSTER_VERSION_PREFIX, ROSTER_BLOB_PATH),
     docTarget("nft", NFT_VERSION_PREFIX, NFT_STATE_PATH),
     docTarget("token", TOKEN_VERSION_PREFIX, TOKEN_STATE_PATH),
+    docTarget("economy-config", ECONOMY_CONFIG_VERSION_PREFIX, ECONOMY_CONFIG_PATH),
+    docTarget("economy-config-audit", ECONOMY_AUDIT_VERSION_PREFIX, ECONOMY_AUDIT_PATH),
     groupedTarget("wallet-profiles", WALLET_PROFILE_VERSION_PREFIX, `${WALLET_PROFILE_BLOB_PREFIX}/`),
     // Feature 025: one document per battle, plus the per-wallet and per-hour
     // indexes. Each is its own little document with its own copies.

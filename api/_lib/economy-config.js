@@ -1,8 +1,8 @@
 const {
   appendAuditEntry,
   readAuditEntries,
+  mutateOverrides,
   readOverrides,
-  writeOverrides,
 } = require("./economy-config-store");
 
 // Runtime-tunable economy configuration (Farm-экономика, feature 013).
@@ -444,15 +444,18 @@ async function setEconomyConfig(patch, { adminWallet = "", reason = "", now = Da
     throw error;
   }
 
-  const current = await readOverrides();
-  const nextOverrides = { ...current };
-  for (const key of Object.keys(DEFAULTS)) {
-    if (key in patch) nextOverrides[key] = patch[key];
-  }
-  nextOverrides.updatedAt = new Date(now).toISOString();
-  nextOverrides.updatedBy = adminWallet || "unknown";
-
-  await writeOverrides(nextOverrides);
+  // Read-modify-write under CAS in the store: a concurrent save by another
+  // admin (or a stale copy of the document) cannot drop this patch's keys
+  // or resurrect old values of the others.
+  const nextOverrides = await mutateOverrides((current) => {
+    const next = { ...(current || {}) };
+    for (const key of Object.keys(DEFAULTS)) {
+      if (key in patch) next[key] = patch[key];
+    }
+    next.updatedAt = new Date(now).toISOString();
+    next.updatedBy = adminWallet || "unknown";
+    return next;
+  });
   await appendAuditEntry({
     ts: new Date(now).toISOString(),
     adminWallet: adminWallet || "unknown",
