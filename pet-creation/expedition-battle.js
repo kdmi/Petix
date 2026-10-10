@@ -30,6 +30,8 @@
 
   var root = document.getElementById('battle');
   var state = null, busy = false, selected = -1, tiles = {}, opts = null, dragStart = null;
+  // First-fight nudge: a ring filled, the player made another move without tapping HIT → show a hint over that button (once per fight).
+  var hitHint = { armed: null, shown: false, el: null };
 
   function el(tag, cls, html) { var n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
   function fmt(n) { return Number(n).toLocaleString('en-US'); }
@@ -291,6 +293,7 @@
 
   function onAbility(slot) {
     if (busy || state.over) return;
+    hideHitHint(); hitHint.shown = true; hitHint.armed = null; // they found the button
     var events = E.useAbility(state, slot);
     if (events.length) { recordMove({ hit: slot }); playEvents(events); }
   }
@@ -309,7 +312,32 @@
     updateBars(); updateCharges(); updateStars();
     if (tapDetonate) keepSpecials();
     busy = false;
+    maybeShowHitHint();
   }
+
+  function maybeShowHitHint() {
+    if (!hitHint.armed || hitHint.shown || !state || state.over) return;
+    var pet = state.squad[hitHint.armed.slot];
+    if (state.supers > 0 || !pet || pet.charge < E.CHARGE_MAX) { hitHint.armed = null; return; }
+    if (state.moves > hitHint.armed.moves) showHitHint(hitHint.armed.slot);
+  }
+  function showHitHint(slot) {
+    hideHitHint();
+    var card = document.querySelector('.sq[data-slot="' + slot + '"]');
+    if (!card) return;
+    var tip = el('div', 'hit-hint', '<img src="' + ICONS + 'alert-diamond.svg" alt=""><span>Hit the boss to break the shields!</span><i class="hit-hint-arrow"></i>');
+    root.appendChild(tip);
+    var W = 157, margin = 8;
+    var rootRect = root.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
+    var centerX = cardRect.left + cardRect.width / 2;
+    // Keep the whole bubble on screen (edge pets on phones); the arrow stays on the button.
+    var left = Math.max(margin, Math.min(centerX - W / 2, window.innerWidth - margin - W));
+    tip.style.left = (left - rootRect.left) + 'px';
+    tip.style.top = (cardRect.top - rootRect.top - 6 - tip.offsetHeight - 12) + 'px';
+    tip.querySelector('.hit-hint-arrow').style.left = (centerX - left - 8.25) + 'px';
+    hitHint.el = tip; hitHint.shown = true; hitHint.armed = null;
+  }
+  function hideHitHint() { if (hitHint.el) { hitHint.el.remove(); hitHint.el = null; } }
 
   function keepSpecials() {
     var want = { line: 2, cross: 2 };
@@ -399,6 +427,7 @@
         await bossAttackFx(ev);
       } else if (ev.type === 'ability-ready') {
         updateCharges();
+        if (!hitHint.shown && !hitHint.armed && state.supers === 0 && state.boss.shields > 0) hitHint.armed = { slot: ev.slot, moves: state.moves };
         var card = document.querySelector('.sq[data-slot="' + ev.slot + '"]');
         if (card) { card.classList.add('is-pop'); setTimeout(function () { card.classList.remove('is-pop'); }, 500); }
         log(state.squad[ev.slot].name + ' is charged — tap to ' + (state.boss.shields > 0 ? 'BREAK a shield' : 'SMASH') + '!');
@@ -710,6 +739,7 @@
   function feeLabel(fee) { return fee >= 1000 ? (fee / 1000).toFixed(fee % 1000 ? 1 : 0) + ' K' : String(fee); }
 
   function exit(result, action) {
+    hideHitHint();
     overlayRoot().querySelectorAll('.result, .howto').forEach(function (n) { n.remove(); });
     hostEl().classList.remove('is-battle');
     root.hidden = true;
@@ -719,12 +749,14 @@
 
   // ---------- public ----------
   window.ExpeditionBattle = {
+    _debug: function () { return { state: state, showHitHint: showHitHint, hideHitHint: hideHitHint, hitHint: hitHint }; },
     resultCardHtml: resultCardHtml,
     modalStripHtml: modalStripHtml,
     start: function (o) {
       opts = o;
       root = o.root || document.getElementById('battle');
       state = E.createBattle({ squad: o.squad, wilds: o.wilds, boss: o.boss, seed: o.seed || Date.now() % 1000000 });
+      hideHitHint(); hitHint = { armed: null, shown: false, el: null };
       moves = [];
       // Resuming after a reload: replay the stored moves silently, then render the live board.
       if (Array.isArray(o.moves) && o.moves.length) {

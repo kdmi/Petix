@@ -841,9 +841,9 @@
 .xp .move-target img { width: 16px; height: 16px; }
 .xp .move-target--light { border: 1.5px solid #fff; color: #fff; padding: 2px 6px 2px 4px; font-size: 12px; line-height: 14px; }
 .xp .move-target--light img { width: 12px; height: 12px; }
-.xp .shield-pips { display: flex; gap: 2px; }
-.xp .shield-pips i { width: 16px; height: 16px; display: grid; place-items: center; transition: transform 200ms ease, opacity 200ms ease; }
-.xp .shield-pips i img { width: 13px; height: 14.3px; transform: scaleY(-1); }
+.xp .shield-pips { display: flex; gap: 4px; }
+.xp .shield-pips i { width: 20px; height: 20px; display: grid; place-items: center; transition: transform 200ms ease, opacity 200ms ease; }
+.xp .shield-pips i img { width: 16.25px; height: 17.9px; transform: scaleY(-1); }
 .xp .shield-pips i.off { opacity: 0.9; }
 .xp .shield-pips i.is-shatter { animation: shatter 420ms var(--ease-out) both; }
 @keyframes shatter { 30% { transform: scale(1.6) rotate(15deg); filter: brightness(3); } 100% { transform: scale(0.2) rotate(-40deg); opacity: 0; } }
@@ -874,10 +874,19 @@
 .xp .sq-hit { position: absolute; inset: 0; border-radius: 12px; background: #7a5af8; border: 2px solid #fff; display: none; flex-direction: column; align-items: center; padding-top: 10px; gap: 0; color: #fff; font-size: 16px; line-height: 22px; font-weight: 700; }
 .xp .sq-hit img { width: 20px; height: 20px; }
 .xp .sq.is-ready { cursor: pointer; }
-.xp .sq.is-ready .sq-hit { display: flex; animation: hit-in 300ms var(--ease-spring) both; }
+.xp .sq.is-ready .sq-hit { display: flex; overflow: hidden; animation: hit-in 300ms var(--ease-spring) both, hit-pulse 1.6s ease-in-out 400ms infinite; }
 .xp .sq.is-ready .sq-ring { display: none; }
 .xp .sq.is-ready:hover { transform: translateY(-2px) scale(1.04); }
-.xp .sq.is-ready .sq-hit::after { content: ""; position: absolute; inset: -4px; border-radius: 14px; box-shadow: 0 0 0 3px rgba(122,90,248,0.35); animation: ready-ring 1.2s ease-in-out infinite alternate; }
+/* Shimmer sweep + breathing scale: the HIT button has to pull the eye (owner 2026-10-10). */
+.xp .sq.is-ready .sq-hit::before { content: ""; position: absolute; top: -30%; bottom: -30%; left: -70%; width: 45%; background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%); transform: skewX(-18deg); animation: hit-shimmer 1.8s ease-in-out 500ms infinite; pointer-events: none; }
+.xp .sq.is-ready::after { content: ""; position: absolute; inset: -4px; border-radius: 14px; box-shadow: 0 0 0 3px rgba(122,90,248,0.35); animation: ready-ring 1.2s ease-in-out infinite alternate; pointer-events: none; }
+@keyframes hit-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes hit-shimmer { 0% { left: -70%; } 55%, 100% { left: 140%; } }
+/* First-fight hint over the HIT button (Figma 1414:3615: 157×96, gray-900, 2px warning-400 border, arrow 23×12 at the bottom). */
+.xp .hit-hint { position: absolute; z-index: 9; width: 157px; box-sizing: border-box; padding: 10px 9px; background: var(--gray-900); border: 2px solid #fdb022; border-radius: 8px; box-shadow: 0 24px 24px rgba(16,24,40,0.18); color: #fff; text-align: center; font-weight: 700; font-size: 16px; line-height: 22px; pointer-events: none; animation: hint-in 260ms var(--ease-out) both; }
+.xp .hit-hint img { display: block; width: 24px; height: 24px; margin: 0 auto 4px; }
+.xp .hit-hint .hit-hint-arrow { position: absolute; bottom: -8.25px; width: 16.5px; height: 16.5px; background: var(--gray-900); border-right: 2px solid #fdb022; border-bottom: 2px solid #fdb022; transform: rotate(45deg); }
+@keyframes hint-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes ready-ring { to { box-shadow: 0 0 0 8px rgba(122,90,248,0.05); } }
 @keyframes hit-in { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
 .xp .sq.is-pop { animation: slot-nudge 500ms var(--ease-spring) both; }
@@ -1079,7 +1088,10 @@
 .xp .btn-close img { width: 16px; height: 16px; }
 .xp .pill--bar { left: 8px; right: 8px; bottom: 8px; height: 22px; padding: 2px; }
 .xp .pill--bar .pbar { height: 18px; }
-.xp .pill--shields { bottom: 30px; padding: 2px 4px; }
+.xp .pill--shields { bottom: 32px; padding: 3px 4.5px; }
+.xp .shield-pips { gap: 2px; }
+.xp .shield-pips i { width: 16px; height: 16px; }
+.xp .shield-pips i img { width: 13px; height: 14.3px; }
 .xp .pill--move { gap: 4px; }
 .xp .pill--move .live-stars { margin-left: 4px; }
 .xp .pill--bar.pill--top { top: 8px; bottom: auto; }
@@ -1097,7 +1109,7 @@
 .xp .sq-ring { width: 48px; height: 48px; }
 .xp .sq-hit { border-radius: 8px; padding-top: 6px; font-size: 12px; line-height: 16px; gap: 2px; }
 .xp .sq-hit img { width: 18px; height: 18px; }
-.xp .sq.is-ready .sq-hit::after { border-radius: 10px; }
+.xp .sq.is-ready::after { border-radius: 10px; }
 .xp .fx-word { font-size: 32px; -webkit-text-stroke: 6px #fff; }
 .xp .fx-word.fx-exposed { font-size: 40px; }
 .xp .fx-word.fx-blast { font-size: 34px; }
@@ -1152,6 +1164,9 @@
 .xp .tut-boss .pill--bar { left: 6px; right: 6px; bottom: 6px; height: 22px; padding: 2px; }
 .xp .tut-boss .pill--bar .pbar { height: 18px; }
 .xp .tut-boss .pill--shields { bottom: 30px; padding: 2px 4px; }
+.xp .tut-boss .shield-pips { gap: 2px; }
+.xp .tut-boss .shield-pips i { width: 16px; height: 16px; }
+.xp .tut-boss .shield-pips i img { width: 13px; height: 14.3px; }
 .xp .tut-boss .pbar-text { font-size: 11px; line-height: 16px; }
 .xp .tut-squad { position: absolute; left: 16px; right: 16px; bottom: 10px; display: flex; justify-content: center; gap: 14px; }
 .xp .tut-squad .sq { width: 52px; height: 52px; cursor: default; }
