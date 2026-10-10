@@ -104,11 +104,36 @@ async function applyPendingGrants(wallet, { now = Date.now(), profiles = { updat
   return applied;
 }
 
-/** Capsule airdrop preview: owners from the capsule index × energy per tier. */
-async function previewCapsuleAirdrop({ nftState, config } = {}) {
+/**
+ * How much a capsule airdrop pays. Owner 2026-10-10: the amount is chosen at drop time and drops repeat
+ * (launch, then later events), so the rates travel with the request instead of living in the config.
+ *   { mode: "capsule", amount }  — flat energy per capsule held
+ *   { mode: "wallet",  amount }  — flat energy per holder, however many capsules
+ *   { mode: "tier", tiers? }     — per capsule by tier (defaults to EXPEDITION_CAPSULE_ENERGY)
+ */
+function normalizeAirdropRates(raw, cfg) {
+  const mode = String(raw?.mode || "tier").toLowerCase();
+  if (mode === "capsule" || mode === "wallet") {
+    const amount = Math.floor(Number(raw?.amount));
+    if (!Number.isFinite(amount) || amount < 1 || amount > 1000) throw fail(400, "BAD_AMOUNT", "Amount must be an integer from 1 to 1000.");
+    return { mode, amount };
+  }
+  if (mode !== "tier") throw fail(400, "BAD_MODE", "mode must be capsule, wallet or tier.");
+  const base = cfg.EXPEDITION_CAPSULE_ENERGY || {};
+  const tiers = {};
+  for (const tier of ["glass", "bronze", "silver", "gold", "prismatic"]) {
+    const v = raw?.tiers && raw.tiers[tier] != null ? Number(raw.tiers[tier]) : Number(base[tier]);
+    if (!Number.isFinite(v) || v < 0 || v > 1000) throw fail(400, "BAD_AMOUNT", `Tier ${tier} must be an integer from 0 to 1000.`);
+    tiers[tier] = Math.floor(v);
+  }
+  return { mode, tiers };
+}
+
+/** Capsule airdrop preview: owners from the capsule index × the chosen rates. */
+async function previewCapsuleAirdrop({ nftState, config, rates: rawRates } = {}) {
   const state = nftState || (await readNftState());
   const cfg = config || (await getEconomyConfig());
-  const perTier = cfg.EXPEDITION_CAPSULE_ENERGY || {};
+  const rates = normalizeAirdropRates(rawRates, cfg);
   const byWallet = {};
   const byTier = {};
   let capsules = 0;
@@ -117,20 +142,28 @@ async function previewCapsuleAirdrop({ nftState, config } = {}) {
     if (!isLikelyEvmAddress(wallet)) continue;
     const tier = getCapsuleTier(Number(tokenId));
     if (!tier) continue;
-    const amount = Math.max(0, Math.floor(Number(perTier[tier]) || 0));
     capsules += 1;
     byTier[tier] = (byTier[tier] || 0) + 1;
-    byWallet[wallet] = (byWallet[wallet] || 0) + amount;
+    const perCapsule = rates.mode === "capsule" ? rates.amount : rates.mode === "tier" ? rates.tiers[tier] || 0 : 0;
+    byWallet[wallet] = (byWallet[wallet] || 0) + perCapsule;
+    if (rates.mode === "wallet") byWallet[wallet] = rates.amount;
   }
   const grants = Object.entries(byWallet).filter(([, amount]) => amount > 0).map(([wallet, amount]) => ({ wallet, amount }));
-  return { wallets: grants.length, capsules, byTier, totalEnergy: grants.reduce((a, g) => a + g.amount, 0), grants };
+  return { rates, wallets: grants.length, capsules, byTier, totalEnergy: grants.reduce((a, g) => a + g.amount, 0), grants };
 }
 
-async function runCapsuleAirdrop({ label, now = Date.now(), nftState, config, profiles, pending } = {}) {
-  const preview = await previewCapsuleAirdrop({ nftState, config });
+/** A fresh label per drop (repeatable drops); the caller may pass its own. */
+function defaultAirdropLabel(now = Date.now()) {
+  const d = new Date(now);
+  const p = (n) => String(n).padStart(2, "0");
+  return `capsules-${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+}
+
+async function runCapsuleAirdrop({ label, rates, now = Date.now(), nftState, config, profiles, pending } = {}) {
+  const preview = await previewCapsuleAirdrop({ nftState, config, rates });
   if (!preview.grants.length) throw fail(400, "NO_HOLDERS", "The capsule index has no holders.");
-  const result = await grantEnergy({ label, grants: preview.grants, now, profiles, pending });
-  return { ...result, capsules: preview.capsules, byTier: preview.byTier, totalEnergy: preview.totalEnergy };
+  const result = await grantEnergy({ label: label || defaultAirdropLabel(now), grants: preview.grants, now, profiles, pending });
+  return { ...result, rates: preview.rates, capsules: preview.capsules, byTier: preview.byTier, totalEnergy: preview.totalEnergy };
 }
 
 /** Which labels have been granted to how many wallets (for the admin journal). */
@@ -157,6 +190,8 @@ module.exports = {
   applyPendingGrants,
   grantEnergy,
   normalizeLabel,
+  defaultAirdropLabel,
+  normalizeAirdropRates,
   previewCapsuleAirdrop,
   runCapsuleAirdrop,
   summarizeGrants,
