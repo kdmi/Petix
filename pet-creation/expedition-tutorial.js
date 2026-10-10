@@ -145,7 +145,7 @@
     }
     moveCursor(cur, 262, 20);
     while (alive) {
-      setPips(1); fill.style.width = '100%'; txt.textContent = MAX.toLocaleString('en-US');
+      setPips(1); // shielded: the bar is locked and reads "Break shields first"
       await sleep(500); if (!alive) return;
 
       // 1) last shield: HIT breaks it
@@ -156,9 +156,9 @@
       w.remove(); settleHit(0); setPips(0);
       await sleep(300); if (!alive) return;
 
-      // boss exposed at FULL HP
+      // boss exposed at FULL HP: the bar unlocks and shows the number
       var ex = el('span', 'fx-word fx-exposed tut-word', 'EXPOSED!'); stage.appendChild(ex);
-      fill.style.width = '100%';
+      fill.style.width = '100%'; txt.textContent = MAX.toLocaleString('en-US');
       await sleep(900); ex.remove(); if (!alive) return;
 
       // 2) exposed: HIT is a big extra blow
