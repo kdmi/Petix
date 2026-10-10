@@ -342,7 +342,9 @@
   }
 
   function runBattle(attempt, bossIndex, squadIds, initialMoves) {
-    if (!initialMoves) writeMoves(attempt.attemptId, []); // a reload before the first move must resume, not forfeit
+    // The move list must exist from the first second of the fight: a reload before the first
+    // move otherwise reads nothing and forfeits the attempt (fee lost). launchBattle passes [].
+    if (!readMoves(attempt.attemptId)) writeMoves(attempt.attemptId, initialMoves || []);
     var boss = bossOf(bossIndex);
     var prevStars = bestStars(bossIndex);
     setBattleMode(true);
