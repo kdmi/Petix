@@ -58,7 +58,7 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
 
 Access switch (Off / Admins only / Everyone = `EXPEDITIONS_ENABLED` + `EXPEDITIONS_ADMIN_ONLY`), minting switch, today / 7-day
 stats (from per-wallet daily counters, no shared document), season board (open/hide per boss, contract, fee, energy per claim),
-economy levers, capsule airdrop and manual grants, mint queue with a manual run, latest attempts. All writes go through
+economy levers, capsule airdrop (amount chosen at drop time: per capsule / per holder / by tier; repeatable, one label per drop) and manual grants, mint queue with a manual run, latest attempts. All writes go through
 `/api/admin/economy-config` with a reason (audited) or the dedicated admin actions.
 
 **Opening a boss**: enter the collection contract → Save → Open boss. The server verifies ERC-165/721 via RPC and stores the

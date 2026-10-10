@@ -9179,6 +9179,10 @@ body.is-public-replay[data-page="dashboard"] .dashboard-topbar {
 .xa-toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .xa-toolbar .xa-hint { margin-bottom: 0; }
 .xa-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.xa-row--wrap { flex-wrap: wrap; row-gap: 8px; }
+.xa-row--wrap select, .xa-row--wrap input[type="number"] { height: 32px; }
+.xa-row--wrap input[type="number"] { width: 72px; }
+.xa-row--wrap input[type="text"] { min-width: 220px; }
 .xa-row--tight { gap: 6px; flex-wrap: nowrap; }
 .xa-row--end { justify-content: flex-end; margin-top: 14px; }
 .xa-row--between { justify-content: space-between; }

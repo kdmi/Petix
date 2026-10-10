@@ -127,6 +127,24 @@ test("capsule-airdrop: preview from the capsule index by tier, run once per labe
     assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, expectedPlayer);
     const rerun = await admin(handler, "capsule-airdrop", { method: "POST", body: { label: "capsules-s1" } });
     assert.equal(rerun.body.applied, 0);
+
+    // Amount chosen at drop time, drops repeat under fresh labels (owner 2026-10-10).
+    const flat = await admin(handler, "capsule-airdrop?mode=capsule&amount=5");
+    assert.equal(flat.status, 200, JSON.stringify(flat.body));
+    assert.equal(flat.body.totalEnergy, 4 * 5, "5 per capsule × 4 capsules");
+    const perWallet = await admin(handler, "capsule-airdrop?mode=wallet&amount=7");
+    assert.equal(perWallet.body.totalEnergy, 3 * 7, "7 per holder × 3 holders");
+    const bad = await admin(handler, "capsule-airdrop?mode=capsule&amount=0");
+    assert.equal(bad.status, 400);
+    const before = (await env.store.getWalletProfile(PLAYER)).battleState.energyGranted;
+    const drop2 = await admin(handler, "capsule-airdrop", { method: "POST", body: { mode: "wallet", amount: 7 } });
+    assert.equal(drop2.status, 200, JSON.stringify(drop2.body));
+    assert.match(drop2.body.label, /^capsules-\d{8}-\d{4}$/, "auto label per drop");
+    assert.equal(drop2.body.applied, 2);
+    assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, before + 7);
+    const drop3 = await admin(handler, "capsule-airdrop", { method: "POST", body: { mode: "capsule", amount: 2, label: "event-halloween" } });
+    assert.equal(drop3.body.applied, 2);
+    assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, before + 7 + 2 * 2);
   });
 });
 
