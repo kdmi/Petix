@@ -200,7 +200,6 @@
   font-size: 24px;
   line-height: 24px;
 }
-.xp .pill-live--m { display: none; }
 .xp .pill-live {
   display: inline-flex;
   align-items: center;
@@ -657,6 +656,7 @@
 .xp .boss--done:hover .boss-stars .star-big img { animation-delay: 120ms; }
 .xp .boss--done:hover .boss-stars .star-r img { animation-delay: 240ms; }
 .xp .pill-live { position: relative; gap: 6px; padding-left: 7px; }
+.xp .pill-live--m { display: none; } /* mobile copy next to «Season 1»; after the base .pill-live rule, which would show it again */
 .xp .pill-live::before {
   content: "";
   width: 6px;
