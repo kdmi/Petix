@@ -427,36 +427,43 @@
   }
 
   // ---------- Holder bonus banner → claim popup (layout is a placeholder until the Figma popup lands; the flow is real) ----------
-  var claimFade, claimBusy = false, claimCollections = null;
-  function claimStatusLabel(c) {
-    if (c.status === 'claimed') return 'Claimed · +' + c.energy;
-    if (c.status === 'granted') return '+' + c.energy + ' energy';
-    if (c.status === 'not_held') return 'Not in wallet';
-    if (c.status === 'not_eligible') return 'Transferred after opening';
-    return '+' + c.energy + ' energy';
+  // Two-step popup (Figma 1372:5554 → 1421:4132 → 1423:4199): Check my wallet → Eligible badges → Claim → Claimed + confetti.
+  var claimFade, claimPhase = 'idle', claimCollections = null, claimChecks = {};
+  function claimRowHtml(c) {
+    var check = claimChecks[c.bossIndex];
+    var claimed = c.status === 'claimed';
+    var eligible = !claimed && check && check.status === 'eligible';
+    var title = !claimed && check ? (check.status === 'not_held' ? 'No NFTs from this collection in your wallet' : check.status === 'not_eligible' ? 'Only mints and marketplace purchases after the boss opened count' : '') : '';
+    return '<li class="claim-row' + (claimed ? ' is-claimed' : eligible ? ' is-eligible' : '') + '"' + (title ? ' title="' + escapeHtml(title) + '"' : '') + '>' +
+      '<span class="claim-row-name"><a href="' + escapeHtml(c.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(c.name) + '</a>' +
+        (eligible ? '<span class="claim-badge"><img src="/assets/expeditions/icons/check-badge-16.svg" alt="">Eligible</span>' : '') + '</span>' +
+      (claimed ? '<span class="claim-done">Claimed</span>' : '<span class="claim-energy">+' + c.energy + '<i><img src="/assets/expeditions/icons/bolt-white.svg" alt=""></i></span>') +
+    '</li>';
   }
   function renderClaimList() {
-    var list = byId('claim-list');
-    list.innerHTML = '';
     var rows = claimCollections || [];
-    if (!rows.length) {
-      list.innerHTML = '<li class="claim-row claim-empty">No collections open for claims yet</li>';
+    byId('claim-list').innerHTML = rows.length ? rows.map(claimRowHtml).join('') : '<li class="claim-row claim-empty">No collections open for claims yet</li>';
+    var claimable = rows.some(function (c) { return c.status !== 'claimed'; });
+    var eligibleCount = rows.filter(function (c) { return c.status !== 'claimed' && claimChecks[c.bossIndex] && claimChecks[c.bossIndex].status === 'eligible'; }).length;
+    var actions = byId('claim-actions'), html;
+    if (claimPhase === 'checked' || claimPhase === 'claiming') {
+      html = '<button class="claim-btn claim-btn--ghost" id="claim-recheck" type="button"' + (claimPhase === 'claiming' ? ' disabled' : '') + '>Check again</button>' +
+             '<button class="claim-btn claim-btn--primary" id="claim-go" type="button"' + (claimPhase === 'claiming' || !eligibleCount ? ' disabled' : '') + '>' + (claimPhase === 'claiming' ? 'Claiming…' : 'Claim') + '</button>';
+    } else {
+      html = '<button class="claim-btn claim-btn--primary" id="claim-check" type="button"' + (claimPhase === 'checking' || !claimable ? ' disabled' : '') + '>' +
+             (claimPhase === 'checking' ? 'Checking your wallet…' : claimable ? 'Check my wallet' : rows.length ? 'All collections claimed' : 'Nothing to claim yet') + '</button>';
     }
-    rows.forEach(function (c) {
-      var row = el('li', 'claim-row' + (c.status === 'claimed' ? ' is-claimed' : ''));
-      row.innerHTML = '<a href="' + escapeHtml(c.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(c.name) + '</a><span class="claim-status">' + escapeHtml(claimStatusLabel(c)) + '</span>';
-      list.appendChild(row);
-    });
-    var btn = byId('claim-check');
-    var claimable = rows.some(function (c) { return c.status === 'claimable' || c.status === 'not_held' || c.status === 'not_eligible'; });
-    btn.disabled = claimBusy || !claimable;
-    btn.textContent = claimBusy ? 'Checking your wallet…' : claimable ? 'Check my wallet' : rows.length ? 'All collections claimed' : 'Nothing to claim yet';
+    actions.innerHTML = html;
+    var check = byId('claim-check'), recheck = byId('claim-recheck'), go = byId('claim-go');
+    if (check) check.addEventListener('click', runCheck);
+    if (recheck) recheck.addEventListener('click', runCheck);
+    if (go) go.addEventListener('click', runClaim);
   }
   async function openClaim() {
     claimFade.hidden = false;
     document.body.style.overflow = 'hidden';
-    claimCollections = null;
-    claimBusy = true; renderClaimList();
+    claimCollections = null; claimChecks = {}; claimPhase = 'checking';
+    renderClaimList();
     try {
       var data = await bridge.apiRequest('/api/expeditions/energy-claim', {}, 'GET');
       claimCollections = data.collections || [];
@@ -464,28 +471,47 @@
       claimCollections = [];
       showToast(e && e.message ? e.message : 'Could not load collections');
     }
-    claimBusy = false; renderClaimList();
+    claimPhase = 'idle'; renderClaimList();
   }
-  async function runClaim() {
-    if (claimBusy) return;
-    var wanted = (claimCollections || []).filter(function (c) { return c.status !== 'claimed'; }).map(function (c) { return c.bossIndex; });
-    if (!wanted.length) return;
-    claimBusy = true; renderClaimList();
+  async function runCheck() {
+    if (claimPhase === 'checking' || claimPhase === 'claiming') return;
+    claimPhase = 'checking'; claimChecks = {}; renderClaimList();
     try {
-      var data = await bridge.apiRequest('/api/expeditions/energy-claim', { collections: wanted });
-      var byBoss = {};
-      (data.results || []).forEach(function (r) { byBoss[r.bossIndex] = r; });
-      claimCollections = (data.collections || []).map(function (c) {
-        var r = byBoss[c.bossIndex];
-        return r && r.status !== 'granted' ? Object.assign({}, c, { status: r.status }) : c;
-      });
-      if (data.wallet) { STATE.wallet = data.wallet; if (bridge.onWallet) bridge.onWallet(data.wallet); }
-      if (data.energyAdded > 0) showToast('+' + data.energyAdded + ' energy added to your balance');
-      else showToast('No eligible NFTs found in your wallet');
+      var data = await bridge.apiRequest('/api/expeditions/energy-claim', { check: true });
+      (data.results || []).forEach(function (r) { claimChecks[r.bossIndex] = r; });
+      if (data.collections) claimCollections = data.collections;
+      claimPhase = 'checked';
+      if (!(data.results || []).some(function (r) { return r.status === 'eligible'; })) showToast('No eligible NFTs found in your wallet');
     } catch (e) {
       showToast(e && e.message ? e.message : 'Could not check your wallet — try again later');
+      claimPhase = 'idle';
     }
-    claimBusy = false; renderClaimList();
+    renderClaimList();
+  }
+  async function runClaim() {
+    if (claimPhase !== 'checked') return;
+    var wanted = Object.keys(claimChecks).filter(function (k) { return claimChecks[k].status === 'eligible'; }).map(Number);
+    if (!wanted.length) return;
+    var btn = byId('claim-go'), rect = btn ? btn.getBoundingClientRect() : null;
+    claimPhase = 'claiming'; renderClaimList();
+    try {
+      var data = await bridge.apiRequest('/api/expeditions/energy-claim', { collections: wanted });
+      claimCollections = data.collections || claimCollections;
+      claimChecks = {};
+      if (data.wallet) { STATE.wallet = data.wallet; if (bridge.onWallet) bridge.onWallet(data.wallet); }
+      claimPhase = 'idle'; renderClaimList();
+      if (data.energyAdded > 0) {
+        showToast('+' + data.energyAdded + ' energy added to your balance');
+        if (typeof window.confetti === 'function' && rect) {
+          var origin = { x: (rect.left + rect.width / 2) / window.innerWidth, y: (rect.top + rect.height / 2) / window.innerHeight };
+          window.confetti({ particleCount: 90, spread: 70, startVelocity: 38, origin: origin, zIndex: 200 });
+          setTimeout(function () { window.confetti({ particleCount: 50, spread: 100, startVelocity: 28, origin: origin, zIndex: 200 }); }, 180);
+        }
+      } else showToast('No eligible NFTs found in your wallet');
+    } catch (e) {
+      showToast(e && e.message ? e.message : 'Could not claim — try again later');
+      claimPhase = 'checked'; renderClaimList();
+    }
   }
   function closeClaim() { claimFade.hidden = true; document.body.style.overflow = ''; }
 
@@ -497,7 +523,6 @@
     byId('modal-close').addEventListener('click', closeModal);
     byId('btn-holder-claim').addEventListener('click', openClaim);
     byId('claim-close').addEventListener('click', closeClaim);
-    byId('claim-check').addEventListener('click', runClaim);
     claimFade.addEventListener('click', function (e) { if (e.target === claimFade) closeClaim(); });
     document.addEventListener('keydown', function (e) {
       if (!mounted || host.classList.contains('hidden')) return;

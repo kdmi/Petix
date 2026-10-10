@@ -33,7 +33,11 @@ module.exports = async (req, res) => {
     const targets = collections.filter((c) => wanted.includes(c.bossIndex));
     if (!targets.length) throw fail(400, "NOTHING_TO_CLAIM", "No open collections to claim.");
     const claimable = targets.filter((c) => c.status === "claimable");
-    if (!claimable.length) throw fail(409, "ALREADY_CLAIMED", "All selected collections were claimed already.");
+    const dryRun = body?.check === true; // step 1 of the two-step popup: look at the wallet, grant nothing
+    if (!claimable.length) {
+      if (dryRun) { json(res, 200, { checked: true, results: [], energyAdded: 0, wallet: { points: profile.currency.balance, energy: profile.battleState.energyCurrent }, collections }); return; }
+      throw fail(409, "ALREADY_CLAIMED", "All selected collections were claimed already.");
+    }
 
     const deps = resolveDeps();
     const marketplaces = cfg.EXPEDITION_MARKETPLACE_CONTRACTS || [];
@@ -42,9 +46,13 @@ module.exports = async (req, res) => {
       for (const c of claimable) {
         const settings = getBossSettings(cfg, c.bossIndex);
         const check = await checkCollection({ wallet, contract: settings.contract, openedBlock: settings.openedBlock, marketplaces, explorer: deps.explorer, rpc: deps.rpc, cache: deps.cache });
-        results.push({ bossIndex: c.bossIndex, name: c.name, energy: c.energy, held: check.held, eligible: check.eligible.length, rejected: check.rejected.length, status: check.held === 0 ? "not_held" : check.eligible.length ? "granted" : "not_eligible" });
+        results.push({ bossIndex: c.bossIndex, name: c.name, energy: c.energy, held: check.held, eligible: check.eligible.length, rejected: check.rejected.length, status: check.held === 0 ? "not_held" : check.eligible.length ? (dryRun ? "eligible" : "granted") : "not_eligible" });
       }
     })());
+    if (dryRun) {
+      json(res, 200, { checked: true, results, energyAdded: 0, wallet: { points: profile.currency.balance, energy: profile.battleState.energyCurrent }, collections });
+      return;
+    }
     const granted = results.filter((r) => r.status === "granted");
     let energyAdded = 0;
     if (granted.length) {

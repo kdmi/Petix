@@ -28,7 +28,7 @@
       }
     </style>
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260925a" />
-    <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261010o" />
+    <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261010p" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -481,9 +481,10 @@
           <div class="claim-modal" role="dialog" aria-modal="true" aria-labelledby="claim-title">
             <button class="claim-x" id="claim-close" type="button" aria-label="Close"><img src="/assets/expeditions/icons/close-dark.svg" alt="" /></button>
             <h2 class="claim-title" id="claim-title">Claim extra energy</h2>
-            <p class="claim-sub">Hold NFTs from a boss collection? Get bonus battle energy. One claim per collection, new collections unlock with every boss.</p>
+            <p class="claim-sub">Hold NFTs from a boss collection? Get bonus battle energy. One claim per collection.</p>
             <ul class="claim-list" id="claim-list"></ul>
-            <button class="btn-claim-check" id="claim-check" type="button">Check my wallet</button>
+            <p class="claim-note">New collections unlocks with every revealed boss.</p>
+            <div class="claim-actions" id="claim-actions"></div>
           </div>
         </div>
       </section>
@@ -620,10 +621,10 @@
     <script src="/pet-creation/upgrade-screen-state.js?v=20260418a"></script>
     <script src="/assets/petix-config.js"></script>
     <div class="xp" id="expeditionsOverlay"></div>
-    <script src="/assets/expeditions/engine.js?v=20261010o"></script>
-    <script src="/pet-creation/expedition-tutorial.js?v=20261010o"></script>
-    <script src="/pet-creation/expedition-battle.js?v=20261010o"></script>
-    <script src="/pet-creation/expeditions.js?v=20261010o"></script>
-    <script src="/pet-creation/app.js?v=20261010o"></script>
+    <script src="/assets/expeditions/engine.js?v=20261010p"></script>
+    <script src="/pet-creation/expedition-tutorial.js?v=20261010p"></script>
+    <script src="/pet-creation/expedition-battle.js?v=20261010p"></script>
+    <script src="/pet-creation/expeditions.js?v=20261010p"></script>
+    <script src="/pet-creation/app.js?v=20261010p"></script>
   </body>
 </html>
