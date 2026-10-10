@@ -157,9 +157,52 @@
     q('.season-progress .num').textContent = cleared;
     q('.path-line--row1-done').style.width = Math.max(0, (Math.min(5, cleared) - 1) * 153) + 'px';
     q('.path-line--row1-done-dark').style.width = Math.max(0, (Math.min(5, current) - 1) * 153 + 12) + 'px';
+    drawMobilePath(cleared, cur < 0 ? 0 : cur + 1);
     // Lines are revealed only now, relative to the cards' insertion — on prod the
     // state arrives well after page load, and page-load timers showed lines first.
     q('.path').classList.add('is-ready');
+  }
+
+  // Phones (Figma 1426:4257): two columns, the path snakes through five rows — boss 1 → right edge, back in from the
+  // left edge on the next row, … ending at boss 10. Link colours: green through the last cleared boss, dark up to the
+  // current one, gray after. Drawn from the real card rects so it survives any width.
+  var MOBILE_MQ = window.matchMedia ? window.matchMedia('(max-width: 640px)') : null;
+  var mobilePathState = { cleared: 0, current: 0 };
+  function drawMobilePath(cleared, current) {
+    mobilePathState = { cleared: cleared, current: current };
+    var path = q('.path'); if (!path) return;
+    var old = path.querySelector('.mpath'); if (old) old.remove();
+    if (!MOBILE_MQ || !MOBILE_MQ.matches) return;
+    var cards = Array.prototype.slice.call(path.querySelectorAll('.boss'));
+    if (cards.length < 2) return;
+    var wrap = el('div', 'mpath');
+    var base = path.getBoundingClientRect();
+    var linkClass = function (b) { return b <= cleared ? 'is-done' : b <= current ? 'is-current' : ''; };
+    var seg = function (x1, x2, y, cls) {
+      if (x2 - x1 < 1) return;
+      var d = el('i', 'mpath-seg ' + cls);
+      d.style.left = x1 + 'px'; d.style.width = (x2 - x1) + 'px'; d.style.top = (y - 1) + 'px';
+      wrap.appendChild(d);
+    };
+    var edgeL = -24, edgeR = base.width + 24;
+    for (var i = 0; i < cards.length; i += 2) {
+      var r1 = cards[i].getBoundingClientRect(), r2 = cards[i + 1] ? cards[i + 1].getBoundingClientRect() : null;
+      var y = r1.top - base.top + r1.height / 2;
+      var c1 = r1.left - base.left + r1.width / 2;
+      var bossA = i + 1; // 1-based number of the left card
+      if (i > 0) seg(edgeL, c1, y, linkClass(bossA));
+      if (r2) {
+        var c2 = r2.left - base.left + r2.width / 2;
+        seg(c1, c2, y, linkClass(bossA + 1));
+        if (i + 2 < cards.length) seg(c2, edgeR, y, linkClass(bossA + 2));
+      }
+    }
+    path.insertBefore(wrap, path.firstChild);
+  }
+  if (MOBILE_MQ) {
+    var onMq = function () { if (STATE) drawMobilePath(mobilePathState.cleared, mobilePathState.current); };
+    if (MOBILE_MQ.addEventListener) MOBILE_MQ.addEventListener('change', onMq); else if (MOBILE_MQ.addListener) MOBILE_MQ.addListener(onMq);
+    window.addEventListener('resize', function () { if (STATE && MOBILE_MQ.matches) drawMobilePath(mobilePathState.cleared, mobilePathState.current); });
   }
 
   // ---------- Modal ----------
