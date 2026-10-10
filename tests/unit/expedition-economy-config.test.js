@@ -11,7 +11,7 @@ test("expedition defaults: feature off, admin-only, 3 bosses open, fees per boss
   assert.deepEqual(d.EXPEDITION_BOSS_OPEN, [1, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
   assert.deepEqual(d.EXPEDITION_FEES, [0, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000]);
   assert.deepEqual(d.EXPEDITION_REWARD_MULTS, { 1: 0.5, 2: 1, 3: 2 });
-  assert.deepEqual(d.EXPEDITION_CAPSULE_ENERGY, { glass: 2, bronze: 3, silver: 4, gold: 5, prismatic: 6 });
+  assert.equal("EXPEDITION_CAPSULE_ENERGY" in d, false, "airdrop amounts are typed at drop time, not stored");
   assert.equal(d.EXPEDITION_COLLECTION_CONTRACTS.length, 10);
   assert.equal(economy.EXPEDITION_BOSS_COUNT, 10);
 });
@@ -34,11 +34,9 @@ test("expedition validation: length ≠ 10, bad address, bad star key are reject
   const ok = economy.validateConfigPatch({
     EXPEDITION_COLLECTION_CONTRACTS: ["", `0x${"1".repeat(40)}`, "", "", "", "", "", "", "", ""],
     EXPEDITION_MARKETPLACE_CONTRACTS: [`0x${"2".repeat(40)}`],
-    EXPEDITION_CAPSULE_ENERGY: { gold: 7 },
     EXPEDITIONS_ENABLED: 1,
   });
   assert.deepEqual(ok.errors, []);
-  assert.equal(economy.validateConfigPatch({ EXPEDITION_CAPSULE_ENERGY: { platinum: 1 } }).ok, false);
 });
 
 test("getEconomyConfig({ fresh: true }) bypasses the in-memory cache (admin reads right after a save)", async () => {

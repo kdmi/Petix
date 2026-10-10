@@ -8,7 +8,7 @@
   "use strict";
 
   const ctx = { apiRequest: null, showToast: null, escapeHtml: (v) => String(v), formatPoints: (v) => String(v) };
-  const view = { stats: null, config: null, defaults: null, loading: false, error: "", saving: false, airdrop: null, airdropParams: null, attemptBoss: "all", attemptResult: "all", lastLoadedAt: 0 };
+  const view = { stats: null, config: null, defaults: null, loading: false, error: "", saving: false, airdrop: null, airdropTiers: { glass: "", bronze: "", silver: "", gold: "", prismatic: "" }, attemptBoss: "all", attemptResult: "all", lastLoadedAt: 0 };
   let panel = null;
   let bound = false;
 
@@ -132,22 +132,17 @@
   function sectionEconomy() {
     const c = view.config;
     const m = c.EXPEDITION_REWARD_MULTS || {};
-    const t = c.EXPEDITION_CAPSULE_ENERGY || {};
     const field = (label, key, value, step = "1") => `<label class="xa-field">${esc(label)}<input type="number" step="${step}" min="0" data-xa-eco="${key}" value="${esc(value)}" /></label>`;
     return `
       <section class="xa-card">
         <h3>Economy</h3>
-        <p class="xa-hint">Fees are per boss (table above). Partner energy is a flat amount per wallet; capsules add up per token by tier (airdrop below).</p>
+        <p class="xa-hint">Fees are per boss (table above). Partner energy is a flat amount per wallet (Holder energy below).</p>
         <div class="xa-fields xa-fields--3">
           ${field("1★ reward, × fee", "mult:1", m[1] ?? 0.5, "0.1")}
           ${field("2★ reward, × fee", "mult:2", m[2] ?? 1, "0.1")}
           ${field("3★ reward, × fee", "mult:3", m[3] ?? 2, "0.1")}
           ${field("Free boss base, Points", "EXPEDITION_FREE_BOSS_REWARD_BASE", c.EXPEDITION_FREE_BOSS_REWARD_BASE)}
           ${field("Energy per attempt", "EXPEDITION_ENERGY_PER_ATTEMPT", c.EXPEDITION_ENERGY_PER_ATTEMPT)}
-        </div>
-        <h4>Capsule airdrop · energy per capsule, by tier</h4>
-        <div class="xa-fields xa-fields--5">
-          ${["glass", "bronze", "silver", "gold", "prismatic"].map((tier) => field(tier[0].toUpperCase() + tier.slice(1), `tier:${tier}`, t[tier] ?? 0)).join("")}
         </div>
         <h4>Marketplaces <span class="xa-muted">· purchases through these contracts count as purchases, plain transfers don't</span></h4>
         <textarea id="xaMarketplaces" rows="2" placeholder="0x… one contract per line (Seaport on Robinhood Chain)">${esc((c.EXPEDITION_MARKETPLACE_CONTRACTS || []).join("\n"))}</textarea>
@@ -160,31 +155,45 @@
     const claims = s.bosses.reduce((a, b) => a + (b.claims || 0), 0);
     const energy = s.bosses.reduce((a, b) => a + (b.claimEnergy || 0), 0);
     const rows = s.bosses.filter((b) => b.open).map((b) => `<tr><td>${esc(b.name)}</td><td class="xa-num">${b.claims || 0}</td><td class="xa-num">${num(b.claimEnergy || 0)}</td><td class="xa-num">${b.energy || 0} / wallet</td></tr>`).join("") || '<tr><td colspan="4" class="xa-muted">No open bosses.</td></tr>';
-    const a = view.airdrop, ap = view.airdropParams;
-    const grants = (s.grants || []).slice(0, 10).map((g) => `<li><span class="xa-mono">${esc(g.label)}</span><span>${num(g.wallets)} wallets</span><span>${num(g.energy)} energy</span><span class="xa-muted">${esc(when(g.lastAt))}</span></li>`).join("") || '<li class="xa-muted">No grants yet.</li>';
+    const grants = (s.grants || []).filter((g) => !/^capsules-/.test(g.label)).slice(0, 10).map((g) => `<li><span class="xa-mono">${esc(g.label)}</span><span>${num(g.wallets)} wallets</span><span>${num(g.energy)} energy</span><span class="xa-muted">${esc(when(g.lastAt))}</span></li>`).join("") || '<li class="xa-muted">No manual grants yet.</li>';
     return `
       <section class="xa-card">
         <h3>Holder energy</h3>
         <p class="xa-hint">Players claim it themselves on the Expeditions page (one claim per collection, flat per wallet).</p>
         <div class="admin-stats-grid xa-stats xa-stats--3">${stat("Claims", num(claims), "all time")}${stat("Energy granted", num(energy), "via claims")}${stat("Grant campaigns", num((s.grants || []).length), "airdrops + manual")}</div>
         <div class="xa-tw"><table class="xa-table xa-table--tight"><thead><tr><th>Collection</th><th class="xa-num">Claims</th><th class="xa-num">Energy</th><th class="xa-num">Rate</th></tr></thead><tbody>${rows}</tbody></table></div>
-        <h4>Capsule airdrop <span class="xa-muted">· pick the amount, preview, drop — repeatable (launch, later events)</span></h4>
-        <div class="xa-row xa-row--wrap">
-          <select id="xaDropMode" title="How the amount is counted">
-            <option value="capsule" ${!ap || ap.mode === "capsule" ? "selected" : ""}>per capsule</option>
-            <option value="wallet" ${ap && ap.mode === "wallet" ? "selected" : ""}>per holder</option>
-            <option value="tier" ${ap && ap.mode === "tier" ? "selected" : ""}>by tier (rates in Economy)</option>
-          </select>
-          <input type="number" id="xaDropAmount" min="1" max="1000" step="1" value="${ap && ap.amount ? ap.amount : 3}" title="energy" /><span class="xa-muted">energy</span>
-          <input type="text" id="xaDropLabel" value="${esc(ap && ap.label ? ap.label : "")}" placeholder="label (auto: capsules-YYYYMMDD-HHMM)" />
-          <button type="button" class="admin-secondary-btn xa-btn-sm" data-xa-action="airdrop-preview">Preview</button>
-          <button type="button" class="admin-secondary-btn xa-btn-sm xa-btn-primary" data-xa-action="airdrop-run" ${a && a.totalEnergy > 0 ? "" : "disabled"}>Drop energy</button>
-        </div>
-        <div class="xa-muted">${a ? `${num(a.wallets)} holders · ${num(a.capsules)} capsules: ${Object.entries(a.byTier || {}).map(([tier, n]) => `${n} ${tier}`).join(" · ") || "—"} → <b>${num(a.totalEnergy)} energy</b> (${a.rates.mode === "tier" ? "by tier" : a.rates.amount + " per " + (a.rates.mode === "wallet" ? "holder" : "capsule")})` : "Choose the amount and press Preview — the numbers come from the capsule index."}</div>
-        <p class="xa-hint">Every drop gets its own label, so a wallet can receive several drops over time; re-sending the same label skips wallets that already got it. Holders without a profile get it on their first visit.</p>
         <h4>Manual grant <span class="xa-muted">· backup tool for one-off campaigns</span></h4>
         <div class="xa-row xa-row--grant"><textarea id="xaGrantWallets" rows="3" placeholder="wallets, one per line"></textarea><div class="xa-col"><input type="number" id="xaGrantAmount" min="1" value="3" title="energy each" /><input type="text" id="xaGrantLabel" placeholder="label (idempotent)" /><button type="button" class="admin-secondary-btn xa-btn-sm" data-xa-action="grant">Grant energy</button></div></div>
         <ul class="xa-journal">${grants}</ul>
+      </section>`;
+  }
+
+  const TIERS = ["glass", "bronze", "silver", "gold", "prismatic"];
+  const tierName = (tier) => tier[0].toUpperCase() + tier.slice(1);
+
+  function sectionCapsuleAirdrop() {
+    const s = view.stats;
+    const a = view.airdrop;
+    const t = view.airdropTiers;
+    const inputs = TIERS.map((tier) => `<label class="xa-field">${tierName(tier)}<input type="number" min="0" max="1000" step="1" placeholder="0" data-xa-drop="${tier}" value="${esc(t[tier])}" /></label>`).join("");
+    const rows = a ? TIERS.map((tier) => { const r = a.byTier[tier] || { capsules: 0, perCapsule: 0, energy: 0 }; return `<tr><td>${tierName(tier)}</td><td class="xa-num">${num(r.capsules)}</td><td class="xa-num">${num(r.perCapsule)}</td><td class="xa-num">${num(r.energy)}</td></tr>`; }).join("") : "";
+    const preview = a
+      ? `<div class="xa-tw"><table class="xa-table xa-table--tight"><thead><tr><th>Tier</th><th class="xa-num">Capsules</th><th class="xa-num">Energy each</th><th class="xa-num">Energy total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th>Total</th><th class="xa-num">${num(a.capsules)}</th><th></th><th class="xa-num">${num(a.totalEnergy)}</th></tr></tfoot></table></div>
+         <p class="xa-hint"><b>${num(a.wallets)}</b> wallets get energy · holders as of block ${num(a.block)}${a.live ? "" : " (capsule index, chain not checked)"}</p>`
+      : "";
+    const drops = (s.grants || []).filter((g) => /^capsules-/.test(g.label)).slice(0, 10).map((g) => `<li><span class="xa-mono">${esc(g.label)}</span><span>${num(g.wallets)} wallets${g.parked ? ` · ${num(g.parked)} on first visit` : ""}</span><span>${num(g.energy)} energy</span><span class="xa-muted">${esc(when(g.lastAt))}</span></li>`).join("") || '<li class="xa-muted">No drops yet.</li>';
+    return `
+      <section class="xa-card">
+        <h3>Capsule airdrop</h3>
+        <p class="xa-hint">Energy per capsule for each tier. Whoever holds a capsule right now gets it — no matter how it was obtained. A wallet with several capsules gets the sum.</p>
+        <div class="xa-fields xa-fields--5">${inputs}</div>
+        <div class="xa-row xa-row--end">
+          <button type="button" class="admin-secondary-btn xa-btn-sm" data-xa-action="airdrop-preview">Preview</button>
+          <button type="button" class="admin-secondary-btn xa-btn-sm xa-btn-primary" data-xa-action="airdrop-send">Send airdrop</button>
+        </div>
+        ${preview}
+        <h4>Past drops</h4>
+        <ul class="xa-journal">${drops}</ul>
       </section>`;
   }
 
@@ -232,7 +241,7 @@
     if (view.loading && !view.stats) { panel.innerHTML = '<p class="admin-empty">Loading expeditions…</p>'; return; }
     if (view.error && !view.stats) { panel.innerHTML = `<p class="admin-empty">${esc(view.error)}</p>`; return; }
     if (!view.stats || !view.config) return;
-    panel.innerHTML = `<div class="xa${view.saving ? " is-saving" : ""}">${sectionSwitches()}${sectionBoard()}${sectionEconomy()}${sectionHolderEnergy()}${sectionMint()}${sectionAttempts()}</div>`;
+    panel.innerHTML = `<div class="xa${view.saving ? " is-saving" : ""}">${sectionSwitches()}${sectionBoard()}${sectionEconomy()}${sectionHolderEnergy()}${sectionCapsuleAirdrop()}${sectionMint()}${sectionAttempts()}</div>`;
   }
 
   // ---------- actions ----------
@@ -255,12 +264,16 @@
     }
   }
 
-  function readDropParams() {
-    const mode = String((panel.querySelector("#xaDropMode") || {}).value || "capsule");
-    const amount = Math.max(1, Math.floor(Number((panel.querySelector("#xaDropAmount") || {}).value) || 0));
-    const label = String((panel.querySelector("#xaDropLabel") || {}).value || "").trim();
-    return { mode, amount, label };
+  function readDropTiers() {
+    const tiers = {};
+    for (const tier of TIERS) {
+      const input = panel.querySelector(`[data-xa-drop="${tier}"]`);
+      tiers[tier] = input ? String(input.value || "").trim() : "";
+    }
+    view.airdropTiers = tiers; // keep what was typed across re-renders
+    return tiers;
   }
+  const tiersQuery = (tiers) => TIERS.map((tier) => `${tier}=${encodeURIComponent(tiers[tier] || 0)}`).join("&");
 
   function readArray(attr, count, parse) {
     const out = [];
@@ -299,27 +312,27 @@
             EXPEDITION_REWARD_MULTS: { 1: read("mult:1"), 2: read("mult:2"), 3: read("mult:3") },
             EXPEDITION_FREE_BOSS_REWARD_BASE: read("EXPEDITION_FREE_BOSS_REWARD_BASE"),
             EXPEDITION_ENERGY_PER_ATTEMPT: read("EXPEDITION_ENERGY_PER_ATTEMPT"),
-            EXPEDITION_CAPSULE_ENERGY: Object.fromEntries(["glass", "bronze", "silver", "gold", "prismatic"].map((tier) => [tier, read(`tier:${tier}`)])),
             EXPEDITION_MARKETPLACE_CONTRACTS: marketplaces,
           });
         }, "Economy saved.");
       case "airdrop-preview": {
-        const params = readDropParams();
+        const tiers = readDropTiers();
         return withSaving(async () => {
-          view.airdropParams = params;
-          view.airdrop = await ctx.apiRequest(`/api/admin/capsule-airdrop?mode=${encodeURIComponent(params.mode)}&amount=${encodeURIComponent(params.amount)}`, {}, "GET");
+          view.airdrop = await ctx.apiRequest(`/api/admin/capsule-airdrop?${tiersQuery(tiers)}`, {}, "GET");
         });
       }
-      case "airdrop-run": {
-        const params = readDropParams();
-        const p = view.airdrop;
-        if (!p || !view.airdropParams || view.airdropParams.mode !== params.mode || view.airdropParams.amount !== params.amount) { ctx.showToast("Preview first — the amount changed."); return undefined; }
-        const label = params.label || "(auto label)";
-        if (!window.confirm(`Drop ${num(p.totalEnergy)} energy to ${num(p.wallets)} capsule holders (${params.mode === "tier" ? "by tier" : params.amount + " per " + (params.mode === "wallet" ? "holder" : "capsule")}), label ${label}?`)) return undefined;
+      case "airdrop-send": {
+        const tiers = readDropTiers();
         return withSaving(async () => {
-          const r = await ctx.apiRequest("/api/admin/capsule-airdrop", { mode: params.mode, amount: params.amount, label: params.label || undefined });
-          ctx.showToast(`Dropped under ${r.label}: ${r.applied} wallets, ${r.parked} parked for later, ${r.skipped} skipped.`);
-          view.airdrop = null; view.airdropParams = { mode: params.mode, amount: params.amount, label: "" };
+          // Fresh numbers right before the confirm: holders as of the current block.
+          const p = await ctx.apiRequest(`/api/admin/capsule-airdrop?${tiersQuery(tiers)}`, {}, "GET");
+          view.airdrop = p;
+          const perTier = TIERS.filter((tier) => p.tiers[tier] > 0).map((tier) => `${tierName(tier)} ${p.tiers[tier]}`).join(", ");
+          if (!window.confirm(`Send ${num(p.totalEnergy)} energy to ${num(p.wallets)} capsule holders?\n\nPer capsule: ${perTier}.`)) return;
+          const r = await ctx.apiRequest("/api/admin/capsule-airdrop", { tiers: p.tiers });
+          ctx.showToast(`Airdrop sent: ${num(r.totalEnergy)} energy to ${num(r.applied + r.parked)} wallets${r.parked ? ` (${num(r.parked)} get it on their first visit)` : ""}.`);
+          view.airdrop = null;
+          view.airdropTiers = { glass: "", bronze: "", silver: "", gold: "", prismatic: "" };
         });
       }
       case "grant": {

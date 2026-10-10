@@ -13,7 +13,7 @@ const {
 const RARITY_KEYS = ["Common", "Rare", "Epic", "Legendary"];
 const TIER_KEYS = ["glass", "bronze", "silver", "gold", "prismatic"];
 // Карты «тир капсулы → число» (018). Мержатся и валидируются одинаково.
-const TIER_MAP_KEYS = ["NFT_TIER_EXTRA_BATTLES", "NFT_TIER_FARM_BONUS_PCT", "NFT_TIER_WIN_BONUS_PCT", "EXPEDITION_CAPSULE_ENERGY"];
+const TIER_MAP_KEYS = ["NFT_TIER_EXTRA_BATTLES", "NFT_TIER_FARM_BONUS_PCT", "NFT_TIER_WIN_BONUS_PCT"];
 // Expeditions (026): one value per boss, always exactly EXPEDITION_BOSS_COUNT entries.
 const EXPEDITION_BOSS_COUNT = 10;
 const EXPEDITION_BOSS_NUMBER_KEYS = ["EXPEDITION_BOSS_OPEN", "EXPEDITION_BOSS_OPENED_BLOCK", "EXPEDITION_FEES", "EXPEDITION_COLLECTION_ENERGY"];
@@ -131,7 +131,6 @@ const DEFAULTS = Object.freeze({
   EXPEDITION_FEES: Object.freeze([0, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000]), // взнос в Points по боссам
   EXPEDITION_COLLECTION_CONTRACTS: Object.freeze(["", "", "", "", "", "", "", "", "", ""]), // ERC-721 партнёрских коллекций (только рантайм, не в коде)
   EXPEDITION_COLLECTION_ENERGY: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), // энергия за клейм, фиксированно за кошелёк
-  EXPEDITION_CAPSULE_ENERGY: Object.freeze({ glass: 2, bronze: 3, silver: 4, gold: 5, prismatic: 6 }), // раздача за каждую капсулу по тиру
   EXPEDITION_MARKETPLACE_CONTRACTS: Object.freeze([]), // контракты маркетплейсов: перевод через них = покупка
 });
 
@@ -148,7 +147,6 @@ function deepCloneDefaults() {
     NFT_TIER_EXTRA_BATTLES: { ...DEFAULTS.NFT_TIER_EXTRA_BATTLES },
     NFT_TIER_FARM_BONUS_PCT: { ...DEFAULTS.NFT_TIER_FARM_BONUS_PCT },
     NFT_TIER_WIN_BONUS_PCT: { ...DEFAULTS.NFT_TIER_WIN_BONUS_PCT },
-    EXPEDITION_CAPSULE_ENERGY: { ...DEFAULTS.EXPEDITION_CAPSULE_ENERGY },
     EXPEDITION_REWARD_MULTS: { ...DEFAULTS.EXPEDITION_REWARD_MULTS },
     EXPEDITION_BOSS_OPEN: [...DEFAULTS.EXPEDITION_BOSS_OPEN],
     EXPEDITION_BOSS_OPENED_BLOCK: [...DEFAULTS.EXPEDITION_BOSS_OPENED_BLOCK],
