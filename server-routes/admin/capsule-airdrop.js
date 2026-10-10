@@ -1,15 +1,14 @@
 const { handleCors, json } = require("../../api/_lib/auth");
-const { previewCapsuleAirdrop, runCapsuleAirdrop } = require("../../api/_lib/expedition-energy");
+const { CAPSULE_TIERS, previewCapsuleAirdrop, runCapsuleAirdrop } = require("../../api/_lib/expedition-energy");
 const { parseJsonBody, requireAdmin, sendError } = require("./_expeditions-shared");
 
-// GET ?mode=capsule|wallet|tier&amount=N[&tiers=json] — preview (holders, capsules by tier, total energy at these rates).
-// POST { mode, amount|tiers, label? } — run it; every drop gets its own label (auto capsules-YYYYMMDD-HHMM), so drops repeat,
-// while re-sending the same label is a no-op per wallet.
-function ratesFrom(src) {
-  if (!src) return undefined;
-  let tiers = src.tiers;
-  if (typeof tiers === "string") { try { tiers = JSON.parse(tiers); } catch { tiers = undefined; } }
-  return { mode: src.mode, amount: src.amount, tiers };
+// Capsule airdrop (owner 2026-10-11): energy per capsule for each tier, typed at drop time.
+// Whoever holds a capsule at the current block gets it — no rule about how it was obtained.
+// GET ?glass=N&bronze=N&silver=N&gold=N&prismatic=N — preview (holders, capsules and energy by tier).
+// POST { tiers: { glass, bronze, silver, gold, prismatic }, label? } — send. Every drop gets its own
+// label (auto capsules-YYYYMMDD-HHMM), so drops repeat; re-sending the same label skips wallets that got it.
+function publicPreview(p) {
+  return { tiers: p.tiers, wallets: p.wallets, holders: p.holders, capsules: p.capsules, byTier: p.byTier, totalEnergy: p.totalEnergy, block: p.block, live: p.live };
 }
 
 module.exports = async (req, res) => {
@@ -18,13 +17,13 @@ module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
       const url = new URL(req.url, "http://localhost");
-      const preview = await previewCapsuleAirdrop({ rates: ratesFrom(Object.fromEntries(url.searchParams)) });
-      json(res, 200, { rates: preview.rates, wallets: preview.wallets, capsules: preview.capsules, byTier: preview.byTier, totalEnergy: preview.totalEnergy });
+      const tiers = Object.fromEntries(CAPSULE_TIERS.map((tier) => [tier, url.searchParams.get(tier)]));
+      json(res, 200, publicPreview(await previewCapsuleAirdrop({ tiers })));
       return;
     }
     if (req.method !== "POST") { json(res, 405, { error: "Method not allowed." }); return; }
     const body = await parseJsonBody(req);
-    json(res, 200, await runCapsuleAirdrop({ label: body?.label ? String(body.label) : undefined, rates: ratesFrom(body) }));
+    json(res, 200, await runCapsuleAirdrop({ label: body?.label ? String(body.label) : undefined, tiers: body?.tiers }));
   } catch (error) {
     sendError(res, error, "Could not run the capsule airdrop.");
   }

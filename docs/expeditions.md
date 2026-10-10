@@ -49,8 +49,8 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
 - Partner collections: the player presses Claim on the Expeditions page; the server checks the wallet over RPC (`balanceOf`, Transfer logs since the boss was opened, `ownerOf`; Blockscout is Cloudflare-gated for server fetches and is only a fallback),
   counts NFTs that did **not** arrive by plain transfer after the boss's `openedBlock` (mints and marketplace purchases count),
   and grants a flat `EXPEDITION_COLLECTION_ENERGY[boss]` once per collection per wallet. *(Routes land in the last phase of 026.)*
-- Capsules: one-off airdrop from the admin panel (`capsule-airdrop`, per capsule by tier `EXPEDITION_CAPSULE_ENERGY`), idempotent
-  per label; wallets without a profile receive it on their first visit (`expedition-energy-grants-pending.json`).
+- Capsules: airdrop from the admin panel (`capsule-airdrop`): energy per capsule for each tier, typed at drop time; whoever holds a capsule at the current block gets it (capsule index + Transfer events since its last sync, read-only), no rule about how it was obtained; every drop gets its own label `capsules-YYYYMMDD-HHMM`, so drops repeat
+  (re-sending a label skips wallets that got it); wallets without a profile receive it on their first visit (`expedition-energy-grants-pending.json`).
 - Manual grants: `energy-grant` with a list of wallets, same idempotency.
 - Granted energy lives in `battleState.energyGranted`: never resets at midnight, spent after the free allowance and before purchased.
 
@@ -58,7 +58,7 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
 
 Access switch (Off / Admins only / Everyone = `EXPEDITIONS_ENABLED` + `EXPEDITIONS_ADMIN_ONLY`), minting switch, today / 7-day
 stats (from per-wallet daily counters, no shared document), season board (open/hide per boss, contract, fee, energy per claim),
-economy levers, capsule airdrop (amount chosen at drop time: per capsule / per holder / by tier; repeatable, one label per drop) and manual grants, mint queue with a manual run, latest attempts. All writes go through
+economy levers, capsule airdrop (its own card: energy per capsule by tier, preview, send; repeatable) and manual grants, mint queue with a manual run, latest attempts. All writes go through
 `/api/admin/economy-config` with a reason (audited) or the dedicated admin actions.
 
 **Opening a boss**: enter the collection contract → Save → Open boss. The server verifies ERC-165/721 via RPC and stores the

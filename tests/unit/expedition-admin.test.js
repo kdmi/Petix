@@ -104,48 +104,72 @@ test("energy-grant: idempotent per label, parked for wallets without a profile a
   });
 });
 
-test("capsule-airdrop: preview from the capsule index by tier, run once per label", async () => {
+test("capsule-airdrop: energy per capsule by tier, typed at drop time; repeatable under fresh labels", async () => {
   await withExpeditionEnv(async (env) => {
     const nftState = { version: 1, bindings: {}, owners: { 1: PLAYER, 2: PLAYER, 3: OTHER, 4: `0x${"9".repeat(40)}` }, ownedSince: {}, transfers: [], startBlock: 0, lastSyncedBlock: 0 };
     await fs.mkdir(path.join(env.tempDir, ".data", "local-dev"), { recursive: true });
     await fs.writeFile(path.join(env.tempDir, ".data", "local-dev", "nft.json"), JSON.stringify(nftState));
     const { getCapsuleTier } = require("../../api/_lib/nft-tiers");
-    const cfg = await env.economy.getEconomyConfig();
-    const expectedPlayer = [1, 2].reduce((a, id) => a + cfg.EXPEDITION_CAPSULE_ENERGY[getCapsuleTier(id)], 0);
+    const tiers = { glass: 2, bronze: 3, silver: 4, gold: 5, prismatic: 6 };
+    const expectedPlayer = [1, 2].reduce((a, id) => a + tiers[getCapsuleTier(id)], 0);
+    const query = new URLSearchParams(tiers).toString();
 
     const handler = env.adminDispatcher();
-    const preview = await admin(handler, "capsule-airdrop");
+    const preview = await admin(handler, `capsule-airdrop?${query}`);
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
     assert.equal(preview.body.wallets, 3);
     assert.equal(preview.body.capsules, 4);
-    assert.ok(preview.body.totalEnergy >= 8);
+    assert.equal(preview.body.totalEnergy, [1, 2, 3, 4].reduce((a, id) => a + tiers[getCapsuleTier(id)], 0));
+    assert.equal(preview.body.byTier[getCapsuleTier(1)].perCapsule, tiers[getCapsuleTier(1)]);
 
-    const run = await admin(handler, "capsule-airdrop", { method: "POST", body: { label: "capsules-s1" } });
+    const empty = await admin(handler, "capsule-airdrop");
+    assert.equal(empty.status, 400, "no amounts typed → nothing to drop");
+    const bad = await admin(handler, "capsule-airdrop?glass=-1");
+    assert.equal(bad.status, 400);
+
+    const run = await admin(handler, "capsule-airdrop", { method: "POST", body: { tiers, label: "capsules-s1" } });
     assert.equal(run.status, 200, JSON.stringify(run.body));
     assert.equal(run.body.applied, 2, "two wallets have profiles");
     assert.equal(run.body.parked, 1);
     assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, expectedPlayer);
-    const rerun = await admin(handler, "capsule-airdrop", { method: "POST", body: { label: "capsules-s1" } });
-    assert.equal(rerun.body.applied, 0);
+    const rerun = await admin(handler, "capsule-airdrop", { method: "POST", body: { tiers, label: "capsules-s1" } });
+    assert.equal(rerun.body.applied, 0, "same label never pays twice");
 
-    // Amount chosen at drop time, drops repeat under fresh labels (owner 2026-10-10).
-    const flat = await admin(handler, "capsule-airdrop?mode=capsule&amount=5");
-    assert.equal(flat.status, 200, JSON.stringify(flat.body));
-    assert.equal(flat.body.totalEnergy, 4 * 5, "5 per capsule × 4 capsules");
-    const perWallet = await admin(handler, "capsule-airdrop?mode=wallet&amount=7");
-    assert.equal(perWallet.body.totalEnergy, 3 * 7, "7 per holder × 3 holders");
-    const bad = await admin(handler, "capsule-airdrop?mode=capsule&amount=0");
-    assert.equal(bad.status, 400);
     const before = (await env.store.getWalletProfile(PLAYER)).battleState.energyGranted;
-    const drop2 = await admin(handler, "capsule-airdrop", { method: "POST", body: { mode: "wallet", amount: 7 } });
+    const drop2 = await admin(handler, "capsule-airdrop", { method: "POST", body: { tiers: { glass: 1, bronze: 1, silver: 1, gold: 1, prismatic: 1 } } });
     assert.equal(drop2.status, 200, JSON.stringify(drop2.body));
     assert.match(drop2.body.label, /^capsules-\d{8}-\d{4}$/, "auto label per drop");
-    assert.equal(drop2.body.applied, 2);
-    assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, before + 7);
-    const drop3 = await admin(handler, "capsule-airdrop", { method: "POST", body: { mode: "capsule", amount: 2, label: "event-halloween" } });
-    assert.equal(drop3.body.applied, 2);
-    assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, before + 7 + 2 * 2);
+    assert.equal((await env.store.getWalletProfile(PLAYER)).battleState.energyGranted, before + 2);
   });
+});
+
+test("capsule airdrop pays whoever holds the capsule at the current block (index caught up read-only)", async () => {
+  const { previewCapsuleAirdrop } = require("../../api/_lib/expedition-energy");
+  const { getCapsuleTier } = require("../../api/_lib/nft-tiers");
+  const BUYER = `0x${"7".repeat(40)}`;
+  const nftState = { owners: { 1: PLAYER, 2: PLAYER, 3: OTHER }, lastSyncedBlock: 100 };
+  let scannedFrom = null;
+  const chain = {
+    async scanTransfers(from) {
+      scannedFrom = from;
+      return { toBlock: 105, transfers: [
+        { tokenId: 2, from: PLAYER, to: BUYER, blockNumber: 103 }, // sold after the last cron sync
+        { tokenId: 3, from: OTHER, to: `0x${"0".repeat(40)}`, blockNumber: 104 }, // burned
+      ] };
+    },
+  };
+  const tiers = { glass: 1, bronze: 1, silver: 1, gold: 1, prismatic: 1 };
+  const p = await previewCapsuleAirdrop({ nftState, chain, tiers });
+  assert.equal(scannedFrom, 101);
+  assert.equal(p.block, 105);
+  assert.equal(p.live, true);
+  const byWallet = Object.fromEntries(p.grants.map((g) => [g.wallet, g.amount]));
+  assert.deepEqual(byWallet, { [PLAYER]: 1, [BUYER]: 1 });
+  assert.equal(nftState.owners[2], PLAYER, "the index itself is not written");
+  assert.ok(getCapsuleTier(2));
+
+  const down = { async scanTransfers() { throw new Error("boom"); } };
+  await assert.rejects(() => previewCapsuleAirdrop({ nftState, chain: down, tiers }), (e) => e.code === "RPC_UNAVAILABLE");
 });
 
 test("admin economy-config-audit lists the latest config changes, admins only", async () => {
@@ -161,4 +185,13 @@ test("admin economy-config-audit lists the latest config changes, admins only", 
     assert.equal(log.body.entries[0].reason, "audit test");
     assert.deepEqual(log.body.entries[0].patch.EXPEDITION_COLLECTION_ENERGY, [3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
+});
+
+test("capsule airdrop refuses when the capsule index is far behind the chain", async () => {
+  const { previewCapsuleAirdrop } = require("../../api/_lib/expedition-energy");
+  const chain = { async getBlockNumber() { return 100 + 50000; }, async scanTransfers() { throw new Error("must not scan"); } };
+  await assert.rejects(
+    () => previewCapsuleAirdrop({ nftState: { owners: { 1: PLAYER }, lastSyncedBlock: 100 }, chain, tiers: { glass: 1, bronze: 1, silver: 1, gold: 1, prismatic: 1 } }),
+    (e) => e.httpCode === "INDEX_BEHIND" || e.code === "INDEX_BEHIND"
+  );
 });
