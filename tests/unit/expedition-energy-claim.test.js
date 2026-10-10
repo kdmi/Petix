@@ -50,3 +50,21 @@ test("POST with a hidden boss's collection â†’ NOTHING_TO_CLAIM; check failure â
     assert.equal((await store.getWalletProfile(PLAYER)).battleState.energyGranted, 0);
   }, { overrides });
 });
+
+test("POST { check: true } reports eligible / not_held without granting; the follow-up claim grants (two-step popup)", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store, expeditionCollections }) => {
+    expeditionCollections.configureDeps(sources({ [`0x${"b".repeat(40)}`]: ["1"], [`0x${"c".repeat(40)}`]: [] }));
+    const check = await invoke(dispatcher(), { method: "POST", url: "/api/expeditions/energy-claim", headers: sessionHeaders(PLAYER), body: { check: true } });
+    assert.equal(check.status, 200, JSON.stringify(check.body));
+    assert.equal(check.body.checked, true);
+    assert.deepEqual(check.body.results.map((r) => [r.bossIndex, r.status]), [[2, "eligible"], [3, "not_held"]]);
+    assert.equal(check.body.energyAdded, 0);
+    assert.equal((await store.getWalletProfile(PLAYER)).battleState.energyGranted, 0, "a check grants nothing");
+    const claim = await invoke(dispatcher(), { method: "POST", url: "/api/expeditions/energy-claim", headers: sessionHeaders(PLAYER), body: { collections: [2] } });
+    assert.equal(claim.status, 200);
+    assert.equal(claim.body.energyAdded, 4);
+    const again = await invoke(dispatcher(), { method: "POST", url: "/api/expeditions/energy-claim", headers: sessionHeaders(PLAYER), body: { check: true } });
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body.results.map((r) => [r.bossIndex, r.status]), [[3, "not_held"]], "claimed collections are not re-checked");
+  }, { overrides });
+});
