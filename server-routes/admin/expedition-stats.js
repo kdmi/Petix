@@ -25,6 +25,7 @@ module.exports = async (req, res) => {
   const todayTotals = sum(), weekTotals = sum();
   const bosses = ROSTER.map((boss) => ({ ...getBossSettings(cfg, boss.index), attempts: 0, wins: 0, stars3: 0, forfeits: 0, feesPaid: 0, rewardsPaid: 0, nftMinted: 0, nftPending: 0, claims: 0, claimEnergy: 0, cleared: 0 }));
   const attempts = [];
+  const claims = [];
   let activeAttempts = 0;
 
   for (const [wallet, profile] of Object.entries(records)) {
@@ -60,6 +61,7 @@ module.exports = async (req, res) => {
       if (!boss || !claim) continue;
       boss.claims += 1;
       boss.claimEnergy += Number(claim.energy) || 0;
+      claims.push({ at: claim.at || null, wallet, bossIndex: Number(key), energy: Number(claim.energy) || 0 });
     }
   }
   attempts.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -82,5 +84,6 @@ module.exports = async (req, res) => {
     mint: { pending: queue.pending, failed: queue.failed.slice(-30), mintedTotal: Object.keys(queue.minted).length, minter },
     grants,
     attempts: attempts.slice(0, 50),
+    claims: claims.sort((a, b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0, 50),
   });
 };
