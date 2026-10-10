@@ -53,7 +53,8 @@
               '<button class="pill pill--howto" id="btn-howto-m" type="button" aria-label="How to play">?</button>' +
               '<button class="btn-close" id="btn-close" type="button" aria-label="Leave the fight"><img src="' + ICONS + 'close-dark.svg" alt=""></button>' +
             '</div>' +
-            '<div class="pill pill--bar" id="boss-bar"><div class="pbar"><div class="pbar-fill pbar-fill--boss" id="boss-fill"></div><div class="pbar-shields" id="boss-shields"></div></div><span class="pbar-text" id="boss-hp"></span></div>' +
+            '<div class="pill pill--shields" id="boss-shields"></div>' +
+            '<div class="pill pill--bar" id="boss-bar"><div class="pbar"><div class="pbar-fill pbar-fill--boss" id="boss-fill"></div></div><span class="pbar-text" id="boss-hp"></span></div>' +
           '</div>' +
           '<div class="squad-card" id="team-panel">' +
             '<img class="squad-card-img" src="' + squadBgSrc + '" alt="">' +
@@ -120,15 +121,21 @@
     var b = state.boss, t = state.team;
     var shielded = b.shields > 0;
     var bossBar = document.getElementById('boss-bar');
+    // Owner 2026-10-10: back to the two-bar layout — the HP bar is locked ("Break shields first")
+    // while shields are up; the shields live in their own pill above it and fade once broken.
     bossBar.classList.toggle('is-shielded', shielded);
-    document.getElementById('boss-fill').style.width = (100 * b.hp / b.maxHp) + '%';
-    document.getElementById('boss-hp').textContent = fmt(b.hp);
+    document.getElementById('boss-fill').style.width = shielded ? '100%' : (100 * b.hp / b.maxHp) + '%';
+    document.getElementById('boss-hp').textContent = shielded ? 'Break shields first' : fmt(b.hp);
     var sh = document.getElementById('boss-shields');
-    sh.innerHTML = '<span class="shield-pips">' + Array.apply(null, Array(b.maxShields)).map(function (_, i) {
-      var on = i < b.shields;
-      return '<i class="' + (on ? 'on' : 'off') + '"><img src="' + ICONS + (on ? 'shield-on.svg' : 'shield-off.svg') + '" alt=""></i>';
-    }).join('') + '</span>';
-    bossBar.title = shielded ? 'Shields ' + b.shields + '/' + b.maxShields + ' — fill a ring and tap HIT to break one' : 'Exposed — matches deal damage';
+    if (b.maxShields) {
+      sh.innerHTML = '<span class="shield-pips">' + Array.apply(null, Array(b.maxShields)).map(function (_, i) {
+        var on = i < b.shields;
+        return '<i class="' + (on ? 'on' : 'off') + '"><img src="' + ICONS + (on ? 'shield-on.svg' : 'shield-off.svg') + '" alt=""></i>';
+      }).join('') + '</span>';
+      sh.classList.toggle('is-exposed', !shielded);
+      sh.title = shielded ? 'Shields ' + b.shields + '/' + b.maxShields + ' — fill a ring and tap HIT to break one' : 'Exposed — matches deal damage';
+    } else sh.hidden = true;
+    bossBar.title = shielded ? 'Locked until every shield is broken' : 'Exposed — matches deal damage';
     document.querySelectorAll('.b-par').forEach(function (n) { n.textContent = state.par; });
     document.getElementById('team-fill').style.width = (100 * t.hp / t.maxHp) + '%';
     document.getElementById('team-fill').classList.toggle('is-low', t.hp / t.maxHp < 0.5);

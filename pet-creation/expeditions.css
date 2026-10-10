@@ -833,13 +833,10 @@
 @keyframes exposed { 20% { box-shadow: inset 0 0 0 6px rgba(240,68,56,0.7); transform: scale(1.02); } }
 .xp .pill { position: absolute; z-index: 2; background: rgba(0,0,0,0.7); border: 0.5px solid rgba(255,255,255,0.15); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); border-radius: 99px; color: #fff; font-weight: 700; }
 .xp .pill--name { top: 10px; left: 50%; transform: translateX(-50%); padding: 6px 12px; font-size: 16px; line-height: 22px; white-space: nowrap; max-width: 284px; overflow: hidden; text-overflow: ellipsis; }
-.xp .pbar-shields { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 250ms ease; pointer-events: none; }
-.xp .pill--bar.is-shielded .pbar { background: #344054 repeating-linear-gradient(60deg, #1d2939 0 10px, transparent 10px 22px); box-shadow: inset 0 0 0 0.5px #667085; }
-.xp .pill--bar.is-shielded .pbar-fill, .xp .pill--bar.is-shielded .pbar-text { opacity: 0; }
-.xp .pill--bar.is-shielded .pbar-shields { opacity: 1; }
+/* Shields pill above the HP bar (Figma: 141×25 centred, 44px from the bottom); fades once the boss is exposed. */
+.xp .pill--shields { bottom: 44px; left: 50%; transform: translateX(-50%); padding: 4px 8px; display: flex; align-items: center; transition: opacity 300ms ease, transform 300ms var(--ease-soft); }
+.xp .pill--shields.is-exposed { opacity: 0; transform: translate(-50%, 6px) scale(0.9); pointer-events: none; }
 .xp .pbar-fill, .xp .pbar-text { transition: opacity 250ms ease, width 400ms var(--ease-soft); }
-.xp .pill--bar.is-shielded { padding: 4px; }
-.xp .pill--bar.is-shielded .pbar { height: 24px; }
 .xp .move-target { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; border: 2px solid var(--gray-900); border-radius: 99px; font-family: var(--font-display); font-weight: 600; font-size: 16px; line-height: 16px; color: var(--gray-900); }
 .xp .move-target img { width: 16px; height: 16px; }
 .xp .move-target--light { border: 1.5px solid #fff; color: #fff; padding: 2px 6px 2px 4px; font-size: 12px; line-height: 14px; }
@@ -1082,8 +1079,7 @@
 .xp .btn-close img { width: 16px; height: 16px; }
 .xp .pill--bar { left: 8px; right: 8px; bottom: 8px; height: 22px; padding: 2px; }
 .xp .pill--bar .pbar { height: 18px; }
-.xp .pill--bar.is-shielded { padding: 2px; }
-.xp .pill--bar.is-shielded .pbar { height: 18px; }
+.xp .pill--shields { bottom: 30px; padding: 2px 4px; }
 .xp .pill--move { gap: 4px; }
 .xp .pill--move .live-stars { margin-left: 4px; }
 .xp .pill--bar.pill--top { top: 8px; bottom: auto; }
@@ -1154,8 +1150,8 @@
 .xp .tut-boss.is-hit { animation: boss-hit 420ms ease both; }
 .xp .tut-boss.is-attacking { animation: boss-lunge 520ms var(--ease-soft) both; }
 .xp .tut-boss .pill--bar { left: 6px; right: 6px; bottom: 6px; height: 22px; padding: 2px; }
-.xp .tut-boss .pill--bar .pbar, .xp .tut-boss .pill--bar.is-shielded .pbar { height: 18px; }
-.xp .tut-boss .pill--bar.is-shielded { padding: 2px; }
+.xp .tut-boss .pill--bar .pbar { height: 18px; }
+.xp .tut-boss .pill--shields { bottom: 30px; padding: 2px 4px; }
 .xp .tut-boss .pbar-text { font-size: 11px; line-height: 16px; }
 .xp .tut-squad { position: absolute; left: 16px; right: 16px; bottom: 10px; display: flex; justify-content: center; gap: 14px; }
 .xp .tut-squad .sq { width: 52px; height: 52px; cursor: default; }

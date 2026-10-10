@@ -57,9 +57,9 @@
   }
   function miniBoss(shields, hpPct, label) {
     return '<div class="tut-boss"><img class="tut-boss-img" src="/assets/expeditions/tutorial/boss-hero.jpg" alt="">' +
-      '<div class="pill pill--bar tut-bar' + (shields ? ' is-shielded' : '') + '"><div class="pbar"><div class="pbar-fill pbar-fill--boss" style="width:' + hpPct + '%"></div>' +
-      '<div class="pbar-shields tut-shields"><span class="shield-pips">' + [0, 1, 2].map(function (i) { return '<i class="' + (i < shields ? 'on' : 'off') + '"><img src="' + ICONS + (i < shields ? 'shield-on.svg' : 'shield-off.svg') + '" alt=""></i>'; }).join('') + '</span></div>' +
-      '</div><span class="pbar-text">' + (label || '1,824') + '</span></div></div>';
+      '<div class="pill pill--shields tut-shields' + (shields ? '' : ' is-exposed') + '"><span class="shield-pips">' + [0, 1, 2].map(function (i) { return '<i class="' + (i < shields ? 'on' : 'off') + '"><img src="' + ICONS + (i < shields ? 'shield-on.svg' : 'shield-off.svg') + '" alt=""></i>'; }).join('') + '</span></div>' +
+      '<div class="pill pill--bar tut-bar' + (shields ? ' is-shielded' : '') + '"><div class="pbar"><div class="pbar-fill pbar-fill--boss" style="width:' + (shields ? 100 : hpPct) + '%"></div></div>' +
+      '<span class="pbar-text">' + (shields ? 'Break shields first' : (label || '1,824')) + '</span></div></div>';
   }
   function sqCard(img) {
     return '<button class="sq" type="button"><span class="sq-frame"><img src="/assets/expeditions/tutorial/' + img + '" alt=""></span>' +
@@ -120,7 +120,13 @@
     var boss = stage.querySelector('.tut-boss');
     var bar = stage.querySelector('.tut-bar'), fill = bar.querySelector('.pbar-fill'), txt = bar.querySelector('.pbar-text');
     var MAX = 1824;
-    function setPips(n) { pips.forEach(function (p, i) { var on = i < n; p.className = on ? 'on' : 'off'; p.querySelector('img').src = ICONS + (on ? 'shield-on.svg' : 'shield-off.svg'); }); bar.classList.toggle('is-shielded', n > 0); }
+    var shieldPill = stage.querySelector('.tut-shields');
+    function setPips(n) {
+      pips.forEach(function (p, i) { var on = i < n; p.className = on ? 'on' : 'off'; p.querySelector('img').src = ICONS + (on ? 'shield-on.svg' : 'shield-off.svg'); });
+      bar.classList.toggle('is-shielded', n > 0);
+      if (shieldPill) shieldPill.classList.toggle('is-exposed', n === 0);
+      if (n > 0) { fill.style.width = '100%'; txt.textContent = 'Break shields first'; }
+    }
     async function chargeAndHit(hero, ms) {
       rings.forEach(function (p, i) { p.style.transition = 'stroke-dashoffset ' + ms + 'ms linear'; p.style.strokeDashoffset = String(i === hero ? 0 : 35 + i * 15); });
       await sleep(ms + 50); if (!alive) return false;

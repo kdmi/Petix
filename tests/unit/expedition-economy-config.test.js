@@ -42,16 +42,20 @@ test("expedition validation: length ≠ 10, bad address, bad star key are reject
 });
 
 test("getEconomyConfig({ fresh: true }) bypasses the in-memory cache (admin reads right after a save)", async () => {
-  const { getEconomyConfig, invalidateCache } = require("../../api/_lib/economy-config");
-  const { writeOverrides } = require("../../api/_lib/economy-config-store");
-  invalidateCache();
-  await writeOverrides({ EXPEDITION_COLLECTION_ENERGY: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
-  const warm = await getEconomyConfig({ now: 1000 });
-  assert.equal(warm.EXPEDITION_COLLECTION_ENERGY[0], 1);
-  // Another instance wrote new overrides; this instance's cache is still warm.
-  await writeOverrides({ EXPEDITION_COLLECTION_ENERGY: [7, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
-  assert.equal((await getEconomyConfig({ now: 2000 })).EXPEDITION_COLLECTION_ENERGY[0], 1, "cached");
-  assert.equal((await getEconomyConfig({ now: 2000, fresh: true })).EXPEDITION_COLLECTION_ENERGY[0], 7, "fresh read");
-  await writeOverrides({});
-  invalidateCache();
+  // Runs inside the isolated env: the store writes under process.cwd()/.data, which the fixture points at a temp dir.
+  const { withExpeditionEnv } = require("./helpers/expedition-fixtures");
+  await withExpeditionEnv(async () => {
+    for (const f of ["economy-config.js", "economy-config-store.js"]) delete require.cache[require.resolve("../../api/_lib/" + f)];
+    const { getEconomyConfig, invalidateCache } = require("../../api/_lib/economy-config");
+    const { writeOverrides } = require("../../api/_lib/economy-config-store");
+    invalidateCache();
+    await writeOverrides({ EXPEDITION_COLLECTION_ENERGY: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+    const warm = await getEconomyConfig({ now: 1000 });
+    assert.equal(warm.EXPEDITION_COLLECTION_ENERGY[0], 1);
+    // Another instance wrote new overrides; this instance's cache is still warm.
+    await writeOverrides({ EXPEDITION_COLLECTION_ENERGY: [7, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+    assert.equal((await getEconomyConfig({ now: 2000 })).EXPEDITION_COLLECTION_ENERGY[0], 1, "cached");
+    assert.equal((await getEconomyConfig({ now: 2000, fresh: true })).EXPEDITION_COLLECTION_ENERGY[0], 7, "fresh read");
+    invalidateCache();
+  }, { seedProfiles: false });
 });
