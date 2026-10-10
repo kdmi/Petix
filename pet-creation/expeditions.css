@@ -150,7 +150,7 @@
   box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.3);
   opacity: 0;
   pointer-events: none;
-  z-index: 120; /* above the result / how-to / claim overlays (60) so errors are never hidden behind the blur */
+  z-index: 1200; /* above every overlay, including the phone battle (1001) */
   transition: opacity 200ms ease, transform 260ms var(--ease-soft);
 }
 .xp .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
@@ -346,7 +346,7 @@
 .xp .fade {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 1100; /* modal + claim popup above the dashboard topbar on phones */
   background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(6px);
   display: grid;
@@ -939,13 +939,13 @@
 .xp .float-shield { color: #175cd3; font-size: 28px; line-height: 26px; top: 30%; -webkit-text-stroke: 5px #fff; }
 @keyframes float-up { 0% { opacity: 0; transform: translate(-50%, 10px) scale(0.6) rotate(-6deg); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1.1) rotate(-6deg); } 100% { opacity: 0; transform: translate(-50%, -40px) scale(1) rotate(-6deg); } }
 .xp .battle-log { display: none; }
-.xp .howto { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(16,24,40,0.45); backdrop-filter: blur(6px); animation: fade-in 200ms ease both; }
+.xp .howto { position: fixed; inset: 0; z-index: 1100; /* above the phone battle (1001) and the dashboard topbar (1000) */ display: grid; place-items: center; background: rgba(16,24,40,0.45); backdrop-filter: blur(6px); animation: fade-in 200ms ease both; }
 .xp .howto-card { width: 440px; background: #fff; border-radius: 24px; padding: 28px 28px 24px; animation: spring-in 400ms var(--ease-out) both; }
 .xp .howto-title { margin: 0 0 12px; font-family: var(--font-display); font-weight: 600; font-size: 24px; }
 .xp .howto-list { margin: 0 0 20px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 20px; color: var(--gray-700); }
 .xp .howto-list b { color: var(--gray-900); }
 .xp .howto-card .btn-primary { width: 100%; }
-.xp .result { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(16,24,40,0.45); backdrop-filter: blur(6px); animation: fade-in 220ms ease both; }
+.xp .result { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; background: rgba(16,24,40,0.45); backdrop-filter: blur(6px); animation: fade-in 220ms ease both; }
 .xp .result-card { position: relative; width: 416px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; align-items: center; background: #fff; border-radius: 24px; padding: 16px 24px 24px; text-align: center; animation: spring-in 460ms var(--ease-out) both; }
 .xp .res-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 12px; border: 1.5px solid #fff; background: var(--success-500); color: #fff; font-size: 13.5px; line-height: 18px; font-weight: 600; text-transform: uppercase; }
 .xp .result-card.is-lose .res-badge { background: #f04438; }
