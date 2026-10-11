@@ -30,10 +30,8 @@ test("expedition validation: length ≠ 10, bad address, bad star key are reject
   const badAddr = economy.validateConfigPatch({ EXPEDITION_COLLECTION_CONTRACTS: ["nope", "", "", "", "", "", "", "", "", ""] });
   assert.equal(badAddr.ok, false);
   assert.equal(economy.validateConfigPatch({ EXPEDITION_REWARD_MULTS: { 4: 1 } }).ok, false);
-  assert.equal(economy.validateConfigPatch({ EXPEDITION_MARKETPLACE_CONTRACTS: ["0x12"] }).ok, false);
   const ok = economy.validateConfigPatch({
     EXPEDITION_COLLECTION_CONTRACTS: ["", `0x${"1".repeat(40)}`, "", "", "", "", "", "", "", ""],
-    EXPEDITION_MARKETPLACE_CONTRACTS: [`0x${"2".repeat(40)}`],
     EXPEDITIONS_ENABLED: 1,
   });
   assert.deepEqual(ok.errors, []);

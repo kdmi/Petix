@@ -144,8 +144,6 @@
           ${field("Free boss base, Points", "EXPEDITION_FREE_BOSS_REWARD_BASE", c.EXPEDITION_FREE_BOSS_REWARD_BASE)}
           ${field("Energy per attempt", "EXPEDITION_ENERGY_PER_ATTEMPT", c.EXPEDITION_ENERGY_PER_ATTEMPT)}
         </div>
-        <h4>Marketplaces <span class="xa-muted">· purchases through these contracts count as purchases, plain transfers don't</span></h4>
-        <textarea id="xaMarketplaces" rows="2" placeholder="0x… one contract per line (Seaport on Robinhood Chain)">${esc((c.EXPEDITION_MARKETPLACE_CONTRACTS || []).join("\n"))}</textarea>
         <div class="xa-row xa-row--end"><button type="button" class="admin-secondary-btn xa-btn-sm xa-btn-primary" data-xa-action="save-economy">Save economy</button></div>
       </section>`;
   }
@@ -307,12 +305,10 @@
       case "save-economy":
         return withSaving(() => {
           const read = (key) => Number(panel.querySelector(`[data-xa-eco="${key}"]`).value);
-          const marketplaces = String(panel.querySelector("#xaMarketplaces").value || "").split(/\s+/).map((v) => v.trim()).filter(Boolean);
           return patchConfig({
             EXPEDITION_REWARD_MULTS: { 1: read("mult:1"), 2: read("mult:2"), 3: read("mult:3") },
             EXPEDITION_FREE_BOSS_REWARD_BASE: read("EXPEDITION_FREE_BOSS_REWARD_BASE"),
             EXPEDITION_ENERGY_PER_ATTEMPT: read("EXPEDITION_ENERGY_PER_ATTEMPT"),
-            EXPEDITION_MARKETPLACE_CONTRACTS: marketplaces,
           });
         }, "Economy saved.");
       case "airdrop-preview": {

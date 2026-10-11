@@ -46,8 +46,8 @@ Bots that compute a perfect game from the seed are an accepted risk: the fee and
 
 ## Holder energy
 
-- Partner collections: the player presses Claim on the Expeditions page; the server checks the wallet over RPC (`balanceOf`, Transfer logs since the boss was opened, `ownerOf`; Blockscout is Cloudflare-gated for server fetches and is only a fallback),
-  counts NFTs that did **not** arrive by plain transfer after the boss's `openedBlock` (mints and marketplace purchases count),
+- Partner collections: the player presses Claim on the Expeditions page; the server checks the wallet over RPC (`balanceOf`; Blockscout is Cloudflare-gated for server fetches and is only a fallback),
+  counts the wallet as a holder if `balanceOf > 0` at claim time — how the NFT arrived does not matter (owner 2026-10-11),
   and grants a flat `EXPEDITION_COLLECTION_ENERGY[boss]` once per collection per wallet. *(Routes land in the last phase of 026.)*
 - Capsules: airdrop from the admin panel (`capsule-airdrop`): energy per capsule for each tier, typed at drop time; whoever holds a capsule at the current block gets it (capsule index + Transfer events since its last sync, read-only), no rule about how it was obtained; every drop gets its own label `capsules-YYYYMMDD-HHMM`, so drops repeat
   (re-sending a label skips wallets that got it); wallets without a profile receive it on their first visit (`expedition-energy-grants-pending.json`).
@@ -62,7 +62,7 @@ economy levers, capsule airdrop (its own card: energy per capsule by tier, previ
 `/api/admin/economy-config` with a reason (audited) or the dedicated admin actions.
 
 **Opening a boss**: enter the collection contract → Save → Open boss. The server verifies ERC-165/721 via RPC and stores the
-current block as `openedBlock` (claim cut-off). A boss with attempts can't be hidden — pause the mode instead.
+current block as `openedBlock` (informational since 2026-10-11). A boss with attempts can't be hidden — pause the mode instead.
 
 ## Env
 
