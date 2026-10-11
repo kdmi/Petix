@@ -192,6 +192,8 @@ const DEFAULT_DEPS = {
   lockTtlMs: 20000,
   lockWaitMs: 10000,
   lockPollMs: 500,
+  // Lock shared with $PETIX payouts when both sign from the same operator wallet (null = own queue lock).
+  sendLock: undefined,
 };
 let configuredDeps = {};
 function configureDeps(overrides) { configuredDeps = overrides || {}; }
@@ -199,7 +201,24 @@ function resolveDeps(overrides) {
   const deps = { ...DEFAULT_DEPS, ...configuredDeps, ...(overrides || {}) };
   if (!deps.chain) deps.chain = createMintClient();
   if (!deps.queue) deps.queue = queueDocFor(deps.chain.env.contract);
+  if (deps.sendLock === undefined) deps.sendLock = sharedOperatorLock(deps.chain.env.minterAddress);
   return deps;
+}
+
+/**
+ * Trophy mints and $PETIX payouts both sign from the operator by default
+ * (EXPEDITION_MINTER_SECRET unset → TOKEN_TREASURY_SECRET). Two locks would let a
+ * mint and a payout pick the same nonce at the same moment — one tx then fails
+ * or replaces the other. When the minter IS the token operator, take the token's
+ * send lock instead, so one nonce goes out at a time across both features.
+ */
+function sharedOperatorLock(minterAddress) {
+  if (!minterAddress) return null;
+  let treasury = "";
+  try { treasury = String(require("./token-chain").getTokenEnv().treasuryAddress || "").toLowerCase(); } catch { treasury = ""; }
+  if (!treasury || treasury !== String(minterAddress).toLowerCase()) return null;
+  const tokenStore = require("./token-store");
+  return { acquire: (owner, opts) => tokenStore.acquireSendLock(owner, opts), release: (owner) => tokenStore.releaseSendLock(owner) };
 }
 
 async function updateQueue(deps, mutate) {
@@ -220,6 +239,13 @@ async function updateQueue(deps, mutate) {
 
 async function acquireLock(deps, owner) {
   const attempts = Math.max(1, Math.ceil(deps.lockWaitMs / deps.lockPollMs));
+  if (deps.sendLock) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (await deps.sendLock.acquire(owner, { ttlMs: deps.lockTtlMs, now: deps.now() })) return true;
+      await deps.sleep(deps.lockPollMs);
+    }
+    return false;
+  }
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     let got = false;
     await updateQueue(deps, (q) => {
@@ -235,6 +261,7 @@ async function acquireLock(deps, owner) {
   return false;
 }
 async function releaseLock(deps, owner) {
+  if (deps.sendLock) { await Promise.resolve(deps.sendLock.release(owner)).catch(() => null); return; }
   await updateQueue(deps, (q) => { if (!q.lock || q.lock.owner !== owner) return null; q.lock = null; return q; }).catch(() => null);
 }
 
@@ -496,4 +523,5 @@ module.exports = {
   getTrophyMetadata,
   normalizeQueue,
   processMintQueue,
+  sharedOperatorLock,
 };

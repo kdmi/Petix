@@ -215,3 +215,38 @@ test("admin expedition-nft-refresh: asks OpenSea for the trophy contract, single
     delete process.env.EXPEDITION_NFT_CONTRACT;
   }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
 });
+
+test("mint takes the shared operator send lock (same wallet as $PETIX payouts): acquired before the send, released after", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store, expeditionNft }) => {
+    const chain = createFakeTrophyChain();
+    const log = [];
+    const sendMint = chain.sendMint.bind(chain);
+    chain.sendMint = async (...args) => { log.push("send"); return sendMint(...args); };
+    let busyOnce = true;
+    const sendLock = {
+      async acquire(owner) { if (busyOnce) { busyOnce = false; log.push("busy"); return false; } log.push("acquire"); return true; },
+      async release() { log.push("release"); },
+    };
+    expeditionNft.configureDeps({ ...fastDeps(chain), lockWaitMs: 10, lockPollMs: 1, sendLock });
+    await give3Stars(store, PLAYER, 1);
+    const res = await claim(dispatcher(), PLAYER, 1);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(log, ["busy", "acquire", "send", "release"], "waits for a payout in flight, then sends under the lock");
+  }, { overrides: { EXPEDITION_NFT_MINT_ENABLED: 1 } });
+});
+
+test("sharedOperatorLock: only when the minter is the token operator", () => {
+  const { sharedOperatorLock } = require("../../api/_lib/expedition-nft");
+  const { Wallet } = require("ethers");
+  const saved = process.env.TOKEN_TREASURY_SECRET;
+  const operator = Wallet.createRandom();
+  try {
+    process.env.TOKEN_TREASURY_SECRET = operator.privateKey;
+    assert.ok(sharedOperatorLock(operator.address.toLowerCase()), "same wallet → shared lock");
+    assert.equal(sharedOperatorLock(`0x${"1".repeat(40)}`), null, "own minter → own lock");
+    delete process.env.TOKEN_TREASURY_SECRET;
+    assert.equal(sharedOperatorLock(operator.address.toLowerCase()), null);
+  } finally {
+    if (saved === undefined) delete process.env.TOKEN_TREASURY_SECRET; else process.env.TOKEN_TREASURY_SECRET = saved;
+  }
+});
