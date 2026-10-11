@@ -13,6 +13,7 @@ const HANDLERS = {
   "expedition-reset": require("../../server-routes/admin/expedition-reset"),
   "economy-config-audit": require("../../server-routes/admin/economy-config-audit"),
   "energy-grant": require("../../server-routes/admin/energy-grant"),
+  "energy-daily-reset": require("../../server-routes/admin/energy-daily-reset"),
   "capsule-airdrop": require("../../server-routes/admin/capsule-airdrop"),
   "farm-stats": require("../../server-routes/admin/farm-stats"),
   "progression-audit": require("../../server-routes/admin/progression-audit"),
