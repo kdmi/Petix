@@ -40,13 +40,12 @@ module.exports = async (req, res) => {
     }
 
     const deps = resolveDeps();
-    const marketplaces = cfg.EXPEDITION_MARKETPLACE_CONTRACTS || [];
     const results = [];
     await withTimeout((async () => {
       for (const c of claimable) {
         const settings = getBossSettings(cfg, c.bossIndex);
-        const check = await checkCollection({ wallet, contract: settings.contract, openedBlock: settings.openedBlock, marketplaces, explorer: deps.explorer, rpc: deps.rpc, cache: deps.cache });
-        results.push({ bossIndex: c.bossIndex, name: c.name, energy: c.energy, held: check.held, eligible: check.eligible.length, rejected: check.rejected.length, status: check.held === 0 ? "not_held" : check.eligible.length ? (dryRun ? "eligible" : "granted") : "not_eligible" });
+        const check = await checkCollection({ wallet, contract: settings.contract, explorer: deps.explorer, rpc: deps.rpc, cache: deps.cache });
+        results.push({ bossIndex: c.bossIndex, name: c.name, energy: c.energy, held: check.held, eligible: check.eligible.length, rejected: check.rejected.length, status: check.held === 0 ? "not_held" : dryRun ? "eligible" : "granted" });
       }
     })());
     if (dryRun) {

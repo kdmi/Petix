@@ -476,7 +476,7 @@
     var check = claimChecks[c.bossIndex];
     var claimed = c.status === 'claimed';
     var eligible = !claimed && check && check.status === 'eligible';
-    var title = !claimed && check ? (check.status === 'not_held' ? 'No NFTs from this collection in your wallet' : check.status === 'not_eligible' ? 'Only mints and marketplace purchases after the boss opened count' : '') : '';
+    var title = !claimed && check ? (check.status === 'not_held' ? 'No NFTs from this collection in your wallet' : '') : '';
     return '<li class="claim-row' + (claimed ? ' is-claimed' : eligible ? ' is-eligible' : '') + '"' + (title ? ' title="' + escapeHtml(title) + '"' : '') + '>' +
       '<span class="claim-row-name"><a href="' + escapeHtml(c.url || '#') + '" target="_blank" rel="noopener">' + escapeHtml(c.name) + '</a>' +
         (eligible ? '<span class="claim-badge"><img src="/assets/expeditions/icons/check-badge-16.svg" alt="">Eligible</span>' : '') + '</span>' +
