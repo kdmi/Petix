@@ -10,7 +10,8 @@ module.exports = async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
     const limit = Math.min(200, Math.max(1, Math.floor(Number(url.searchParams.get("limit")) || 30)));
-    const entries = (await readAuditEntries()).slice(-limit).reverse();
+    // Stored newest first (appendAuditEntry prepends); sort anyway so the order never depends on that.
+    const entries = (await readAuditEntries()).slice().sort((a, b) => String(b.ts || "").localeCompare(String(a.ts || ""))).slice(0, limit);
     json(res, 200, { entries: entries.map((e) => ({ ts: e.ts, adminWallet: e.adminWallet, reason: e.reason, patch: e.patch })) });
   } catch (error) {
     sendError(res, error, "Could not read the audit log.");
