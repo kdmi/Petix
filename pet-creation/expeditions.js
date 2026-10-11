@@ -72,7 +72,9 @@
   function ownPets() {
     return (bridge.getCharacters ? bridge.getCharacters() : []).filter(function (c) { return c && c.status === 'completed'; }).map(function (c) {
       var a = c.attributes || {};
-      return { id: String(c.id), name: c.name || c.displayName || 'Pet', img: c.imageUrl, lvl: c.level || 1, hp: Number(a.stamina) || 0, spd: Number(a.agility) || 0, atk: Number(a.strength) || 0, int: Number(a.intelligence) || 0 };
+      // Feature 027: a pet that arrived today can't fight until the daily reset (server says until when).
+      var settling = c.settlingUntil && Date.parse(c.settlingUntil) > Date.now() ? c.settlingUntil : null;
+      return { id: String(c.id), name: c.name || c.displayName || 'Pet', img: c.imageUrl, lvl: c.level || 1, hp: Number(a.stamina) || 0, spd: Number(a.agility) || 0, atk: Number(a.strength) || 0, int: Number(a.intelligence) || 0, settlingUntil: settling };
     });
   }
 
@@ -315,31 +317,40 @@
 
   // ---------- Dropdown ----------
   var dropdownTimer = null;
+  function settlingLeft(iso) {
+    var mins = Math.max(1, Math.ceil((Date.parse(iso) - Date.now()) / 60000));
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+  }
   function toggleDropdown(i) { if (openSlot === i) closeDropdown(); else openDropdown(i); }
   function openDropdown(i) {
     openSlot = i;
     renderSlots();
     var picked = squad.filter(Boolean).map(function (p) { return p.id; });
     var available = ownPets().filter(function (p) { return picked.indexOf(p.id) === -1; });
+    // Pets that arrived today stay in the list, greyed out at the bottom.
+    available.sort(function (a, b) { return (a.settlingUntil ? 1 : 0) - (b.settlingUntil ? 1 : 0); });
     dropdownEl.innerHTML = '';
     dropdownEl.classList.remove('is-closing');
     if (!available.length) dropdownEl.appendChild(el('div', 'pet-row pet-row--empty', 'No more pets to add'));
     available.forEach(function (pet, idx) {
-      var row = el('button', 'pet-row');
+      var row = el('button', 'pet-row' + (pet.settlingUntil ? ' is-settling' : ''));
       row.type = 'button';
+      if (pet.settlingUntil) { row.disabled = true; row.title = 'Arrived today — can fight from the next battle day'; }
       row.style.setProperty('--i', idx);
       row.innerHTML =
         '<div class="pet-thumb"><img src="' + escapeHtml(pet.img) + '" alt=""></div>' +
         '<div class="pet-body">' +
           '<div class="pet-head"><span class="pet-name">' + escapeHtml(pet.name) + '</span><span class="pet-level">Lvl.' + pet.lvl + '</span></div>' +
+          (pet.settlingUntil ? '<div class="pet-settling">Arrived today · ready in ' + settlingLeft(pet.settlingUntil) + '</div>' :
           '<div class="pet-stats">' +
             '<span><img src="' + ICONS + 'heart-12.svg" alt="">' + pet.hp + '</span>' +
             '<span><img src="' + ICONS + 'wind-12.svg" alt="">' + pet.spd + '</span>' +
             '<span><img src="' + ICONS + 'attack-12.svg" alt="">' + pet.atk + '</span>' +
             '<span><img src="' + ICONS + 'brain-12.svg" alt="">' + pet.int + '</span>' +
-          '</div>' +
+          '</div>') +
         '</div>';
-      row.addEventListener('click', function () { squad[i] = pet; closeDropdown(); renderSlots(); });
+      row.addEventListener('click', function () { if (pet.settlingUntil) return; squad[i] = pet; closeDropdown(); renderSlots(); });
       dropdownEl.appendChild(row);
     });
     var slotLeft = 24 + i * 96;

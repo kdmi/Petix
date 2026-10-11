@@ -4,7 +4,7 @@
 const crypto = require("crypto");
 const E = require("../../assets/expeditions/engine.js");
 const { creditCurrency, debitCurrency, normalizeCurrency, recordSpend } = require("./currency");
-const { consumeBattleEnergy, normalizeBattleState } = require("./battle-energy");
+const { consumeBattleEnergy, getNextBattleResetAt, isSameBattleDay, normalizeBattleState } = require("./battle-energy");
 const { attemptGate, getBoss, rulesFromConfig } = require("./expeditions-config");
 const { isCurrentTrophy } = require("./expedition-nft");
 const { buildCharacterImageUrl } = require("./character");
@@ -159,6 +159,11 @@ function startAttempt(profile, { wallet, bossIndex, squadIds, cfg, rosterEntries
   if (new Set(ids).size !== ids.length) throw fail(400, "SQUAD_DUPLICATE", "A pet can join the squad once.");
   const own = ids.map((id) => (profile.characters || []).find((c) => c && String(c.id) === id && c.status === "completed"));
   if (own.some((c) => !c)) throw fail(400, "SQUAD_INVALID", "Pick pets from your own roster.");
+  // Feature 027 applies here too (owner 2026-10-11): a pet that changed owner
+  // today sits out until the daily reset, in the arena and in expeditions alike.
+  if (own.some((c) => isSameBattleDay(c.transferredAt, now))) {
+    throw fail(409, "PET_SETTLING", "A pet that arrived today can fight from the next battle day.", { readyAt: getNextBattleResetAt(now).toISOString() });
+  }
 
   const rules = rulesFromConfig(cfg);
   const fee = E.entryFee(index, progressOf(profile, index).bestStars, rules);

@@ -520,6 +520,11 @@
   transition: background 120ms ease;
 }
 .xp .pet-row:hover { background: var(--gray-100); }
+.xp .pet-row.is-settling { cursor: not-allowed; }
+.xp .pet-row.is-settling .pet-thumb, .xp .pet-row.is-settling .pet-head { opacity: 0.45; filter: grayscale(1); }
+.xp .pet-row.is-settling:hover { background: transparent; transform: none; }
+.xp .pet-row.is-settling:hover .pet-thumb img { transform: none; }
+.xp .pet-settling { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--gray-500); }
 .xp .pet-thumb {
   width: 56px;
   height: 56px;

@@ -106,3 +106,26 @@ test("start: admins have unlimited energy but still pay the fee", async () => {
     assert.equal(res.body.wallet.points, 1500);
   });
 });
+
+test("start: a pet that arrived today can't join the squad (feature 027) — nothing is charged; yesterday's arrival is fine", async () => {
+  await withExpeditionEnv(async ({ dispatcher, store }) => {
+    await store.updateWalletProfile(PLAYER, (p) => {
+      p.characters = p.characters.map((c) => (c.id === "pet-2" ? { ...c, transferredAt: new Date().toISOString() } : c));
+      return p;
+    });
+    const before = await store.getWalletProfile(PLAYER);
+    const res = await start(dispatcher(), PLAYER, { bossIndex: 1, squadIds: ["pet-1", "pet-2"] });
+    assert.equal(res.status, 409, JSON.stringify(res.body));
+    assert.equal(res.body.code, "PET_SETTLING");
+    const after = await store.getWalletProfile(PLAYER);
+    assert.equal(after.expeditions.active, null);
+    assert.equal(after.battleState.energyUsed, before.battleState.energyUsed, "no energy spent");
+
+    await store.updateWalletProfile(PLAYER, (p) => {
+      p.characters = p.characters.map((c) => (c.id === "pet-2" ? { ...c, transferredAt: new Date(Date.now() - 2 * 86400000).toISOString() } : c));
+      return p;
+    });
+    const ok = await start(dispatcher(), PLAYER, { bossIndex: 1, squadIds: ["pet-1", "pet-2"] });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  });
+});
