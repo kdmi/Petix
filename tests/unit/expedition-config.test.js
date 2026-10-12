@@ -22,6 +22,7 @@ test("bossViews: hidden / current / locked / done follow the open flags and prog
   assert.equal(views[0].stars, 3);
   assert.equal(views[1].fee, 1000);
   assert.equal("contract" in views[0], false, "public view never carries contracts");
+  assert.deepEqual(views[4], { index: 5, state: "hidden", stars: 0 }, "a hidden boss reveals nothing but its number");
   assert.equal(X.attemptGate(cfg, { 1: { bestStars: 3 } }, 2).ok, true);
   assert.equal(X.attemptGate(cfg, { 1: { bestStars: 3 } }, 3).code, "BOSS_LOCKED");
   assert.equal(X.attemptGate(cfg, {}, 5).code, "BOSS_HIDDEN");

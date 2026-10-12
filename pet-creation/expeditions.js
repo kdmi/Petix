@@ -216,7 +216,7 @@
     if (closing) return;
     modalBoss = bossIndex;
     var boss = bossOf(modalBoss);
-    if (!boss) return;
+    if (!boss || boss.state === 'hidden') return;
     var stars = bestStars(modalBoss);
     byId('modal-title').textContent = boss.title;
     var subtitle = byId('modal-subtitle');
@@ -419,6 +419,8 @@
       prevStars: prevStars,
       nftClaimed: nftStatus(bossIndex) === 'minted',
       wallet: function () { return STATE.wallet; },
+      // The victory popup offers «Next boss» only when it is open (a hidden one stays a «?» card).
+      nextOpen: function () { var next = bossOf(bossIndex + 1); return !!(next && next.state !== 'hidden'); },
       onMove: function (moves) { writeMoves(attempt.attemptId, moves); },
       onFinish: async function (moves) {
         var settled = await bridge.apiRequest('/api/expeditions/finish', { attemptId: attempt.attemptId, moves: moves });
@@ -446,7 +448,7 @@
         try { await loadState(); } catch (e) {}
         renderMap();
         if (action === 'retry') { setTimeout(function () { launchBattle(bossIndex, squadIds); }, 60); }
-        else if (action === 'next' && bossIndex < ROSTER.length) { setTimeout(function () { openModal(bossIndex + 1); }, 350); }
+        else if (action === 'next' && bossOf(bossIndex + 1) && bossOf(bossIndex + 1).state !== 'hidden') { setTimeout(function () { openModal(bossIndex + 1); }, 350); }
         else { window.scrollTo(0, 0); }
       }
     });
