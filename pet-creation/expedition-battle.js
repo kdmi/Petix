@@ -639,7 +639,8 @@
     }[o.nft || 'locked'];
     // Retry costs 1 energy + the fee; a shortage disables it in the grey style (owner 2026-10-08).
     var retryBlock = best >= 3 ? null : (o.energy != null && o.energy <= 0) ? 'Not enough energy to retry' : (o.points != null && o.points < nextFee) ? 'Not enough Points to retry' : null;
-    var primary = best >= 3 ? '<span class="btn-fight-label">Next boss</span>'
+    // 3★: «Next boss» only when the next boss is open; otherwise the card just leads back to the map.
+    var primary = best >= 3 ? '<span class="btn-fight-label">' + (o.nextOpen ? 'Next boss' : 'Back to expedition') + '</span>'
       : retryBlock ? '<span class="btn-fight-label">' + retryBlock + '</span>'
       : '<span class="btn-fight-label"><img src="' + ICONS + 'bolt-white.svg" alt="">Retry</span>' +
         (nextFee ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(nextFee) + '</span>' : '');
@@ -652,7 +653,7 @@
       }).join('') + '</div>' +
       reward + strip + nft +
       '<button class="btn-primary btn-fight-like res-primary' + (retryBlock ? ' is-blocked' : '') + '" id="res-retry" type="button"' + (retryBlock ? ' disabled' : '') + '>' + primary + '</button>' +
-      '<button class="res-back" id="res-back" type="button">Back to expedition</button>' +
+      (best >= 3 && !o.nextOpen ? '' : '<button class="res-back" id="res-back" type="button">Back to expedition</button>') +
     '</div>';
   }
 
@@ -676,14 +677,15 @@
     var ov = el('div', 'result' + (res.won ? ' is-win' : ' is-lose'));
     var wallet = settled.wallet || (opts.wallet ? opts.wallet() : {});
     var view = { bossIndex: opts.bossIndex, bossTitle: opts.boss.title, won: res.won, stars: res.stars, prev: prev,
-                 points: wallet.points, energy: wallet.energy,
+                 points: wallet.points, energy: wallet.energy, nextOpen: !!(opts.nextOpen && opts.nextOpen()),
                  nft: claimed ? 'claimed' : settled.nft === 'pending' ? 'claiming' : best >= 3 ? 'claim' : 'locked', rules: opts.rules, paidOverride: settled.paid };
     ov.innerHTML = resultCardHtml(view);
     overlayRoot().appendChild(ov);   // outside the screen: a transformed ancestor would clip a fixed overlay
     function bind() {
-      document.getElementById('res-back').addEventListener('click', function () { exit(res); });
+      var back = document.getElementById('res-back');
+      if (back) back.addEventListener('click', function () { exit(res); });
       document.getElementById('res-close').addEventListener('click', function () { exit(res); });
-      document.getElementById('res-retry').addEventListener('click', function () { if (this.disabled) return; exit(res, best >= 3 ? 'next' : 'retry'); });
+      document.getElementById('res-retry').addEventListener('click', function () { if (this.disabled) return; exit(res, best >= 3 ? (view.nextOpen ? 'next' : null) : 'retry'); });
       var claim = document.getElementById('res-claim');
       if (claim && view.nft === 'claim') claim.addEventListener('click', function () {
         // The Claim button stays until the mint goes through (even across sessions); the server mints and sends the NFT.

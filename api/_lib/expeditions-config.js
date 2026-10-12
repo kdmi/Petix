@@ -104,6 +104,9 @@ function bossViews(cfg, progress = {}) {
     else state = "locked";
     if (settings.open && stars === 0) blocked = true;
     if (!settings.open) blocked = true;
+    // A hidden boss is a "?" card: nothing about it leaves the server (owner 2026-10-12 —
+    // players saw boss 4 through the victory popup before it was opened).
+    if (state === "hidden") return { index: boss.index, state, stars: 0 };
     return {
       index: boss.index,
       title: boss.title,
