@@ -13,10 +13,11 @@ const { creditSouls, normalizeSouls, soulsForBurn } = require("../../api/_lib/so
 // Souls (031): burning a pet gives its soul back — 1 000 souls per pet level.
 
 test("soulsForBurn: 1 000 per level by default, tunable per level, at least level 1", () => {
-  assert.equal(soulsForBurn(1, {}), 1000);
+  assert.equal(soulsForBurn(1, {}), 0, "no soul at Lvl. 1");
+  assert.equal(soulsForBurn(2, {}), 2000);
   assert.equal(soulsForBurn(7, { SOULS_PER_BURN_LEVEL: 1000 }), 7000);
   assert.equal(soulsForBurn(3, { SOULS_PER_BURN_LEVEL: 250 }), 750);
-  assert.equal(soulsForBurn(0, {}), 1000);
+  assert.equal(soulsForBurn(0, {}), 0);
   const profile = {};
   creditSouls(profile, 1500);
   creditSouls(profile, 500);
