@@ -1,4 +1,4 @@
-const { debitCurrency, normalizeCurrency } = require("./currency");
+const { debitCurrency, normalizeCurrency, recordSpend } = require("./currency");
 const { normalizeBattleState } = require("./battle-energy");
 
 // Магазин энергии (020): доп. бои за Points. Чистые функции над профилем кошелька —
@@ -91,6 +91,7 @@ function purchaseEnergyPack(profile, packIndex, cfg, { now = Date.now() } = {}) 
   }
 
   const pricePaid = pack.price > 0 ? debitCurrency(profile, pack.price) : 0;
+  recordSpend(profile, { points: pricePaid, reason: "energy_pack", ref: pack.id ? String(pack.id) : null });
   profile.battleState = {
     ...battleState,
     energyPurchased: battleState.energyPurchased + pack.fights,

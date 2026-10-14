@@ -4,7 +4,7 @@ const {
   json,
   parseJsonBody,
 } = require("../../api/_lib/auth");
-const { debitCurrency, normalizeCurrency } = require("../../api/_lib/currency");
+const { debitCurrency, normalizeCurrency, recordSpend } = require("../../api/_lib/currency");
 const { computeFarmEarned, normalizeFarmState } = require("../../api/_lib/farm");
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { ensureUnlockedSlots, getMaxCharacters } = require("../../api/_lib/slots");
@@ -85,6 +85,10 @@ module.exports = async (req, res) => {
       }
 
       const pricePaid = cost > 0 ? debitCurrency(current, cost) : 0;
+      // Сжигание — главный способ переиграть бросок рарности: место остаётся
+      // открытым, и следующий питомец в нём бесплатен. До 035 эта трата нигде
+      // не записывалась, и перебор было не отличить от удачи (см. roll-ledger).
+      recordSpend(current, { points: pricePaid, reason: "pet_burn", ref: petId });
       // Souls (031): the pet dies, its soul stays — 1 000 souls per level by default.
       const soulsGained = creditSouls(current, soulsForBurn(character.level, cfg));
       characters.splice(index, 1);

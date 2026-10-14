@@ -43,6 +43,7 @@ function buildAudit(images, records) {
     ledgerRolls: 0,
     ledgerByRarity: emptyByRarity(),
     aliveByRarity: emptyByRarity(),
+    burns: 0,
   };
 
   for (const [wallet, raw] of Object.entries(records || {})) {
@@ -64,7 +65,14 @@ function buildAudit(images, records) {
       keptByDayRarity.set(day, byRarity);
     }
 
+    // Траты, которыми переигрывают бросок: сжечь питомца (место остаётся
+    // открытым) или очистить капсулу. С 035 они попадают в журнал списаний.
+    const spend = Array.isArray(profile.spend) ? profile.spend : [];
+    const burns = spend.filter((entry) => entry && entry.reason === "pet_burn").length;
+    const clears = spend.filter((entry) => entry && entry.reason === "capsule_clear").length;
+
     totals.ledgerRolls += rolls.total;
+    totals.burns += burns;
     for (const label of RARITIES) totals.ledgerByRarity[label] += rolls.byRarity[label];
 
     const alive = characters.filter((character) => character && character.status === "completed");
@@ -83,6 +91,8 @@ function buildAudit(images, records) {
         totalEarned: profile.currency?.totalEarned ?? 0,
         rolls: rolls.total,
         paidRolls: rolls.paid,
+        burns,
+        capsuleClears: clears,
         byRarity: rolls.byRarity,
         droppedInLog: dropped,
         lastRollAt: rolls.lastAt,
@@ -146,13 +156,15 @@ function renderText(audit) {
     );
   }
   lines.push("");
-  lines.push("кошелёк                                     бросков  платных  живо  редких");
+  lines.push(`сжиганий записано (с выкатки):  ${t.burns}`);
+  lines.push("");
+  lines.push("кошелёк                                     бросков  платных  сжёг  живо  редких");
   for (const wallet of audit.wallets) {
-    if (!wallet.rolls) continue;
+    if (!wallet.rolls && !wallet.burns) continue;
     const rare = wallet.byRarity.Epic + wallet.byRarity.Legendary;
     lines.push(
       `${wallet.wallet}  ${String(wallet.rolls).padStart(7)}  ${String(wallet.paidRolls).padStart(7)}  ` +
-        `${String(wallet.alive).padStart(4)}  ${String(rare).padStart(6)}`
+        `${String(wallet.burns).padStart(4)}  ${String(wallet.alive).padStart(4)}  ${String(rare).padStart(6)}`
     );
   }
   return lines.join("\n");

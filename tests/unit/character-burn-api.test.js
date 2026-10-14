@@ -254,3 +254,26 @@ test("burning a pet keeps its image, because past battles still point at it", as
     assert.equal(survived, "pet-bytes-that-must-survive", "its picture stays for the replays");
   });
 });
+
+// Feature 035. Сжигание — главный способ переиграть бросок рарности: место
+// остаётся открытым, и следующий питомец в нём бесплатен. До 035 эта трата не
+// записывалась нигде, поэтому перебор не отличался от удачи.
+test("POST /api/character/burn writes the spend into the wallet ledger", async () => {
+  await withIsolatedBattleHistoryEnv(async ({ auth, characterActionRoute, store }) => {
+    const wallet = createWallet("7");
+    const victim = createCompletedCharacter({ id: "char_reroll", name: "Reroll" });
+    await seedProfile(store, wallet, { characters: [victim], balance: BURN_COST });
+
+    const response = await invokeJsonHandler(
+      characterActionRoute,
+      burnRequest(auth, wallet, "char_reroll")
+    );
+    assert.equal(response.statusCode, 200);
+
+    const profile = await store.getWalletProfile(wallet);
+    const burns = profile.spend.filter((entry) => entry.reason === "pet_burn");
+    assert.equal(burns.length, 1);
+    assert.equal(burns[0].points, BURN_COST);
+    assert.equal(burns[0].ref, "char_reroll");
+  });
+});
