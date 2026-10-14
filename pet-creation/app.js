@@ -8502,7 +8502,7 @@ function formatUnbindDelay(ms) {
 }
 
 /** Подтверждение очистки капсулы в стиле приложения (не нативный confirm). */
-function confirmClearCapsule({ tokenId, petName, cost, delayMs }) {
+function confirmClearCapsule({ tokenId, petName, cost, delayMs, souls = 0, level = 1 }) {
   return new Promise((resolve) => {
     closeBurnConfirm();
     const backdrop = document.createElement("div");
@@ -8521,7 +8521,16 @@ function confirmClearCapsule({ tokenId, petName, cost, delayMs }) {
           capsule is publicly marked as emptying, and selling it cancels the burn${
             cost > 0 ? " and refunds your Points" : ""
           }.
-        </p>
+        </p>${
+          souls > 0
+            ? `
+        <p class="burn-modal__souls">
+          Its soul stays with you: you get
+          <strong><img src="/assets/souls/soul.svg" alt="" width="18" height="18" />${formatPoints(souls)} souls</strong>
+          <span>1,000 souls per level · Lvl. ${level}</span>
+        </p>`
+            : ""
+        }
         <div class="burn-modal__actions">
           <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-clear-cancel>Cancel</button>
           <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-clear-confirm>Clear capsule</button>
@@ -8560,6 +8569,8 @@ async function unbindNftSlotFlow(tokenId) {
     petName: record ? getRecordDisplayName(record) : "The bound pet",
     cost: Math.max(0, Math.floor(Number(state.nft.config.unbindCost) || 0)),
     delayMs: Number(state.nft.config.unbindDelayMs) || 3600000,
+    souls: record ? getSoulsForBurn(record) : 0,
+    level: record ? getRecordLevel(record) : 1,
   });
   if (!confirmed) return;
 
@@ -8712,6 +8723,10 @@ function renderCabinet() {
                 <span class="cabinet-card-menu-item__label">
                   <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
                   Clear NFT capsule
+                </span>
+                <span class="cabinet-card-menu-item__gain">
+                  You get <b>${formatPoints(getSoulsForBurn(record))}</b>
+                  <img src="/assets/souls/soul.svg" alt="souls" width="16" height="16" />
                 </span>
               </button>
           `

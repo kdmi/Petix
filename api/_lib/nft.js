@@ -1,3 +1,4 @@
+const { creditSouls, soulsForBurn } = require("./souls");
 const fs = require("fs/promises");
 const path = require("path");
 
@@ -1566,8 +1567,10 @@ async function executeUnbind(binding, owner, deps) {
     if (normalizeFarmState(character.farmState).active) {
       claimFarm(current, character, now, cfg); // накопленный фарм остаётся владельцу
     }
+    // Souls (031): clearing a capsule burns its pet, so the owner gets the soul like a normal burn.
+    const soulsGained = creditSouls(current, soulsForBurn(character.level, cfg));
     characters.splice(index, 1);
-    removed = { characterId: character.id, image: character.image || null };
+    removed = { characterId: character.id, image: character.image || null, soulsGained };
     return current;
   });
 
@@ -1589,6 +1592,7 @@ async function executeUnbind(binding, owner, deps) {
   return {
     tokenId: binding.tokenId,
     burnedCharacterId: removed ? removed.characterId : binding.characterId,
+    soulsGained: removed ? removed.soulsGained : 0,
     marketplaceRefreshed,
   };
 }
