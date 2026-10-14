@@ -5774,7 +5774,9 @@ function getUnbindCost() {
 
 function getSoulsForBurn(record) {
   const perLevel = Number.isFinite(state.soulsPerBurnLevel) ? state.soulsPerBurnLevel : 1000;
-  return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
+  // No soul at Lvl. 1, then level × per-level (same rule as api/_lib/souls.js).
+  const level = Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1));
+  return level < 2 ? 0 : level * perLevel;
 }
 
 function updateDashboardPointsUi() {
@@ -8736,10 +8738,15 @@ function renderCabinet() {
                 </span>`
                     : ""
                 }
+${
+                  getSoulsForBurn(record) > 0
+                    ? `
                 <span class="cabinet-card-menu-item__gain">
                   You get <b>${formatPoints(getSoulsForBurn(record))}</b>
                   <img src="/assets/souls/soul.svg" alt="souls" width="16" height="16" />
-                </span>
+                </span>`
+                    : ""
+                }
               </button>
           `
           : !isNftBindEnabled()
@@ -8796,10 +8803,15 @@ function renderCabinet() {
                   ${formatPoints(getBurnCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>
+${
+                  getSoulsForBurn(record) > 0
+                    ? `
                 <span class="cabinet-card-menu-item__gain">
                   You get <b>${formatPoints(getSoulsForBurn(record))}</b>
                   <img src="/assets/souls/soul.svg" alt="souls" width="16" height="16" />
-                </span>
+                </span>`
+                    : ""
+                }
               </button>
               `
               }
@@ -9076,11 +9088,18 @@ function openBurnConfirm(characterId) {
         <strong>${formatPoints(getBurnCost())} Points</strong>. The slot stays yours.
         This cannot be undone.
       </p>
-      <p class="burn-modal__souls">
+      ${
+        getSoulsForBurn(record) > 0
+          ? `<p class="burn-modal__souls">
         Its soul stays with you: you get
         <strong><img src="/assets/souls/soul.svg" alt="" width="18" height="18" />${formatPoints(getSoulsForBurn(record))} souls</strong>
         <span>1,000 souls per level · Lvl. ${getRecordLevel(record)}</span>
-      </p>
+      </p>`
+          : `<p class="burn-modal__souls">
+        No souls for a Lvl. 1 pet.
+        <span>Souls start at Lvl. 2.</span>
+      </p>`
+      }
       <div class="burn-modal__actions">
         <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-burn-cancel>Cancel</button>
         <button type="button" class="burn-modal__btn burn-modal__btn--confirm" data-burn-confirm>Burn pet</button>
