@@ -29,12 +29,14 @@
     </style>
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260925a" />
     <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261012a" />
+    <link rel="stylesheet" href="/pet-creation/souls.css?v=20261014a" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
       <header class="topbar dashboard-topbar">
         <div class="brand">
-          <img src="/assets/petix-logo.svg" alt="Petix logo" width="118" height="40" />
+          <img class="brand-wordmark" src="/assets/petix-logo.svg" alt="Petix logo" width="118" height="40" />
+          <img class="brand-icon" src="/assets/petix-logo-icon.svg" alt="" width="29" height="32" aria-hidden="true" />
         </div>
         <nav class="dashboard-tabs" id="dashboardTabs" aria-label="Dashboard pages">
           <button class="dashboard-tab active" id="dashboardTabMyPets" type="button">My Pets</button>
@@ -45,6 +47,10 @@
           <!-- Публичный просмотр боя по ссылке: у гостя в шапке только логотип и вход. -->
           <button class="topbar-signin hidden" id="topbarSignIn" type="button">Sign in</button>
           <div class="topbar-cluster">
+            <div class="dashboard-souls hidden" id="dashboardSouls" aria-label="Souls balance" title="Souls">
+              <img src="/assets/souls/soul.svg" alt="" width="24" height="24" />
+              <span data-role="souls-value">0</span>
+            </div>
             <div class="dashboard-points hidden" id="dashboardPoints" aria-label="Points balance">
               <img src="/assets/dashboard/points-coin.svg" alt="" width="24" height="24" />
               <span data-role="points-value">0</span>
@@ -625,6 +631,6 @@
     <script src="/pet-creation/expedition-tutorial.js?v=20261012a"></script>
     <script src="/pet-creation/expedition-battle.js?v=20261012a"></script>
     <script src="/pet-creation/expeditions.js?v=20261012a"></script>
-    <script src="/pet-creation/app.js?v=20261012a"></script>
+    <script src="/pet-creation/app.js?v=20261014b"></script>
   </body>
 </html>

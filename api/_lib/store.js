@@ -1,3 +1,4 @@
+const { normalizeSouls } = require("./souls");
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
@@ -64,6 +65,8 @@ const EMPTY_WALLET_PROFILE = {
   // Expeditions (026): active attempt, per-boss progress (stars, payouts, NFT),
   // holder-energy claims by boss, tutorial flag.
   expeditions: { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false },
+  // Souls (031): earned by burning pets.
+  souls: { balance: 0, totalEarned: 0 },
   profileUpdatedAt: null,
 };
 
@@ -224,6 +227,7 @@ function cloneWalletProfile(profile) {
       ? profile.deposits.map((record) => cloneRecord(record))
       : [],
     expeditions: normalizeExpeditions(profile?.expeditions),
+    souls: normalizeSouls(profile?.souls),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };
 }

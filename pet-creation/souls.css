@@ -1,0 +1,36 @@
+/* Souls (031): header counter and what burning a pet gives back. */
+
+/* Header counter — same rhythm as Points (Figma 1469:4802: 24px icon, Figtree Bold) */
+.dashboard-souls { align-items: center; display: inline-flex; gap: 8px; }
+.dashboard-souls.hidden { display: none !important; }
+.dashboard-souls img { display: block; flex: 0 0 24px; height: 24px; width: 24px; }
+.dashboard-souls [data-role="souls-value"] { color: #101828; font-family: "Figtree", Arial, sans-serif; font-size: 16px; font-weight: 700; line-height: 20px; }
+
+/* Phones (Figma 1469:4801): logo mark only so the extra counter fits; counters 24px icon + 4px gap + 14px */
+.brand .brand-icon { display: none; }
+@media (max-width: 767px) {
+  .dashboard-souls { gap: 4px; }
+  .dashboard-souls [data-role="souls-value"] { font-size: 14px; }
+  body[data-page="dashboard"] .brand .brand-wordmark { display: none; }
+  body[data-page="dashboard"] .brand .brand-icon { display: block; height: 32px; width: 29px; }
+  body[data-page="dashboard"] .dashboard-points,
+  body[data-page="dashboard"] .dashboard-energy { gap: 4px; }
+  body[data-page="dashboard"] .dashboard-points [data-role="points-value"],
+  body[data-page="dashboard"] .dashboard-energy p { font-size: 14px; line-height: 20px; }
+}
+
+/* Card menu: "Burn pet" + Points price on one row, "You get N [soul]" under the label */
+.cabinet-card-menu-item:has(.cabinet-card-menu-item__gain) { align-items: center; column-gap: 16px; display: grid; grid-template-columns: auto auto; row-gap: 2px; }
+.cabinet-card-menu-item:has(.cabinet-card-menu-item__gain) .cabinet-card-menu-item__label,
+.cabinet-card-menu-item:has(.cabinet-card-menu-item__gain) .cabinet-card-menu-item__price { white-space: nowrap; }
+.cabinet-card-menu-item:has(.cabinet-card-menu-item__gain) .cabinet-card-menu-item__price { justify-self: end; }
+.cabinet-card-menu-item__gain {
+  align-items: center; color: #0086c9; display: inline-flex; font-size: 13px; font-weight: 700; gap: 4px; grid-column: 1 / -1; line-height: 18px;
+  padding-left: 28px; /* starts under the "Burn pet" text: 20px fire icon + 8px label gap */
+}
+.cabinet-card-menu-item__gain img { display: block; }
+
+/* Burn confirm: what the soul gives back */
+.burn-modal__souls { background: #f2f4f7; border-radius: 12px; color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 14px; line-height: 20px; margin: -8px 0 20px; padding: 12px; }
+.burn-modal__souls strong { align-items: center; color: #101828; display: inline-flex; gap: 4px; vertical-align: -3px; }
+.burn-modal__souls span { color: #98a2b3; display: block; font-size: 12px; line-height: 16px; margin-top: 2px; }

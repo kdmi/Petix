@@ -675,6 +675,7 @@ const dashboardEnergy = document.getElementById("dashboardEnergy");
 const dashboardEnergyCurrent = document.getElementById("dashboardEnergyCurrent");
 const dashboardEnergyTooltip = document.getElementById("dashboardEnergyTooltip");
 const dashboardPoints = document.getElementById("dashboardPoints");
+const dashboardSouls = document.getElementById("dashboardSouls");
 const arenaLayout = document.getElementById("arenaLayout");
 const arenaIdleState = document.getElementById("arenaIdleState");
 const arenaBattleState = document.getElementById("arenaBattleState");
@@ -1092,6 +1093,9 @@ const state = {
   adminBurn: null,
   adminBurnRunning: false,
   burnCost: null,
+  // Souls (031)
+  souls: { balance: 0, totalEarned: 0 },
+  soulsPerBurnLevel: 1000,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3337,6 +3341,15 @@ function syncStateWithPayload(payload = {}) {
   if (typeof payload.burnCost === "number") {
     state.burnCost = Math.max(0, Math.floor(payload.burnCost));
   }
+  // Souls (031)
+  if (payload.souls && typeof payload.souls === "object") {
+    state.souls = {
+      balance: Math.max(0, Math.floor(Number(payload.souls.balance) || 0)),
+      totalEarned: Math.max(0, Math.floor(Number(payload.souls.totalEarned) || 0)),
+    };
+    updateDashboardSoulsUi();
+  }
+  if (typeof payload.soulsPerBurnLevel === "number") state.soulsPerBurnLevel = payload.soulsPerBurnLevel;
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
     updateEnergyUi();
@@ -5748,7 +5761,20 @@ function updateEnergyUi() {
   if (energyShopState.open) renderEnergyShop();
 }
 
+function updateDashboardSoulsUi() {
+  if (!dashboardSouls) return;
+  const valueEl = dashboardSouls.querySelector('[data-role="souls-value"]');
+  if (valueEl) valueEl.textContent = formatCoins(state.souls?.balance ?? 0);
+  dashboardSouls.classList.toggle("hidden", !state.isAuthenticated);
+}
+
+function getSoulsForBurn(record) {
+  const perLevel = Number.isFinite(state.soulsPerBurnLevel) ? state.soulsPerBurnLevel : 1000;
+  return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
+}
+
 function updateDashboardPointsUi() {
+  updateDashboardSoulsUi();
   if (!dashboardPoints) return;
   const balance = state.currency?.balance ?? 0;
   const valueEl = dashboardPoints.querySelector('[data-role="points-value"]');
@@ -8743,6 +8769,10 @@ function renderCabinet() {
                   ${formatPoints(getBurnCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>
+                <span class="cabinet-card-menu-item__gain">
+                  You get <b>${formatPoints(getSoulsForBurn(record))}</b>
+                  <img src="/assets/souls/soul.svg" alt="souls" width="16" height="16" />
+                </span>
               </button>
               `
               }
@@ -9018,6 +9048,11 @@ function openBurnConfirm(characterId) {
         This will permanently destroy the pet and cost
         <strong>${formatPoints(getBurnCost())} Points</strong>. The slot stays yours.
         This cannot be undone.
+      </p>
+      <p class="burn-modal__souls">
+        Its soul stays with you: you get
+        <strong><img src="/assets/souls/soul.svg" alt="" width="18" height="18" />${formatPoints(getSoulsForBurn(record))} souls</strong>
+        <span>1,000 souls per level · Lvl. ${getRecordLevel(record)}</span>
       </p>
       <div class="burn-modal__actions">
         <button type="button" class="burn-modal__btn burn-modal__btn--cancel" data-burn-cancel>Cancel</button>
@@ -9307,6 +9342,10 @@ async function performBurn(characterId, confirmBtn) {
     if (result && typeof result.paidSlots === "number") {
       state.paidSlots = Math.max(0, Math.floor(result.paidSlots));
     }
+    // Souls (031): the burn pays souls; updateDashboardPointsUi() below repaints the header counter.
+    if (result && result.souls) {
+      state.souls = { ...result.souls };
+    }
     closeBurnConfirm();
     state.openCardMenuId = "";
     updateDashboardPointsUi();
@@ -9322,7 +9361,7 @@ async function performBurn(characterId, confirmBtn) {
       (record) => String(record.id) !== String(characterId)
     );
     if (isCabinetScreenActive()) renderCabinet();
-    showToast(`Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
+    showToast(result.soulsGained ? `Pet burned — +${formatPoints(result.soulsGained)} souls.` : `Pet burned — ${formatPoints(result.pricePaid)} Points spent.`);
   } catch (error) {
     closeBurnConfirm();
     if (error && error.code === "NOT_FOUND") {
