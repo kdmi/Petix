@@ -9,6 +9,7 @@ const HANDLERS = {
   "farm-start": require("../../server-routes/character/farm-start"),
   image: require("../../server-routes/character/image"),
   me: require("../../server-routes/character/me"),
+  respec: require("../../server-routes/character/respec"),
   "select-power": require("../../server-routes/character/select-power"),
   start: require("../../server-routes/character/start"),
   upgrade: require("../../server-routes/character/upgrade"),

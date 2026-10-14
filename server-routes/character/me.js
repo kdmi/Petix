@@ -87,6 +87,7 @@ module.exports = async (req, res) => {
     // Souls (031)
     souls: profile.souls || { balance: 0, totalEarned: 0 },
     soulsPerBurnLevel: cfg.SOULS_PER_BURN_LEVEL,
+    soulsRespecPerLevel: cfg.SOULS_RESPEC_PER_LEVEL,
     profileUpdatedAt: profile.profileUpdatedAt || null,
   });
 };

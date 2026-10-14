@@ -1031,7 +1031,7 @@ const state = {
   hasHydratedCharacters: false,
   adminSection: "characters",
   adminEconomyConfig: null,
-  adminEconomyTab: "overview", // overview | token | farm | shop
+  adminEconomyTab: "overview", // overview | token | farm | shop | souls
   adminEconomyDefaults: null,
   adminEconomyStats: null,
   adminTokenStats: null, // /api/admin/token-stats (019); null while the flag is off
@@ -1096,6 +1096,7 @@ const state = {
   // Souls (031)
   souls: { balance: 0, totalEarned: 0 },
   soulsPerBurnLevel: 1000,
+  soulsRespecPerLevel: 2000,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3350,6 +3351,7 @@ function syncStateWithPayload(payload = {}) {
     updateDashboardSoulsUi();
   }
   if (typeof payload.soulsPerBurnLevel === "number") state.soulsPerBurnLevel = payload.soulsPerBurnLevel;
+  if (typeof payload.soulsRespecPerLevel === "number") state.soulsRespecPerLevel = payload.soulsRespecPerLevel;
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
     updateEnergyUi();
@@ -5777,6 +5779,11 @@ function getSoulsForBurn(record) {
   // No soul at Lvl. 1, then level × per-level (same rule as api/_lib/souls.js).
   const level = Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1));
   return level < 2 ? 0 : level * perLevel;
+}
+
+function getRespecPrice(record) {
+  const perLevel = Number.isFinite(state.soulsRespecPerLevel) ? state.soulsRespecPerLevel : 2000;
+  return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
 }
 
 function updateDashboardPointsUi() {
@@ -8783,6 +8790,22 @@ ${
               isMenuOpen
                 ? `
             <div class="cabinet-card-menu" role="menu">
+              <button
+                class="cabinet-card-menu-item"
+                type="button"
+                role="menuitem"
+                data-action="respec"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/souls/respec.svg" alt="" width="20" height="20" />
+                  Redistribute points
+                </span>
+                <span class="cabinet-card-menu-item__price">
+                  ${formatPoints(getRespecPrice(record))}
+                  <img src="/assets/souls/soul.svg" alt="souls" width="14" height="14" />
+                </span>
+              </button>
               ${nftMenuItemMarkup}
               ${
                 nftBoundTokenId
@@ -9048,6 +9071,119 @@ const DEFAULT_BURN_COST = 1000; // fallback until /api/character/me delivers the
 
 function getBurnCost() {
   return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
+}
+
+// Redistribute points (031): move a pet's points between stats for souls.
+// Built on the UI kit (ui-kit/petix-ui.css): px-overlay, px-modal, px-row, px-stepper, px-btn.
+const RESPEC_MINUS = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+const RESPEC_PLUS = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+const RESPEC_CLOSE = '<svg viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+
+function openRespecModal(record) {
+  document.querySelector(".respec-overlay")?.remove();
+  const keys = ATTRS.map((attr) => attr.key);
+  const was = {};
+  keys.forEach((key) => { was[key] = Math.max(0, Math.floor(Number(record.attributes?.[key]) || 0)); });
+  const spare = Math.max(0, Math.floor(Number(record.attributePointsAvailable) || 0));
+  const total = keys.reduce((sum, key) => sum + was[key], 0) + spare;
+  const next = { ...was };
+  const price = getRespecPrice(record);
+  let busy = false;
+
+  const overlay = document.createElement("div");
+  overlay.className = "px-overlay respec-overlay";
+  overlay.innerHTML = `
+    <section class="px-modal" role="dialog" aria-modal="true" aria-labelledby="respecTitle">
+      <button class="px-close px-modal__close" type="button" aria-label="Close" data-respec-close>${RESPEC_CLOSE}</button>
+      <h2 class="px-modal__title" id="respecTitle">Redistribute points</h2>
+      <p class="px-modal__text">Move ${escapeHtml(getRecordDisplayName(record))}’s points between stats.</p>
+      <div class="respec-rows">
+        ${ATTRS.map(
+          (attr) => `
+        <div class="px-row">
+          <img class="respec-icon" src="${attr.icon}" alt="" width="24" height="24" />
+          <div class="px-row__main"><span class="px-title">${attr.label}</span></div>
+          <div class="px-stepper">
+            <button class="px-stepper__btn" type="button" data-step="-1" data-stat="${attr.key}" aria-label="Less ${attr.label.toLowerCase()}">${RESPEC_MINUS}</button>
+            <span class="px-stepper__value" data-value="${attr.key}"></span>
+            <button class="px-stepper__btn" type="button" data-step="1" data-stat="${attr.key}" aria-label="More ${attr.label.toLowerCase()}">${RESPEC_PLUS}</button>
+          </div>
+        </div>`
+        ).join("")}
+      </div>
+      <p class="respec-left" data-respec-left></p>
+      <div class="px-modal__actions">
+        <button class="px-btn px-btn--primary px-btn--block" type="button" data-respec-go></button>
+      </div>
+      <p class="respec-note" data-respec-note></p>
+    </section>`;
+
+  const go = overlay.querySelector("[data-respec-go]");
+  const left = () => total - keys.reduce((sum, key) => sum + next[key], 0);
+  const changed = () => keys.some((key) => next[key] !== was[key]);
+  const paint = () => {
+    const pointsLeft = left();
+    const balance = state.souls?.balance || 0;
+    const short = balance < price;
+    keys.forEach((key) => {
+      const value = overlay.querySelector(`[data-value="${key}"]`);
+      value.textContent = next[key];
+      value.classList.toggle("is-changed", next[key] !== was[key]);
+      overlay.querySelector(`[data-stat="${key}"][data-step="-1"]`).disabled = busy || next[key] <= 0;
+      overlay.querySelector(`[data-stat="${key}"][data-step="1"]`).disabled = busy || pointsLeft <= 0;
+    });
+    overlay.querySelector("[data-respec-left]").innerHTML = `Points left: <b>${pointsLeft}</b>`;
+    go.disabled = busy || short || !changed();
+    go.innerHTML = short
+      ? "Not enough souls"
+      : `Redistribute for <img src="/assets/souls/soul.svg" alt="souls" width="20" height="20" />${formatPoints(price)}`;
+    overlay.querySelector("[data-respec-note]").textContent = short
+      ? `You have ${formatPoints(balance)} souls. Burn pets from Lvl. 2 to get more.`
+      : `${formatPoints(state.soulsRespecPerLevel ?? 2000)} souls per level · Lvl. ${getRecordLevel(record)}. You have ${formatPoints(balance)} souls.`;
+  };
+  const close = () => {
+    if (busy) return;
+    document.removeEventListener("keydown", onKey);
+    overlay.classList.add("is-closing");
+    setTimeout(() => overlay.remove(), 220);
+  };
+  const onKey = (event) => { if (event.key === "Escape") close(); };
+
+  overlay.addEventListener("click", async (event) => {
+    if (event.target === overlay || event.target.closest("[data-respec-close]")) {
+      close();
+      return;
+    }
+    const step = event.target.closest("[data-step]");
+    if (step && !step.disabled) {
+      const key = step.dataset.stat;
+      next[key] = Math.max(0, next[key] + Number(step.dataset.step));
+      if (left() < 0) next[key] -= 1;
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-respec-go]") && !go.disabled) {
+      busy = true;
+      go.classList.add("is-loading");
+      paint();
+      try {
+        const data = await apiRequest("/api/character/respec", { petId: record.id, attributes: next });
+        syncStateWithPayload(data);
+        busy = false;
+        close();
+        if (isCabinetScreenActive()) renderCabinet();
+        showToast("Points redistributed.");
+      } catch (error) {
+        busy = false;
+        go.classList.remove("is-loading");
+        paint();
+        showToast(error.message || "Could not redistribute the points.");
+      }
+    }
+  });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  paint();
 }
 
 function closeCabinetCardMenu() {
@@ -11001,12 +11137,13 @@ function renderAdminEconomy() {
         .join("")
     : '<li style="font-size:13px;color:#6b7280;">No earners yet.</li>';
 
-  const tab = ["overview", "token", "farm", "shop"].includes(state.adminEconomyTab) ? state.adminEconomyTab : "overview";
+  const tab = ["overview", "token", "farm", "shop", "souls"].includes(state.adminEconomyTab) ? state.adminEconomyTab : "overview";
   const subnav = [
     ["overview", "Overview"],
     ["token", "Token & withdraw"],
     ["farm", "Farm & battles"],
     ["shop", "Slots, energy & capsules"],
+    ["souls", "Souls"],
   ]
     .map(
       ([key, label]) =>
@@ -11104,6 +11241,38 @@ function renderAdminEconomy() {
           ecoNumberRow("Damage base", "BATTLE_DAMAGE_BASE", cfg.BATTLE_DAMAGE_BASE),
           ecoNumberRow("Damage per strength", "BATTLE_DAMAGE_PER_STRENGTH", cfg.BATTLE_DAMAGE_PER_STRENGTH),
           ecoNumberRow("Damage exponent (0.3–1)", "BATTLE_DAMAGE_EXPONENT", cfg.BATTLE_DAMAGE_EXPONENT),
+        ])}
+        ${saveFooter}
+      </section>`;
+  } else if (tab === "souls") {
+    const field = (label, id, attrs = "") => `
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;">
+          ${label}
+          <input id="${id}" ${attrs} style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+        </label>`;
+    body = `
+      <section>
+        <h3 style="margin:0 0 4px;font-size:15px;">Give souls</h3>
+        <p style="margin:0 0 10px;font-size:12px;color:#667085;">
+          Adds souls to one wallet. A negative amount takes souls away, never below 0.
+          A gift does not count as earned souls.
+        </p>
+        ${grid([
+          field("Wallet (0x…)", "adminSoulsWallet", 'type="text" placeholder="0x…" autocomplete="off" spellcheck="false"'),
+          field("Amount", "adminSoulsAmount", 'type="number" step="1" placeholder="50000"'),
+        ])}
+        <div style="margin-top:12px;">${field("Reason (required, min 3 chars)", "adminSoulsReason", 'type="text" placeholder="Why?"')}</div>
+        <p id="adminSoulsMsg" style="margin:10px 0 0;font-size:13px;color:#c0392b;"></p>
+        <button data-action="souls-grant" type="button"
+          style="margin-top:12px;border:none;border-radius:12px;padding:12px 20px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;font-size:14px;">
+          Give souls
+        </button>
+      </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Prices</h3>
+        ${grid([
+          ecoNumberRow("Souls per burned pet level (none at Lvl. 1)", "SOULS_PER_BURN_LEVEL", cfg.SOULS_PER_BURN_LEVEL),
+          ecoNumberRow("Redistribute points: souls per pet level", "SOULS_RESPEC_PER_LEVEL", cfg.SOULS_RESPEC_PER_LEVEL),
         ])}
         ${saveFooter}
       </section>`;
@@ -11252,6 +11421,60 @@ async function loadAdminPrice({ force = false } = {}) {
 }
 
 // Костёр необратим, поэтому спрашиваем прямо и показываем, что именно уйдёт.
+// Admin souls grant (031). Two clicks instead of window.confirm: the first one
+// checks the form and turns the button into "Confirm…", the second one sends.
+// Editing any field disarms it.
+async function runAdminSoulsGrant(button) {
+  const panel = adminEconomyPanel;
+  const msg = panel.querySelector("#adminSoulsMsg");
+  const wallet = String(panel.querySelector("#adminSoulsWallet")?.value || "").trim();
+  const amount = Number(panel.querySelector("#adminSoulsAmount")?.value);
+  const reason = String(panel.querySelector("#adminSoulsReason")?.value || "").trim();
+  const setMsg = (text, ok = false) => {
+    msg.textContent = text;
+    msg.style.color = ok ? "#039855" : "#c0392b";
+  };
+  const disarm = () => {
+    button.dataset.armed = "";
+    button.textContent = "Give souls";
+    button.style.background = "#1a1a2e";
+  };
+
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return setMsg("Enter a 0x wallet address.");
+  if (!Number.isInteger(amount) || amount === 0) return setMsg("Amount must be a whole number, not 0.");
+  if (reason.length < 3) return setMsg("Add a reason (min 3 chars).");
+
+  if (button.dataset.armed !== "1") {
+    setMsg("");
+    button.dataset.armed = "1";
+    button.textContent = `Confirm: ${amount > 0 ? "give" : "take"} ${formatPoints(Math.abs(amount))} souls ${amount > 0 ? "to" : "from"} ${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+    button.style.background = amount > 0 ? "#039855" : "#d92d20";
+    panel.querySelectorAll("#adminSoulsWallet, #adminSoulsAmount, #adminSoulsReason").forEach((input) =>
+      input.addEventListener("input", disarm, { once: true })
+    );
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Sending…";
+  try {
+    const result = await apiRequest("/api/admin/souls-grant", { wallet, amount, reason });
+    setMsg(`Done: ${formatPoints(result.before)} → ${formatPoints(result.after)} souls on ${result.wallet}.`, true);
+    panel.querySelector("#adminSoulsAmount").value = "";
+    panel.querySelector("#adminSoulsReason").value = "";
+    // The admin may have just given souls to themselves: refresh the header.
+    if (String(result.wallet).toLowerCase() === String(state.walletAddress || "").toLowerCase()) {
+      state.souls = { ...(state.souls || {}), balance: result.after };
+      updateDashboardSoulsUi();
+    }
+  } catch (error) {
+    setMsg(error.message || "Could not change the souls balance.");
+  } finally {
+    button.disabled = false;
+    disarm();
+  }
+}
+
 async function runAdminBurn() {
   const queued = Math.max(0, Math.floor(Number(state.adminBurn?.queue?.points) || 0));
   if (!queued) return;
@@ -12349,6 +12572,15 @@ function init() {
         return;
       }
 
+      const respecButton = event.target.closest('[data-action="respec"]');
+      if (respecButton) {
+        event.preventDefault();
+        closeCabinetCardMenu();
+        const record = findCharacterById(respecButton.dataset.characterId);
+        if (record) openRespecModal(record);
+        return;
+      }
+
       const burnButton = event.target.closest('[data-action="burn"]');
       if (burnButton) {
         event.preventDefault();
@@ -12625,6 +12857,12 @@ function init() {
       if (refreshPrice) {
         event.preventDefault();
         void refreshAdminPrice();
+        return;
+      }
+      const soulsButton = event.target.closest('[data-action="souls-grant"]');
+      if (soulsButton) {
+        event.preventDefault();
+        void runAdminSoulsGrant(soulsButton);
         return;
       }
       const saveButton = event.target.closest('[data-action="save-economy"]');
