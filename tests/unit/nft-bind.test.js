@@ -165,7 +165,7 @@ test("bind: profile-mark failure rolls the binding back", async () => {
 test("очистка: заявка списывает Points, прячет трейты, сжигает по сроку", async () => {
   await withNftEnv(async ({ chain, deps, nft, nftStore, store }) => {
     const wallet = evmWallet("a");
-    const character = makeCharacter();
+    const character = makeCharacter({ level: 3 });
     await seedCharacters(store, wallet, [character], {
       currency: { balance: 25000, totalEarned: 25000 },
     });
@@ -201,6 +201,10 @@ test("очистка: заявка списывает Points, прячет тр�
     assert.equal(afterBurn.characters.length, 0, "персонаж сгорел");
     assert.equal(afterBurn.currency.balance, 15000, "Points не возвращены");
     assert.equal(await nftStore.getBinding(4), null, "капсула свободна");
+    // Души (031): очистка капсулы сжигает питомца, как обычное сжигание — 1 000 за уровень.
+    const level = character.level || 1;
+    assert.equal(result.burned[0].soulsGained, level * 1000);
+    assert.deepEqual(afterBurn.souls, { balance: level * 1000, totalEarned: level * 1000 });
   });
 });
 
