@@ -42,3 +42,7 @@
 .respec-left b { color: var(--px-text); }
 .respec-overlay .px-btn img { height: 20px; width: 20px; }
 .respec-note { color: var(--px-text-muted); font-family: var(--px-font-body); font-size: 12px; line-height: 16px; margin: 12px 0 0; text-align: center; }
+
+/* Card menu: labels and prices stay on one line ("Redistribute points" wrapped in a narrow menu) */
+.cabinet-card-menu-item__label,
+.cabinet-card-menu-item__price { white-space: nowrap; }

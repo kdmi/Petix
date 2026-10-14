@@ -8740,7 +8740,7 @@ function renderCabinet() {
                   getUnbindCost() > 0
                     ? `
                 <span class="cabinet-card-menu-item__price">
-                  ${formatPoints(getUnbindCost())}
+                  −${formatPoints(getUnbindCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>`
                     : ""
@@ -8802,7 +8802,7 @@ ${
                   Redistribute points
                 </span>
                 <span class="cabinet-card-menu-item__price">
-                  ${formatPoints(getRespecPrice(record))}
+                  −${formatPoints(getRespecPrice(record))}
                   <img src="/assets/souls/soul.svg" alt="souls" width="14" height="14" />
                 </span>
               </button>
@@ -8823,7 +8823,7 @@ ${
                   Burn pet
                 </span>
                 <span class="cabinet-card-menu-item__price">
-                  ${formatPoints(getBurnCost())}
+                  −${formatPoints(getBurnCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>
 ${
