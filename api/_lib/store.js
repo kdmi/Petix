@@ -1,4 +1,5 @@
 const { normalizeSouls } = require("./souls");
+const { normalizeRolls } = require("./roll-ledger");
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
@@ -67,6 +68,8 @@ const EMPTY_WALLET_PROFILE = {
   expeditions: { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false },
   // Souls (031): earned by burning pets.
   souls: { balance: 0, totalEarned: 0 },
+  // Журнал бросков рарности (035): сколько черновиков кошелёк разыграл.
+  rolls: normalizeRolls(null),
   profileUpdatedAt: null,
 };
 
@@ -228,6 +231,7 @@ function cloneWalletProfile(profile) {
       : [],
     expeditions: normalizeExpeditions(profile?.expeditions),
     souls: normalizeSouls(profile?.souls),
+    rolls: normalizeRolls(profile?.rolls),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };
 }
@@ -427,6 +431,38 @@ async function listBlobPathnames(prefix) {
   }
 
   return blobs;
+}
+
+/**
+ * Перепись сгенерированных картинок (035). Каждый черновик рисует одну
+ * картинку и кладёт её под своим id, и картинки не удаляются — ни когда
+ * черновик бросили, ни когда питомца сожгли. Это единственный полный след
+ * того, сколько бросков рарности было на самом деле.
+ */
+async function listCharacterImageCensus() {
+  if (!isBlobImageStoreEnabled()) {
+    const entries = await fs.readdir(IMAGES_DIR).catch(() => []);
+    const rows = [];
+    for (const name of entries) {
+      const stat = await fs.stat(path.join(IMAGES_DIR, name)).catch(() => null);
+      if (!stat || !stat.isFile()) continue;
+      rows.push({
+        id: name.replace(/\.[a-z0-9]+$/i, ""),
+        uploadedAt: stat.mtime.toISOString(),
+        size: stat.size,
+      });
+    }
+    return rows;
+  }
+
+  const blobs = await listBlobPathnames(`${BLOB_IMAGE_PREFIX}/`);
+  return blobs.map((blob) => ({
+    id: String(blob.pathname || "")
+      .slice(BLOB_IMAGE_PREFIX.length + 1)
+      .replace(/\.[a-z0-9]+$/i, ""),
+    uploadedAt: blob.uploadedAt ? new Date(blob.uploadedAt).toISOString() : null,
+    size: Number(blob.size) || 0,
+  }));
 }
 
 async function loadWalletProfileBlobWithEtag(pathname, { fresh = true } = {}) {
@@ -1064,6 +1100,7 @@ module.exports = {
   isBlobDbEnabled,
   isBlobImageStoreEnabled,
   listAllCharacters,
+  listCharacterImageCensus,
   listLatestWalletProfileBlobs,
   loadWalletProfileFromBlobPath,
   mapWithConcurrency,

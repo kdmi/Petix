@@ -5,7 +5,7 @@ const path = require("path");
 const { getEconomyConfig } = require("./economy-config");
 const { claimFarm, normalizeFarmState } = require("./farm");
 const { isSameBattleDay } = require("./battle-energy");
-const { debitCurrency } = require("./currency");
+const { debitCurrency, recordSpend } = require("./currency");
 const { createChainClient, getNftEnv, isNftEnabled } = require("./nft-chain");
 const nftStore = require("./nft-store");
 const { TIER_LABELS, getCapsuleTier } = require("./nft-tiers");
@@ -1417,6 +1417,7 @@ async function requestUnbindSlot(wallet, rawTokenId, depOverrides) {
       throw fail(402, "Not enough Points.", "INSUFFICIENT_FUNDS", { required: cost, balance });
     }
     pricePaid = cost > 0 ? debitCurrency(current, cost) : 0;
+    recordSpend(current, { points: pricePaid, reason: "capsule_clear", ref: String(tokenId) });
     return current;
   });
 
