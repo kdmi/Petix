@@ -16,6 +16,7 @@ const { createImageStore, getWalletProfile, updateWalletProfile } = require("../
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { priceForNextPet, resolvePointsPerUsd } = require("../../api/_lib/pet-price");
 const { readQuote } = require("../../api/_lib/price-quote");
+const { recordRoll } = require("../../api/_lib/roll-ledger");
 const { ensureUnlockedSlots } = require("../../api/_lib/slots");
 const { addSpend, withTokenState } = require("../../api/_lib/token-store");
 
@@ -161,6 +162,10 @@ module.exports = async (req, res) => {
         }
       }
 
+      // Бросок рарности состоялся — записываем его рядом с черновиком (035).
+      // Без этого счёта видно только тех питомцев, которых игрок оставил.
+      recordRoll(current, { rarity: draft.rarity, characterId: draft.id, charged });
+
       current.draft = {
         ...draft,
         chargedPoints: charged,
@@ -188,6 +193,9 @@ module.exports = async (req, res) => {
         wallet: session.wallet,
         characterId: draft.id,
         creatureType: draft.creatureType,
+        rarity: draft.rarity,
+        rollsTotal: nextProfile.rolls?.total || null,
+        petCount: nextProfile.characters?.length ?? null,
         charged,
         nameProvider: draft.generation?.nameProvider || "unknown",
         powersProvider: draft.generation?.powersProvider || "unknown",

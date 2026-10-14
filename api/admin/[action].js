@@ -11,6 +11,7 @@ const HANDLERS = {
   "expedition-boss": require("../../server-routes/admin/expedition-boss"),
   "expedition-nft-refresh": require("../../server-routes/admin/expedition-nft-refresh"),
   "expedition-reset": require("../../server-routes/admin/expedition-reset"),
+  "creation-audit": require("../../server-routes/admin/creation-audit"),
   "economy-config-audit": require("../../server-routes/admin/economy-config-audit"),
   "energy-grant": require("../../server-routes/admin/energy-grant"),
   "energy-daily-reset": require("../../server-routes/admin/energy-daily-reset"),
