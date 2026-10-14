@@ -1096,7 +1096,7 @@ const state = {
   // Souls (031)
   souls: { balance: 0, totalEarned: 0 },
   soulsPerBurnLevel: 1000,
-  soulsRespecPerLevel: 2000,
+  soulsRespecPerLevel: 3000,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -5782,7 +5782,7 @@ function getSoulsForBurn(record) {
 }
 
 function getRespecPrice(record) {
-  const perLevel = Number.isFinite(state.soulsRespecPerLevel) ? state.soulsRespecPerLevel : 2000;
+  const perLevel = Number.isFinite(state.soulsRespecPerLevel) ? state.soulsRespecPerLevel : 3000;
   return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
 }
 
@@ -9139,7 +9139,7 @@ function openRespecModal(record) {
       : `Redistribute for <img src="/assets/souls/soul.svg" alt="souls" width="20" height="20" />${formatPoints(price)}`;
     overlay.querySelector("[data-respec-note]").textContent = short
       ? `You have ${formatPoints(balance)} souls. Burn pets from Lvl. 2 to get more.`
-      : `${formatPoints(state.soulsRespecPerLevel ?? 2000)} souls per level · Lvl. ${getRecordLevel(record)}. You have ${formatPoints(balance)} souls.`;
+      : `${formatPoints(state.soulsRespecPerLevel ?? 3000)} souls per level · Lvl. ${getRecordLevel(record)}. You have ${formatPoints(balance)} souls.`;
   };
   const close = () => {
     if (busy) return;

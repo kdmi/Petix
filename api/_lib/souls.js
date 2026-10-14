@@ -4,7 +4,7 @@
 // redistributing a pet's points (SOULS_RESPEC_PER_LEVEL per level).
 
 const SOULS_PER_BURN_LEVEL_DEFAULT = 1000;
-const SOULS_RESPEC_PER_LEVEL_DEFAULT = 2000;
+const SOULS_RESPEC_PER_LEVEL_DEFAULT = 3000;
 const STATS = ["stamina", "agility", "strength", "intelligence"];
 
 function fail(status, code, message, extra) {
@@ -48,7 +48,7 @@ function debitSouls(profile, amount) {
   return cost;
 }
 
-/** Redistributing a pet's points: souls per pet level (owner 2026-10-14: 2 000 x level). */
+/** Redistributing a pet's points: souls per pet level (owner 2026-10-15: 3 000 x level, was 2 000). */
 function respecPrice(level, cfg) {
   const perLevel = cfg && cfg.SOULS_RESPEC_PER_LEVEL != null ? toInt(cfg.SOULS_RESPEC_PER_LEVEL) : SOULS_RESPEC_PER_LEVEL_DEFAULT;
   return Math.max(1, Math.floor(Number(level) || 1)) * perLevel;
