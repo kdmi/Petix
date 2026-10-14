@@ -5768,6 +5768,10 @@ function updateDashboardSoulsUi() {
   dashboardSouls.classList.toggle("hidden", !state.isAuthenticated);
 }
 
+function getUnbindCost() {
+  return Math.max(0, Math.floor(Number(state.nft?.config?.unbindCost) || 0));
+}
+
 function getSoulsForBurn(record) {
   const perLevel = Number.isFinite(state.soulsPerBurnLevel) ? state.soulsPerBurnLevel : 1000;
   return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
@@ -8567,7 +8571,7 @@ async function unbindNftSlotFlow(tokenId) {
   const confirmed = await confirmClearCapsule({
     tokenId,
     petName: record ? getRecordDisplayName(record) : "The bound pet",
-    cost: Math.max(0, Math.floor(Number(state.nft.config.unbindCost) || 0)),
+    cost: getUnbindCost(),
     delayMs: Number(state.nft.config.unbindDelayMs) || 3600000,
     souls: record ? getSoulsForBurn(record) : 0,
     level: record ? getRecordLevel(record) : 1,
@@ -8723,7 +8727,15 @@ function renderCabinet() {
                 <span class="cabinet-card-menu-item__label">
                   <img src="/assets/dashboard/burn-fire.svg" alt="" width="20" height="20" />
                   Clear NFT capsule
-                </span>
+                </span>${
+                  getUnbindCost() > 0
+                    ? `
+                <span class="cabinet-card-menu-item__price">
+                  ${formatPoints(getUnbindCost())}
+                  <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
+                </span>`
+                    : ""
+                }
                 <span class="cabinet-card-menu-item__gain">
                   You get <b>${formatPoints(getSoulsForBurn(record))}</b>
                   <img src="/assets/souls/soul.svg" alt="souls" width="16" height="16" />
