@@ -9,6 +9,7 @@ const { computeFarmEarned, normalizeFarmState } = require("../../api/_lib/farm")
 const { getEconomyConfig } = require("../../api/_lib/economy-config");
 const { ensureUnlockedSlots, getMaxCharacters } = require("../../api/_lib/slots");
 const { updateWalletProfile } = require("../../api/_lib/store");
+const { creditSouls, soulsForBurn } = require("../../api/_lib/souls");
 
 function fail(status, message, code, extra) {
   const error = new Error(message);
@@ -84,8 +85,10 @@ module.exports = async (req, res) => {
       }
 
       const pricePaid = cost > 0 ? debitCurrency(current, cost) : 0;
+      // Souls (031): the pet dies, its soul stays — 1 000 souls per level by default.
+      const soulsGained = creditSouls(current, soulsForBurn(character.level, cfg));
       characters.splice(index, 1);
-      burned = { pricePaid, image: character.image || null };
+      burned = { pricePaid, soulsGained, image: character.image || null };
       return current;
     });
 
@@ -98,6 +101,8 @@ module.exports = async (req, res) => {
       burned: true,
       petId,
       pricePaid: burned.pricePaid,
+      soulsGained: burned.soulsGained,
+      souls: profile.souls,
       balance: profile.currency.balance,
       paidSlots: profile.paidSlots || 0,
       maxCharacters: getMaxCharacters(profile, cfg),
