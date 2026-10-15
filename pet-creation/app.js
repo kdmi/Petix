@@ -1097,6 +1097,7 @@ const state = {
   souls: { balance: 0, totalEarned: 0 },
   soulsPerBurnLevel: 1000,
   soulsExchange: { energy: 50, souls: 5000 },
+  soulsRespecPerLevel: 3000,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3352,6 +3353,7 @@ function syncStateWithPayload(payload = {}) {
   }
   if (typeof payload.soulsPerBurnLevel === "number") state.soulsPerBurnLevel = payload.soulsPerBurnLevel;
   if (payload.soulsExchange && typeof payload.soulsExchange === "object") state.soulsExchange = { ...payload.soulsExchange };
+  if (typeof payload.soulsRespecPerLevel === "number") state.soulsRespecPerLevel = payload.soulsRespecPerLevel;
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
     updateEnergyUi();
@@ -5779,6 +5781,11 @@ function getSoulsForBurn(record) {
   // No soul at Lvl. 1, then level × per-level (same rule as api/_lib/souls.js).
   const level = Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1));
   return level < 2 ? 0 : level * perLevel;
+}
+
+function getRespecPrice(record) {
+  const perLevel = Number.isFinite(state.soulsRespecPerLevel) ? state.soulsRespecPerLevel : 3000;
+  return Math.max(1, Math.floor(Number(getRecordLevel(record)) || 1)) * perLevel;
 }
 
 function updateDashboardPointsUi() {
@@ -8735,7 +8742,7 @@ function renderCabinet() {
                   getUnbindCost() > 0
                     ? `
                 <span class="cabinet-card-menu-item__price">
-                  ${formatPoints(getUnbindCost())}
+                  −${formatPoints(getUnbindCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>`
                     : ""
@@ -8785,6 +8792,22 @@ ${
               isMenuOpen
                 ? `
             <div class="cabinet-card-menu" role="menu">
+              <button
+                class="cabinet-card-menu-item"
+                type="button"
+                role="menuitem"
+                data-action="respec"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/souls/respec.svg" alt="" width="20" height="20" />
+                  Redistribute points
+                </span>
+                <span class="cabinet-card-menu-item__price">
+                  −${formatPoints(getRespecPrice(record))}
+                  <img src="/assets/souls/soul.svg" alt="souls" width="14" height="14" />
+                </span>
+              </button>
               ${nftMenuItemMarkup}
               ${
                 nftBoundTokenId
@@ -8802,7 +8825,7 @@ ${
                   Burn pet
                 </span>
                 <span class="cabinet-card-menu-item__price">
-                  ${formatPoints(getBurnCost())}
+                  −${formatPoints(getBurnCost())}
                   <img src="/assets/dashboard/points-coin.svg" alt="Points" width="14" height="14" />
                 </span>
 ${
@@ -9050,6 +9073,119 @@ const DEFAULT_BURN_COST = 1000; // fallback until /api/character/me delivers the
 
 function getBurnCost() {
   return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
+}
+
+// Redistribute points (031): move a pet's points between stats for souls.
+// Built on the UI kit (ui-kit/petix-ui.css): px-overlay, px-modal, px-row, px-stepper, px-btn.
+const RESPEC_MINUS = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+const RESPEC_PLUS = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+const RESPEC_CLOSE = '<svg viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+
+function openRespecModal(record) {
+  document.querySelector(".respec-overlay")?.remove();
+  const keys = ATTRS.map((attr) => attr.key);
+  const was = {};
+  keys.forEach((key) => { was[key] = Math.max(0, Math.floor(Number(record.attributes?.[key]) || 0)); });
+  const spare = Math.max(0, Math.floor(Number(record.attributePointsAvailable) || 0));
+  const total = keys.reduce((sum, key) => sum + was[key], 0) + spare;
+  const next = { ...was };
+  const price = getRespecPrice(record);
+  let busy = false;
+
+  const overlay = document.createElement("div");
+  overlay.className = "px-overlay respec-overlay";
+  overlay.innerHTML = `
+    <section class="px-modal" role="dialog" aria-modal="true" aria-labelledby="respecTitle">
+      <button class="px-close px-modal__close" type="button" aria-label="Close" data-respec-close>${RESPEC_CLOSE}</button>
+      <h2 class="px-modal__title" id="respecTitle">Redistribute points</h2>
+      <p class="px-modal__text">Move ${escapeHtml(getRecordDisplayName(record))}’s points between stats.</p>
+      <div class="respec-rows">
+        ${ATTRS.map(
+          (attr) => `
+        <div class="px-row">
+          <img class="respec-icon" src="${attr.icon}" alt="" width="24" height="24" />
+          <div class="px-row__main"><span class="px-title">${attr.label}</span></div>
+          <div class="px-stepper">
+            <button class="px-stepper__btn" type="button" data-step="-1" data-stat="${attr.key}" aria-label="Less ${attr.label.toLowerCase()}">${RESPEC_MINUS}</button>
+            <span class="px-stepper__value" data-value="${attr.key}"></span>
+            <button class="px-stepper__btn" type="button" data-step="1" data-stat="${attr.key}" aria-label="More ${attr.label.toLowerCase()}">${RESPEC_PLUS}</button>
+          </div>
+        </div>`
+        ).join("")}
+      </div>
+      <p class="respec-left" data-respec-left></p>
+      <div class="px-modal__actions">
+        <button class="px-btn px-btn--primary px-btn--block" type="button" data-respec-go></button>
+      </div>
+      <p class="respec-note" data-respec-note></p>
+    </section>`;
+
+  const go = overlay.querySelector("[data-respec-go]");
+  const left = () => total - keys.reduce((sum, key) => sum + next[key], 0);
+  const changed = () => keys.some((key) => next[key] !== was[key]);
+  const paint = () => {
+    const pointsLeft = left();
+    const balance = state.souls?.balance || 0;
+    const short = balance < price;
+    keys.forEach((key) => {
+      const value = overlay.querySelector(`[data-value="${key}"]`);
+      value.textContent = next[key];
+      value.classList.toggle("is-changed", next[key] !== was[key]);
+      overlay.querySelector(`[data-stat="${key}"][data-step="-1"]`).disabled = busy || next[key] <= 0;
+      overlay.querySelector(`[data-stat="${key}"][data-step="1"]`).disabled = busy || pointsLeft <= 0;
+    });
+    overlay.querySelector("[data-respec-left]").innerHTML = `Points left: <b>${pointsLeft}</b>`;
+    go.disabled = busy || short || !changed();
+    go.innerHTML = short
+      ? "Not enough souls"
+      : `Redistribute for <img src="/assets/souls/soul.svg" alt="souls" width="20" height="20" />${formatPoints(price)}`;
+    overlay.querySelector("[data-respec-note]").textContent = short
+      ? `You have ${formatPoints(balance)} souls. Burn pets from Lvl. 2 to get more.`
+      : `${formatPoints(state.soulsRespecPerLevel ?? 3000)} souls per level · Lvl. ${getRecordLevel(record)}. You have ${formatPoints(balance)} souls.`;
+  };
+  const close = () => {
+    if (busy) return;
+    document.removeEventListener("keydown", onKey);
+    overlay.classList.add("is-closing");
+    setTimeout(() => overlay.remove(), 220);
+  };
+  const onKey = (event) => { if (event.key === "Escape") close(); };
+
+  overlay.addEventListener("click", async (event) => {
+    if (event.target === overlay || event.target.closest("[data-respec-close]")) {
+      close();
+      return;
+    }
+    const step = event.target.closest("[data-step]");
+    if (step && !step.disabled) {
+      const key = step.dataset.stat;
+      next[key] = Math.max(0, next[key] + Number(step.dataset.step));
+      if (left() < 0) next[key] -= 1;
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-respec-go]") && !go.disabled) {
+      busy = true;
+      go.classList.add("is-loading");
+      paint();
+      try {
+        const data = await apiRequest("/api/character/respec", { petId: record.id, attributes: next });
+        syncStateWithPayload(data);
+        busy = false;
+        close();
+        if (isCabinetScreenActive()) renderCabinet();
+        showToast("Points redistributed.");
+      } catch (error) {
+        busy = false;
+        go.classList.remove("is-loading");
+        paint();
+        showToast(error.message || "Could not redistribute the points.");
+      }
+    }
+  });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  paint();
 }
 
 // "Get more souls" popup (031), opened from the header souls counter. One option for
@@ -11209,6 +11345,7 @@ function renderAdminEconomy() {
           ecoNumberRow("Souls per burned pet level (none at Lvl. 1)", "SOULS_PER_BURN_LEVEL", cfg.SOULS_PER_BURN_LEVEL),
           ecoNumberRow("Exchange: energy", "SOULS_EXCHANGE_ENERGY", cfg.SOULS_EXCHANGE_ENERGY),
           ecoNumberRow("Exchange: souls it gives", "SOULS_EXCHANGE_SOULS", cfg.SOULS_EXCHANGE_SOULS),
+          ecoNumberRow("Redistribute points: souls per pet level", "SOULS_RESPEC_PER_LEVEL", cfg.SOULS_RESPEC_PER_LEVEL),
         ])}
         ${saveFooter}
       </section>`;
@@ -12505,6 +12642,15 @@ function init() {
         event.preventDefault();
         event.stopPropagation();
         toggleCabinetCardMenu(cardMenuButton.dataset.characterId);
+        return;
+      }
+
+      const respecButton = event.target.closest('[data-action="respec"]');
+      if (respecButton) {
+        event.preventDefault();
+        closeCabinetCardMenu();
+        const record = findCharacterById(respecButton.dataset.characterId);
+        if (record) openRespecModal(record);
         return;
       }
 
