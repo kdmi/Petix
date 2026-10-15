@@ -45,3 +45,15 @@
 .souls-popup__offer { align-items: center; display: inline-flex; gap: 4px; white-space: nowrap; }
 .souls-popup__offer img { height: 20px; width: 20px; }
 .souls-popup__arrow { color: var(--px-text-subtle); margin: 0 4px; }
+
+/* Redistribute points window — UI kit components (ui-kit/petix-ui.css), only layout here */
+.respec-rows { display: grid; gap: 8px; margin-top: 24px; }
+.respec-icon { flex: none; height: 24px; width: 24px; }
+.respec-left { color: var(--px-text-muted); font-family: var(--px-font-body); font-size: 14px; line-height: 20px; margin: 12px 0 0; text-align: right; }
+.respec-left b { color: var(--px-text); }
+.respec-overlay .px-btn img { height: 20px; width: 20px; }
+.respec-note { color: var(--px-text-muted); font-family: var(--px-font-body); font-size: 12px; line-height: 16px; margin: 12px 0 0; text-align: center; }
+
+/* Card menu: labels and prices stay on one line ("Redistribute points" wrapped in a narrow menu) */
+.cabinet-card-menu-item__label,
+.cabinet-card-menu-item__price { white-space: nowrap; }
