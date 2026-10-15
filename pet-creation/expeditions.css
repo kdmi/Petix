@@ -1025,6 +1025,10 @@
 .xp .btn-fight-coin { width: 16px; height: 16px; border-radius: 50%; background: #fff; display: grid; place-items: center; }
 .xp .btn-fight-coin img { width: 13.3px; height: 13.3px; }
 .xp .btn-fight:disabled .btn-fight-cost { opacity: 0.6; }
+/* Blocked (not enough Points): the price chip goes grey with the button instead of staying dark. */
+.xp .is-blocked .btn-fight-cost { background: var(--gray-300); color: var(--gray-500); opacity: 1; }
+.xp .is-blocked .btn-fight-coin { background: var(--gray-100); }
+.xp .is-blocked .btn-fight-coin img { opacity: 0.5; }
 @media (max-width: 640px) {
 /* Banner (Figma 1426:4260): column, icon top-aligned, full-width 40px button. */
 .xp .holder-banner { flex-direction: column; align-items: stretch; gap: 16px; border-radius: 24px; padding: 16px 20px; }
