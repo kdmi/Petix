@@ -23,6 +23,12 @@
   "overrides": {
     "rpc-websockets": {
       "uuid": "^9.0.1"
+    },
+    "@vercel/blob": {
+      "undici": "8.10.2"
+    },
+    "@vercel/node": {
+      "undici": "8.10.2"
     }
   }
 }
