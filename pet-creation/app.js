@@ -1031,7 +1031,7 @@ const state = {
   hasHydratedCharacters: false,
   adminSection: "characters",
   adminEconomyConfig: null,
-  adminEconomyTab: "overview", // overview | token | farm | shop
+  adminEconomyTab: "overview", // overview | token | farm | shop | souls
   adminEconomyDefaults: null,
   adminEconomyStats: null,
   adminTokenStats: null, // /api/admin/token-stats (019); null while the flag is off
@@ -1096,6 +1096,7 @@ const state = {
   // Souls (031)
   souls: { balance: 0, totalEarned: 0 },
   soulsPerBurnLevel: 1000,
+  soulsExchange: { energy: 50, souls: 5000 },
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3350,6 +3351,7 @@ function syncStateWithPayload(payload = {}) {
     updateDashboardSoulsUi();
   }
   if (typeof payload.soulsPerBurnLevel === "number") state.soulsPerBurnLevel = payload.soulsPerBurnLevel;
+  if (payload.soulsExchange && typeof payload.soulsExchange === "object") state.soulsExchange = { ...payload.soulsExchange };
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
     updateEnergyUi();
@@ -9050,6 +9052,75 @@ function getBurnCost() {
   return typeof state.burnCost === "number" ? state.burnCost : DEFAULT_BURN_COST;
 }
 
+// "Get more souls" popup (031), opened from the header souls counter. One option for
+// now — exchange energy for souls; more options go in the same list. Built on the UI
+// kit (ui-kit/petix-ui.css): px-overlay, px-modal, px-row, px-btn.
+const SOULS_POPUP_CLOSE = '<svg viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+
+function openSoulsPopup() {
+  document.querySelector(".souls-popup")?.remove();
+  let busy = false;
+  const overlay = document.createElement("div");
+  overlay.className = "px-overlay souls-popup";
+  const render = () => {
+    const offer = state.soulsExchange || { energy: 50, souls: 5000 };
+    // Any energy counts (today's free + gifted + bought); the server checks the real amount.
+    const canExchange = !busy && (state.energyCurrent || 0) >= offer.energy;
+    overlay.innerHTML = `
+      <section class="px-modal" role="dialog" aria-modal="true" aria-labelledby="soulsPopupTitle">
+        <button class="px-close px-modal__close" type="button" aria-label="Close" data-souls-popup-close>${SOULS_POPUP_CLOSE}</button>
+        <h2 class="px-modal__title" id="soulsPopupTitle">Get more souls</h2>
+        <p class="px-modal__text">You have <b class="souls-popup__balance"><img src="/assets/souls/soul.svg" alt="" width="20" height="20" />${formatPoints(state.souls?.balance || 0)}</b></p>
+        <div class="souls-popup__options">
+          <div class="px-row">
+            <div class="px-row__main">
+              <span class="px-title souls-popup__offer">
+                <img src="/assets/dashboard/energy-bolt.svg" alt="energy" width="20" height="20" />${formatPoints(offer.energy)}
+                <span class="souls-popup__arrow" aria-hidden="true">→</span>
+                <img src="/assets/souls/soul.svg" alt="souls" width="20" height="20" />${formatPoints(offer.souls)}
+              </span>
+            </div>
+            <button class="px-btn px-btn--primary px-btn--md${busy ? " is-loading" : ""}" type="button" data-souls-exchange ${canExchange ? "" : "disabled"}><span>Exchange</span></button>
+          </div>
+        </div>
+      </section>`;
+  };
+  const close = () => {
+    if (busy) return;
+    document.removeEventListener("keydown", onKey);
+    overlay.classList.add("is-closing");
+    setTimeout(() => overlay.remove(), 220);
+  };
+  const onKey = (event) => { if (event.key === "Escape") close(); };
+
+  overlay.addEventListener("click", async (event) => {
+    if (event.target === overlay || event.target.closest("[data-souls-popup-close]")) {
+      close();
+      return;
+    }
+    const button = event.target.closest("[data-souls-exchange]");
+    if (!button || button.disabled) return;
+    busy = true;
+    render();
+    try {
+      const result = await apiRequest("/api/character/exchange-energy", {});
+      state.souls = { ...result.souls };
+      updateDashboardSoulsUi();
+      try {
+        syncStateWithPayload(await apiRequest("/api/character/me", {}, "GET"));
+      } catch (error) {}
+      showToast(`+${formatPoints(result.soulsGained)} souls.`);
+    } catch (error) {
+      showToast(error.message || "Could not exchange the energy.");
+    }
+    busy = false;
+    render();
+  });
+  document.addEventListener("keydown", onKey);
+  render();
+  document.body.appendChild(overlay);
+}
+
 function closeCabinetCardMenu() {
   if (!state.openCardMenuId) return;
   state.openCardMenuId = "";
@@ -11001,12 +11072,13 @@ function renderAdminEconomy() {
         .join("")
     : '<li style="font-size:13px;color:#6b7280;">No earners yet.</li>';
 
-  const tab = ["overview", "token", "farm", "shop"].includes(state.adminEconomyTab) ? state.adminEconomyTab : "overview";
+  const tab = ["overview", "token", "farm", "shop", "souls"].includes(state.adminEconomyTab) ? state.adminEconomyTab : "overview";
   const subnav = [
     ["overview", "Overview"],
     ["token", "Token & withdraw"],
     ["farm", "Farm & battles"],
     ["shop", "Slots, energy & capsules"],
+    ["souls", "Souls"],
   ]
     .map(
       ([key, label]) =>
@@ -11104,6 +11176,39 @@ function renderAdminEconomy() {
           ecoNumberRow("Damage base", "BATTLE_DAMAGE_BASE", cfg.BATTLE_DAMAGE_BASE),
           ecoNumberRow("Damage per strength", "BATTLE_DAMAGE_PER_STRENGTH", cfg.BATTLE_DAMAGE_PER_STRENGTH),
           ecoNumberRow("Damage exponent (0.3–1)", "BATTLE_DAMAGE_EXPONENT", cfg.BATTLE_DAMAGE_EXPONENT),
+        ])}
+        ${saveFooter}
+      </section>`;
+  } else if (tab === "souls") {
+    const field = (label, id, attrs = "") => `
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;">
+          ${label}
+          <input id="${id}" ${attrs} style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
+        </label>`;
+    body = `
+      <section>
+        <h3 style="margin:0 0 4px;font-size:15px;">Give souls</h3>
+        <p style="margin:0 0 10px;font-size:12px;color:#667085;">
+          Adds souls to one wallet. A negative amount takes souls away, never below 0.
+          A gift does not count as earned souls.
+        </p>
+        ${grid([
+          field("Wallet (0x…)", "adminSoulsWallet", 'type="text" placeholder="0x…" autocomplete="off" spellcheck="false"'),
+          field("Amount", "adminSoulsAmount", 'type="number" step="1" placeholder="50000"'),
+        ])}
+        <div style="margin-top:12px;">${field("Reason (required, min 3 chars)", "adminSoulsReason", 'type="text" placeholder="Why?"')}</div>
+        <p id="adminSoulsMsg" style="margin:10px 0 0;font-size:13px;color:#c0392b;"></p>
+        <button data-action="souls-grant" type="button"
+          style="margin-top:12px;border:none;border-radius:12px;padding:12px 20px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;font-size:14px;">
+          Give souls
+        </button>
+      </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Prices</h3>
+        ${grid([
+          ecoNumberRow("Souls per burned pet level (none at Lvl. 1)", "SOULS_PER_BURN_LEVEL", cfg.SOULS_PER_BURN_LEVEL),
+          ecoNumberRow("Exchange: energy", "SOULS_EXCHANGE_ENERGY", cfg.SOULS_EXCHANGE_ENERGY),
+          ecoNumberRow("Exchange: souls it gives", "SOULS_EXCHANGE_SOULS", cfg.SOULS_EXCHANGE_SOULS),
         ])}
         ${saveFooter}
       </section>`;
@@ -11252,6 +11357,60 @@ async function loadAdminPrice({ force = false } = {}) {
 }
 
 // Костёр необратим, поэтому спрашиваем прямо и показываем, что именно уйдёт.
+// Admin souls grant (031). Two clicks instead of window.confirm: the first one
+// checks the form and turns the button into "Confirm…", the second one sends.
+// Editing any field disarms it.
+async function runAdminSoulsGrant(button) {
+  const panel = adminEconomyPanel;
+  const msg = panel.querySelector("#adminSoulsMsg");
+  const wallet = String(panel.querySelector("#adminSoulsWallet")?.value || "").trim();
+  const amount = Number(panel.querySelector("#adminSoulsAmount")?.value);
+  const reason = String(panel.querySelector("#adminSoulsReason")?.value || "").trim();
+  const setMsg = (text, ok = false) => {
+    msg.textContent = text;
+    msg.style.color = ok ? "#039855" : "#c0392b";
+  };
+  const disarm = () => {
+    button.dataset.armed = "";
+    button.textContent = "Give souls";
+    button.style.background = "#1a1a2e";
+  };
+
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return setMsg("Enter a 0x wallet address.");
+  if (!Number.isInteger(amount) || amount === 0) return setMsg("Amount must be a whole number, not 0.");
+  if (reason.length < 3) return setMsg("Add a reason (min 3 chars).");
+
+  if (button.dataset.armed !== "1") {
+    setMsg("");
+    button.dataset.armed = "1";
+    button.textContent = `Confirm: ${amount > 0 ? "give" : "take"} ${formatPoints(Math.abs(amount))} souls ${amount > 0 ? "to" : "from"} ${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+    button.style.background = amount > 0 ? "#039855" : "#d92d20";
+    panel.querySelectorAll("#adminSoulsWallet, #adminSoulsAmount, #adminSoulsReason").forEach((input) =>
+      input.addEventListener("input", disarm, { once: true })
+    );
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Sending…";
+  try {
+    const result = await apiRequest("/api/admin/souls-grant", { wallet, amount, reason });
+    setMsg(`Done: ${formatPoints(result.before)} → ${formatPoints(result.after)} souls on ${result.wallet}.`, true);
+    panel.querySelector("#adminSoulsAmount").value = "";
+    panel.querySelector("#adminSoulsReason").value = "";
+    // The admin may have just given souls to themselves: refresh the header.
+    if (String(result.wallet).toLowerCase() === String(state.walletAddress || "").toLowerCase()) {
+      state.souls = { ...(state.souls || {}), balance: result.after };
+      updateDashboardSoulsUi();
+    }
+  } catch (error) {
+    setMsg(error.message || "Could not change the souls balance.");
+  } finally {
+    button.disabled = false;
+    disarm();
+  }
+}
+
 async function runAdminBurn() {
   const queued = Math.max(0, Math.floor(Number(state.adminBurn?.queue?.points) || 0));
   if (!queued) return;
@@ -12503,6 +12662,17 @@ function init() {
     });
   }
 
+  // Souls counter opens the "Get more souls" popup (031).
+  if (dashboardSouls) {
+    dashboardSouls.addEventListener("click", () => openSoulsPopup());
+    dashboardSouls.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openSoulsPopup();
+      }
+    });
+  }
+
   if (dashboardEnergy) {
     dashboardEnergy.addEventListener("click", () => {
       if (isEnergyShopEnabled()) openEnergyShopModal();
@@ -12625,6 +12795,12 @@ function init() {
       if (refreshPrice) {
         event.preventDefault();
         void refreshAdminPrice();
+        return;
+      }
+      const soulsButton = event.target.closest('[data-action="souls-grant"]');
+      if (soulsButton) {
+        event.preventDefault();
+        void runAdminSoulsGrant(soulsButton);
         return;
       }
       const saveButton = event.target.closest('[data-action="save-economy"]');

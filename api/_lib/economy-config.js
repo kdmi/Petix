@@ -69,6 +69,8 @@ const DEFAULTS = Object.freeze({
   // должна быть заметно выше нашей себестоимости генерации.
   BURN_COST: 10000,
   SOULS_PER_BURN_LEVEL: 1000, // souls for burning a pet, per pet level (031)
+  SOULS_EXCHANGE_ENERGY: 50, // energy → souls exchange: energy per exchange (owner 2026-10-15)
+  SOULS_EXCHANGE_SOULS: 5000, // ...and souls it gives
   MIN_WITHDRAW: 1000, // порог вывода (решение владельца 2026-09-17; было 200)
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
   WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
@@ -223,6 +225,8 @@ function validateConfigPatch(patch) {
     "PRICE_MIN_LIQUIDITY_USD",
     "BURN_COST",
     "SOULS_PER_BURN_LEVEL",
+    "SOULS_EXCHANGE_ENERGY",
+    "SOULS_EXCHANGE_SOULS",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
     "WITHDRAW_ENABLED",

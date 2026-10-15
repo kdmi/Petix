@@ -14,6 +14,7 @@ const HANDLERS = {
   "creation-audit": require("../../server-routes/admin/creation-audit"),
   "economy-config-audit": require("../../server-routes/admin/economy-config-audit"),
   "energy-grant": require("../../server-routes/admin/energy-grant"),
+  "souls-grant": require("../../server-routes/admin/souls-grant"),
   "energy-daily-reset": require("../../server-routes/admin/energy-daily-reset"),
   "capsule-airdrop": require("../../server-routes/admin/capsule-airdrop"),
   "farm-stats": require("../../server-routes/admin/farm-stats"),

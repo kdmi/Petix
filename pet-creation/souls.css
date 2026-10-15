@@ -1,7 +1,10 @@
 /* Souls (031): header counter and what burning a pet gives back. */
 
 /* Header counter — same rhythm as Points (Figma 1469:4802: 24px icon, Figtree Bold) */
-.dashboard-souls { align-items: center; display: inline-flex; gap: 8px; }
+/* Hover like the Points balance (.dashboard-points.is-withdrawable): a soft pill. Click opens "Get more souls". */
+.dashboard-souls { align-items: center; border-radius: 99px; cursor: pointer; display: inline-flex; gap: 8px; margin: -4px -8px; padding: 4px 8px; transition: background 0.15s; }
+.dashboard-souls:hover { background: rgba(16, 24, 40, 0.06); }
+.dashboard-souls:focus-visible { background: rgba(16, 24, 40, 0.06); outline: 2px solid #101828; outline-offset: 2px; }
 .dashboard-souls.hidden { display: none !important; }
 .dashboard-souls img { display: block; flex: 0 0 24px; height: 24px; width: 24px; }
 .dashboard-souls [data-role="souls-value"] { color: #101828; font-family: "Figtree", Arial, sans-serif; font-size: 16px; font-weight: 700; line-height: 20px; }
@@ -34,3 +37,11 @@
 .burn-modal__souls { background: #f2f4f7; border-radius: 12px; color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 14px; line-height: 20px; margin: -8px 0 20px; padding: 12px; }
 .burn-modal__souls strong { align-items: center; color: #101828; display: inline-flex; gap: 4px; vertical-align: -3px; }
 .burn-modal__souls span { color: #98a2b3; display: block; font-size: 12px; line-height: 16px; margin-top: 2px; }
+
+/* "Get more souls" popup — UI kit components (ui-kit/petix-ui.css), only layout here */
+.souls-popup__balance { align-items: center; color: var(--px-text); display: inline-flex; font-weight: 700; gap: 4px; vertical-align: -4px; }
+.souls-popup__balance img { height: 20px; width: 20px; }
+.souls-popup__options { display: grid; gap: 8px; margin-top: 24px; }
+.souls-popup__offer { align-items: center; display: inline-flex; gap: 4px; white-space: nowrap; }
+.souls-popup__offer img { height: 20px; width: 20px; }
+.souls-popup__arrow { color: var(--px-text-subtle); margin: 0 4px; }

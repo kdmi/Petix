@@ -1,8 +1,17 @@
 // Souls (031): a third in-game currency next to Points and energy.
-// Souls never leave the game: no withdrawal, no conversion back. For now they
-// only come in, by burning a pet: 1 000 souls per pet level (SOULS_PER_BURN_LEVEL).
+// Souls never leave the game: no withdrawal, no conversion back. They come in by
+// burning a pet (SOULS_PER_BURN_LEVEL per level, none at Lvl. 1) and by
+// exchanging energy (SOULS_EXCHANGE_ENERGY → SOULS_EXCHANGE_SOULS).
 
 const SOULS_PER_BURN_LEVEL_DEFAULT = 1000;
+
+function fail(status, code, message, extra) {
+  const error = new Error(message);
+  error.httpStatus = status;
+  error.httpCode = code;
+  if (extra) Object.assign(error, extra);
+  return error;
+}
 
 function toInt(value) {
   const n = Number(value);
@@ -29,4 +38,43 @@ function soulsForBurn(level, cfg) {
   return lvl < 2 ? 0 : lvl * perLevel;
 }
 
-module.exports = { SOULS_PER_BURN_LEVEL_DEFAULT, creditSouls, normalizeSouls, soulsForBurn };
+// ---- energy → souls exchange --------------------------------------------------
+// Owner 2026-10-15: 50 energy → 5 000 souls, from the header souls popup.
+// Any energy counts, spent in the same order as a fight: today's free energy first
+// (it burns at midnight anyway), then gifted, then bought. No unlimited-admin
+// shortcut: an exchange needs real energy.
+
+function exchangeOffer(cfg) {
+  const energy = Math.max(1, toInt(cfg && cfg.SOULS_EXCHANGE_ENERGY != null ? cfg.SOULS_EXCHANGE_ENERGY : 50));
+  const souls = toInt(cfg && cfg.SOULS_EXCHANGE_SOULS != null ? cfg.SOULS_EXCHANGE_SOULS : 5000);
+  return { energy, souls };
+}
+
+/** All energy the wallet has right now: today's free + gifted + bought. */
+function exchangeableEnergy(battleState, { now = new Date(), bonusEnergy = 0 } = {}) {
+  return require("./battle-energy").normalizeBattleState(battleState, { now, bonusEnergy }).energyCurrent;
+}
+
+/** One exchange inside a profile write (mutates the profile). Throws 409 when there is not enough energy. */
+function exchangeEnergyForSouls(profile, cfg, { now = new Date(), bonusEnergy = 0 } = {}) {
+  const { consumeBattleEnergy } = require("./battle-energy");
+  const offer = exchangeOffer(cfg);
+  const have = exchangeableEnergy(profile.battleState, { now, bonusEnergy });
+  if (have < offer.energy) {
+    throw fail(409, "NOT_ENOUGH_ENERGY", `You need ${offer.energy} energy.`, { required: offer.energy, balance: have });
+  }
+  // wallet is left out on purpose: the unlimited-energy admin rule must not mint souls.
+  profile.battleState = consumeBattleEnergy(profile.battleState, { now, amount: offer.energy, bonusEnergy });
+  const soulsGained = creditSouls(profile, offer.souls);
+  return { energySpent: offer.energy, soulsGained };
+}
+
+module.exports = {
+  SOULS_PER_BURN_LEVEL_DEFAULT,
+  creditSouls,
+  exchangeEnergyForSouls,
+  exchangeOffer,
+  exchangeableEnergy,
+  normalizeSouls,
+  soulsForBurn,
+};

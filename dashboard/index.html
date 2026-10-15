@@ -29,7 +29,8 @@
     </style>
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260925a" />
     <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261015a" />
-    <link rel="stylesheet" href="/pet-creation/souls.css?v=20261014a" />
+    <link rel="stylesheet" href="/ui-kit/petix-ui.css?v=20261015a" />
+    <link rel="stylesheet" href="/pet-creation/souls.css?v=20261015a" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -47,7 +48,7 @@
           <!-- Публичный просмотр боя по ссылке: у гостя в шапке только логотип и вход. -->
           <button class="topbar-signin hidden" id="topbarSignIn" type="button">Sign in</button>
           <div class="topbar-cluster">
-            <div class="dashboard-souls hidden" id="dashboardSouls" aria-label="Souls balance" title="Souls">
+            <div class="dashboard-souls hidden" id="dashboardSouls" aria-label="Souls balance" title="Souls" role="button" tabindex="0">
               <img src="/assets/souls/soul.svg" alt="" width="24" height="24" />
               <span data-role="souls-value">0</span>
             </div>
@@ -631,6 +632,6 @@
     <script src="/pet-creation/expedition-tutorial.js?v=20261015a"></script>
     <script src="/pet-creation/expedition-battle.js?v=20261015a"></script>
     <script src="/pet-creation/expeditions.js?v=20261015a"></script>
-    <script src="/pet-creation/app.js?v=20261014e"></script>
+    <script src="/pet-creation/app.js?v=20261015a"></script>
   </body>
 </html>
