@@ -312,7 +312,8 @@
     fightBtn.classList.toggle('is-ready', filled === SLOT_COUNT && !blocked);
     var label = noEnergy ? 'Not enough energy' : broke ? 'Not enough Points' : filled === 0 ? 'Pick your squad' : 'Fight';
     fightBtn.innerHTML = '<span class="btn-fight-label">' + (label === 'Fight' ? '<img src="' + ICONS + 'bolt-white.svg" alt="">' : '') + label + '</span>' +
-      (fee && !blocked ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(fee) + '</span>' : '');
+      // Short of Points: the price stays on the button (greyed) so the player sees how much is needed.
+      (fee && (!blocked || (broke && !noEnergy)) ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(fee) + '</span>' : '');
   }
 
   // ---------- Dropdown ----------

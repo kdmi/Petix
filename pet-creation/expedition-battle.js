@@ -641,7 +641,8 @@
     var retryBlock = best >= 3 ? null : (o.energy != null && o.energy <= 0) ? 'Not enough energy to retry' : (o.points != null && o.points < nextFee) ? 'Not enough Points to retry' : null;
     // 3★: «Next boss» only when the next boss is open; otherwise the card just leads back to the map.
     var primary = best >= 3 ? '<span class="btn-fight-label">' + (o.nextOpen ? 'Next boss' : 'Back to expedition') + '</span>'
-      : retryBlock ? '<span class="btn-fight-label">' + retryBlock + '</span>'
+      : retryBlock ? '<span class="btn-fight-label">' + retryBlock + '</span>' +
+        (retryBlock === 'Not enough Points to retry' && nextFee ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(nextFee) + '</span>' : '')
       : '<span class="btn-fight-label"><img src="' + ICONS + 'bolt-white.svg" alt="">Retry</span>' +
         (nextFee ? '<span class="btn-fight-cost"><span class="btn-fight-coin"><img src="' + ICONS + 'points-dark.svg" alt=""></span>' + feeLabel(nextFee) + '</span>' : '');
     return '<div class="result-card' + (won ? ' is-win' : ' is-lose') + '">' +
