@@ -1,5 +1,6 @@
-// Souls shop (031) — the dashboard side: Shop screen (For sale / My items) and
-// putting an item on a pet (pick item → render → up to two re-rolls → keep one).
+// Souls (031) — the dashboard side: Shop screen (For sale / My items), putting an
+// item on a pet (pick item → render → up to two re-rolls → keep one), and the
+// Profile modal with the one-time Solana wallet link (Phantom / MetaMask / WalletConnect).
 // Talks to app.js only through window.PetixApp (apiRequest, state, toasts, reload).
 (function () {
   'use strict';
@@ -338,9 +339,247 @@
     }
   }
 
+  // ---------- profile + Solana link (Phantom / MetaMask / WalletConnect) ----------
+  // Phantom and MetaMask expose Solana through the Wallet Standard (window events), Phantom also
+  // through window.phantom.solana. WalletConnect: the vendored EVM provider carries a universal
+  // provider (`.signer`) that can open a Solana session; we draw the QR ourselves.
+  var SOLANA_MAINNET = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+  var stdWallets = [];
+  function registerStd() {
+    for (var i = 0; i < arguments.length; i++) if (stdWallets.indexOf(arguments[i]) === -1) stdWallets.push(arguments[i]);
+    return function () {};
+  }
+  window.addEventListener('wallet-standard:register-wallet', function (e) { try { e.detail({ register: registerStd }); } catch (err) {} });
+  try { window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: { register: registerStd } })); } catch (err) {}
+
+  function stdSolanaWallet(re) {
+    return stdWallets.find(function (w) {
+      return re.test(w.name || '') && (w.chains || []).some(function (c) { return String(c).indexOf('solana:') === 0; }) &&
+        w.features && w.features['standard:connect'] && w.features['solana:signMessage'];
+    }) || null;
+  }
+
+  var B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function b58encode(bytes) {
+    var n = 0n; for (var i = 0; i < bytes.length; i++) n = n * 256n + BigInt(bytes[i]);
+    var out = ''; while (n > 0n) { out = B58[Number(n % 58n)] + out; n /= 58n; }
+    for (var j = 0; j < bytes.length && bytes[j] === 0; j++) out = '1' + out;
+    return out;
+  }
+  function b58decode(str) {
+    var n = 0n; for (var i = 0; i < str.length; i++) { var v = B58.indexOf(str[i]); if (v < 0) throw new Error('Bad signature encoding.'); n = n * 58n + BigInt(v); }
+    var bytes = []; while (n > 0n) { bytes.unshift(Number(n % 256n)); n /= 256n; }
+    for (var j = 0; j < str.length && str[j] === '1'; j++) bytes.unshift(0);
+    return new Uint8Array(bytes);
+  }
+  function toBase64(bytes) { var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
+
+  var METHODS = {
+    phantom: {
+      name: 'Phantom', icon: '/assets/wallets/phantom.svg', install: 'https://phantom.app/download',
+      available: function () { return !!(stdSolanaWallet(/phantom/i) || (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom)); },
+      connect: async function () {
+        var w = stdSolanaWallet(/phantom/i);
+        if (w) return stdSigner(w);
+        var p = window.phantom.solana;
+        var r = await p.connect();
+        var address = (r && r.publicKey ? r.publicKey : p.publicKey).toString();
+        return { address: address, sign: async function (bytes) { var s = await p.signMessage(bytes, 'utf8'); return s && s.signature ? s.signature : s; } };
+      },
+    },
+    metamask: {
+      name: 'MetaMask', icon: '/assets/wallets/metamask.svg', install: 'https://metamask.io/download/',
+      note: 'Needs Solana turned on in MetaMask',
+      available: function () { return !!stdSolanaWallet(/metamask/i); },
+      connect: async function () {
+        var w = stdSolanaWallet(/metamask/i);
+        if (!w) throw new Error('MetaMask with Solana was not found. Turn on Solana in MetaMask and reload the page.');
+        return stdSigner(w);
+      },
+    },
+    walletconnect: {
+      name: 'WalletConnect', icon: '/assets/wallets/walletconnect.svg',
+      note: 'Scan with a Solana wallet on your phone',
+      available: function () { return !!window.PETIX_WALLETCONNECT_PROJECT_ID; },
+      connect: function () { return walletConnectSigner(); },
+    },
+  };
+
+  async function stdSigner(wallet) {
+    var res = await wallet.features['standard:connect'].connect();
+    var accounts = (res && res.accounts) || wallet.accounts || [];
+    var account = accounts.find(function (a) { return (a.chains || []).some(function (c) { return String(c).indexOf('solana:') === 0; }); }) || accounts[0];
+    if (!account) throw new Error('The wallet returned no Solana account.');
+    return {
+      address: account.address,
+      sign: async function (bytes) {
+        var out = await wallet.features['solana:signMessage'].signMessage({ account: account, message: bytes });
+        var first = Array.isArray(out) ? out[0] : out;
+        return first.signature;
+      },
+    };
+  }
+
+  var wcProvider = null;
+  async function walletConnectSigner() {
+    if (typeof window.loadWalletConnectBundle === 'function') await window.loadWalletConnectBundle();
+    var lib = window.WalletConnectEthereumProvider || window.EthereumProvider;
+    var Factory = lib && (lib.EthereumProvider || lib);
+    if (!Factory || typeof Factory.init !== 'function') throw new Error('WalletConnect failed to load.');
+    if (!wcProvider) {
+      wcProvider = await Factory.init({
+        projectId: window.PETIX_WALLETCONNECT_PROJECT_ID, showQrModal: false, optionalChains: [1],
+        metadata: { name: 'PETIX', description: 'Link a Solana wallet to Petix', url: location.origin, icons: [location.origin + '/assets/character/current-pet.jpg'] },
+      });
+    }
+    var signer = wcProvider.signer;
+    var cancel;
+    var cancelled = new Promise(function (_, reject) { cancel = function () { reject(Object.assign(new Error('Cancelled.'), { code: 4001 })); }; });
+    var onUri = function (uri) { showWalletConnectQr(uri, cancel); };
+    signer.on('display_uri', onUri);
+    var session;
+    try {
+      // Closing the QR window cancels the wait; the pending pairing just expires on the relay.
+      session = await Promise.race([
+        signer.connect({ optionalNamespaces: { solana: { methods: ['solana_signMessage'], chains: [SOLANA_MAINNET], events: [] } } }),
+        cancelled,
+      ]);
+    } finally {
+      if (signer.off) signer.off('display_uri', onUri); else if (signer.removeListener) signer.removeListener('display_uri', onUri);
+    }
+    var acc = ((session && session.namespaces && session.namespaces.solana && session.namespaces.solana.accounts) || [])[0];
+    if (!acc) throw new Error('This wallet did not share a Solana account. Try a Solana wallet like Phantom or Solflare.');
+    var address = acc.split(':').pop();
+    return {
+      address: address,
+      sign: async function (bytes) {
+        var r = await signer.request({ method: 'solana_signMessage', params: { message: b58encode(bytes), pubkey: address } }, SOLANA_MAINNET);
+        return b58decode(r && r.signature ? r.signature : r);
+      },
+    };
+  }
+
+  function showWalletConnectQr(uri, onCancel) {
+    var svg = '';
+    try { var qr = window.qrcode(0, 'M'); qr.addData(uri); qr.make(); svg = qr.createSvgTag({ cellSize: 5, margin: 0, scalable: true }); } catch (e) { svg = ''; }
+    var body = openModal(
+      '<div class="sol-qr-head"><img src="/assets/wallets/walletconnect.svg" alt="" width="32" height="32"><h2 class="souls-title">Scan with your Solana wallet</h2></div>' +
+      '<p class="souls-text">Open Phantom, Solflare or another Solana wallet on your phone and scan the code.</p>' +
+      '<div class="sol-qr">' + (svg || '<p class="souls-text">Could not draw the QR code — copy the link below.</p>') + '</div>' +
+      '<div class="souls-actions"><button class="souls-btn souls-btn--ghost" type="button" data-copy-wc>Copy link</button></div>', 'souls-modal--qr');
+    modal.__onClose = function () { if (onCancel) onCancel(); };
+    body.querySelector('[data-copy-wc]').addEventListener('click', function () {
+      try { navigator.clipboard.writeText(uri); toast('Link copied.'); } catch (e) {}
+    });
+  }
+
+  function solReward() { return Math.max(0, Math.floor(Number(st().soulsSolanaReward) || 0)); }
+
+  function short(a) { a = String(a || ''); return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
+
+  function openProfile() {
+    var s = st();
+    var sol = s.solana;
+    var solBlock;
+    if (sol) {
+      // Linked: the same row as the main wallet. The link is permanent, nothing else to say.
+      solBlock = '<div class="profile-row"><span class="profile-label">Solana wallet</span><span class="profile-value" title="' + esc(sol.address) + '">' + esc(short(sol.address)) + '</span></div>';
+    } else {
+      solBlock =
+        '<div class="sol-card">' +
+          '<div class="sol-card-head"><span class="sol-card-title">Link a Solana wallet</span>' +
+            (solReward() > 0 ? '<span class="sol-reward">+' + fmt(solReward()) + '<img src="' + SOUL_ICON + '" alt="souls" width="16" height="16"></span>' : '') +
+          '</div>' +
+          '<p class="souls-note">Link your Solana wallet to your Petix profile' + (solReward() > 0 ? ' and get ' + fmt(solReward()) + ' souls' : '') + '. It’s a one-time link: <b>you won’t be able to change it later</b>.</p>' +
+          '<div class="sol-options">' + Object.keys(METHODS).map(function (key) {
+            var m = METHODS[key];
+            var ok = m.available();
+            var badge = key === 'walletconnect' ? (ok ? '<span class="sol-badge">QR code</span>' : '<span class="sol-badge is-off">Unavailable</span>')
+              : ok ? '<span class="wallet-detected">Detected</span>' : '<span class="sol-badge is-off">Not found</span>';
+            return '<button type="button" class="sol-option" data-sol-method="' + key + '">' +
+              '<img src="' + m.icon + '" alt="" width="28" height="28">' +
+              '<span class="sol-option-text"><b>' + m.name + '</b>' + (m.note ? '<em>' + m.note + '</em>' : '') + '</span>' + badge +
+            '</button>';
+          }).join('') + '</div>' +
+        '</div>';
+    }
+    var body = openModal(
+      '<h2 class="souls-title">Profile</h2>' +
+      '<div class="profile-rows"><div class="profile-row"><span class="profile-label">Main wallet</span><span class="profile-value">' + esc(short(s.walletAddress)) + '</span></div>' +
+      (sol ? solBlock + '</div>' : '</div>' + solBlock), 'souls-modal--profile');
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sol-method]');
+      if (b) linkSolana(b.getAttribute('data-sol-method'));
+    });
+  }
+
+  function signingModal(method, text) {
+    openModal('<div class="souls-confirm-art souls-confirm-art--wallet"><img src="' + method.icon + '" alt=""></div>' +
+      '<h2 class="souls-title">' + text + '</h2><div class="fit-loader fit-loader--inline"><i></i></div>', 'souls-modal--confirm');
+  }
+
+  async function linkSolana(key) {
+    var method = METHODS[key];
+    if (!method || busy) return;
+    if (!method.available()) {
+      if (method.install) { toast(method.name + (key === 'metamask' ? ' with Solana was not found. Turn on Solana in MetaMask.' : ' is not installed in this browser.')); window.open(method.install, '_blank', 'noopener'); }
+      else toast('WalletConnect is not configured.');
+      return;
+    }
+    var signer;
+    if (key !== 'walletconnect') { busy = true; signingModal(method, 'Connect ' + method.name); }
+    try {
+      signer = await method.connect();
+    } catch (err) {
+      busy = false;
+      toast(err && err.code === 4001 ? 'Cancelled.' : (err.message || 'Could not connect the wallet.'));
+      openProfile();
+      return;
+    }
+    busy = false;
+
+    var yes = await askConfirm({
+      art: '<img src="' + method.icon + '" alt="">',
+      title: 'Link this Solana wallet?',
+      html: '<div class="souls-confirm-address">' + esc(signer.address) + '</div>' +
+        '<p><b>This is permanent.</b> You won’t be able to change it, unlink it or link another Solana wallet to this profile. Signing in stays with your main wallet.</p>' +
+        (solReward() > 0 ? '<p class="souls-confirm-reward">You get ' + soulPrice(solReward()) + ' souls.</p>' : '') +
+        '<p class="souls-confirm-hint">' + esc(method.name) + ' will ask you to sign a message. It’s free: no transaction, no fee.</p>',
+      confirm: 'Link wallet',
+      primaryClass: 'souls-btn--dark',
+    });
+    if (!yes) { openProfile(); return; }
+
+    busy = true;
+    signingModal(method, 'Sign the message in ' + method.name);
+    try {
+      var wallet = String(st().walletAddress || '').toLowerCase();
+      var message = [
+        'Petix: link this Solana wallet to my Petix profile.',
+        'Petix profile: ' + wallet,
+        'Solana wallet: ' + signer.address,
+        "This is a one-time link and can't be changed later.",
+        'Nonce: ' + Math.random().toString(36).slice(2, 10),
+        'Issued At: ' + new Date().toISOString(),
+      ].join('\n');
+      var sig = await signer.sign(new TextEncoder().encode(message));
+      var r = await app().apiRequest('/api/profile/solana-link', { address: signer.address, message: message, signature: toBase64(sig) });
+      app().setSolana(r.solana);
+      if (r.souls) app().setSouls(r.souls);
+      busy = false;
+      toast(r.soulsGained ? 'Solana wallet linked · +' + fmt(r.soulsGained) + ' souls.' : 'Solana wallet linked.');
+      openProfile();
+    } catch (err) {
+      busy = false;
+      toast(err && err.code === 4001 ? 'Cancelled in the wallet.' : (err.message || 'Could not link the wallet.'));
+      openProfile();
+    }
+  }
+
   window.PetixSouls = {
     renderShop: renderShop,
     refresh: function () { if (shopHost && !shopHost.classList.contains('hidden')) renderShop(); },
     openPutOn: openPutOn,
+    openProfile: openProfile,
   };
 })();

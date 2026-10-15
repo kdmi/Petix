@@ -1,4 +1,4 @@
-const { normalizeItems, normalizeSouls, normalizeTryOn } = require("./souls");
+const { normalizeItems, normalizeSolana, normalizeSouls, normalizeTryOn } = require("./souls");
 const { normalizeRolls } = require("./roll-ledger");
 const crypto = require("crypto");
 const fs = require("fs/promises");
@@ -71,6 +71,8 @@ const EMPTY_WALLET_PROFILE = {
   // Souls shop (031): bought items and the try-on in progress.
   items: [],
   tryOn: null,
+  // The linked Solana wallet (031): one per profile, never re-linked.
+  solana: null,
   // Журнал бросков рарности (035): сколько черновиков кошелёк разыграл.
   rolls: normalizeRolls(null),
   profileUpdatedAt: null,
@@ -236,6 +238,7 @@ function cloneWalletProfile(profile) {
     souls: normalizeSouls(profile?.souls),
     items: normalizeItems(profile?.items),
     tryOn: normalizeTryOn(profile?.tryOn),
+    solana: normalizeSolana(profile?.solana),
     rolls: normalizeRolls(profile?.rolls),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };

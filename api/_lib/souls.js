@@ -178,6 +178,11 @@ function normalizeItems(raw) {
     .map((entry) => ({ uid: String(entry.uid), itemId: String(entry.itemId), boughtAt: entry.boughtAt ? String(entry.boughtAt) : null, price: toInt(entry.price) }));
 }
 
+function normalizeSolana(raw) {
+  if (!raw || typeof raw !== "object" || !raw.address) return null;
+  return { address: String(raw.address), linkedAt: raw.linkedAt ? String(raw.linkedAt) : null };
+}
+
 function normalizeTryOn(raw) {
   if (!raw || typeof raw !== "object" || !raw.petId || !raw.itemUid) return null;
   const variants = Array.isArray(raw.variants)
@@ -267,6 +272,7 @@ module.exports = {
   listShopItems,
   normalizeItems,
   normalizeTryOn,
+  normalizeSolana,
   originalTopItem,
   publicItem,
   topItemsToRemove,
