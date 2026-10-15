@@ -91,6 +91,9 @@ module.exports = async (req, res) => {
     soulsPerBurnLevel: cfg.SOULS_PER_BURN_LEVEL,
     soulsExchange: exchangeOffer(cfg),
     soulsRespecPerLevel: cfg.SOULS_RESPEC_PER_LEVEL,
+    // Linked Solana wallet (031) and the one-time reward for linking one.
+    solana: profile.solana || null,
+    soulsSolanaReward: cfg.SOULS_SOLANA_LINK_REWARD,
     // Souls shop (031): inventory, the catalog with stock, the fitting in progress.
     items: inventoryView(profile),
     shop: await shopView(session.wallet),

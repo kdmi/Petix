@@ -255,3 +255,50 @@ body.souls-modal-open { overflow: hidden; }
 /* A swapped modal (next step of the same flow) appears without fade or pop */
 .souls-modal.is-swap { animation: none; }
 
+/* ---- Profile and the one-time Solana wallet link (031) ---- */
+/* Profile */
+.profile-rows { display: grid; gap: 8px; margin-top: 24px; }
+.profile-row { align-items: center; background: #f2f4f7; border-radius: 12px; box-sizing: border-box; display: flex; gap: 12px; justify-content: space-between; min-height: 56px; padding: 8px 16px; }
+.profile-label { color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 16px; line-height: 24px; }
+.profile-value { align-items: center; color: #101828; display: inline-flex; font-family: "Figtree", Arial, sans-serif; font-size: 16px; font-weight: 600; gap: 6px; line-height: 24px; }
+.profile-value.is-muted { color: #98a2b3; }
+.profile-linked { background: #ecfdf3; border-radius: 99px; color: #027a48; font-size: 12px; font-style: normal; padding: 2px 8px; }
+/* Profile: Solana link card with three ways to connect */
+.souls-modal--profile { max-width: 400px; }
+.sol-card { margin-top: 24px; }
+.sol-card-head { align-items: center; display: flex; justify-content: space-between; }
+.sol-card-title { color: #101828; font-family: "Figtree", Arial, sans-serif; font-size: 18px; font-weight: 700; line-height: 24px; }
+.sol-card .souls-note { color: #667085; font-size: 14px; line-height: 20px; margin: 4px 0 16px; }
+.sol-options { display: grid; gap: 8px; }
+.sol-option { align-items: center; background: #f2f4f7; border: 1px solid transparent; border-radius: 12px; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; min-height: 56px; padding: 8px 16px; text-align: left; transition: background-color 160ms ease; width: 100%; }
+.sol-option:hover { background: #eaecf0; }
+.sol-option:focus-visible { box-shadow: 0 0 0 4px #eaecf0; border-color: #101828; outline: none; }
+.sol-option img { border-radius: 8px; flex: 0 0 28px; height: 28px; object-fit: contain; width: 28px; }
+.sol-option-text { display: flex; flex: 1 1 auto; flex-direction: column; font-family: "Figtree", Arial, sans-serif; min-width: 0; }
+.sol-option-text b { color: #101828; font-size: 16px; font-weight: 600; line-height: 22px; }
+.sol-option-text em { color: #667085; font-size: 12px; font-style: normal; line-height: 16px; }
+.sol-option .wallet-detected { margin-left: 0; }
+.sol-badge { background: #fff; border-radius: 6px; color: #344054; flex: 0 0 auto; font-family: "Figtree", Arial, sans-serif; font-size: 12px; font-weight: 600; line-height: 16px; padding: 3px 7px; }
+.sol-badge.is-off { color: #98a2b3; }
+.sol-linked-address { background: #fff; border: 1px solid #eaecf0; border-radius: 12px; color: #101828; font-family: ui-monospace, Menlo, monospace; font-size: 13px; margin-top: 10px; padding: 10px 12px; word-break: break-all; }
+.souls-confirm-art--wallet img, .souls-modal--confirm .souls-confirm-art img[src*="/wallets/"] { border-radius: 14px; height: 56px; image-rendering: auto; width: 56px; }
+
+/* WalletConnect QR */
+.souls-modal--qr { max-width: 380px; text-align: center; }
+.sol-qr-head { align-items: center; display: flex; flex-direction: column; gap: 10px; }
+.sol-qr-head .souls-title { margin: 0; }
+.sol-qr { background: #fff; border: 1px solid #eaecf0; border-radius: 18px; margin: 4px auto 0; padding: 16px; width: 264px; }
+.sol-qr svg { display: block; height: 232px; width: 232px; }
+/* "New" pill next to Profile in the burger menu — same look as the Shop tab badge / landing "Beta" */
+.menu-new-badge {
+  align-items: center; background: #0ba5ec; border: 2px solid #ffffff; border-radius: 99px;
+  box-shadow: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+  color: #ffffff; display: inline-flex; font-family: "Figtree", Arial, sans-serif; font-size: 11px; font-weight: 600; line-height: 14px;
+  margin-left: 6px; padding: 2px 6px; vertical-align: 1px;
+}
+/* Solana link reward (owner 2026-10-16: 3,000 souls, once) */
+.sol-reward { align-items: center; background: #f0f9ff; border-radius: 6px; color: #026aa2; display: inline-flex; font-family: "Figtree", Arial, sans-serif; font-size: 14px; font-weight: 700; gap: 4px; line-height: 20px; padding: 2px 8px; }
+.sol-reward img { height: 16px; width: 16px; }
+.souls-confirm-reward { align-items: center; color: #101828; display: flex; font-weight: 600; gap: 4px; justify-content: center; }
+.souls-confirm-art--phantom img, .souls-modal--confirm .souls-confirm-art img[src*="phantom"] { border-radius: 16px; height: 64px; image-rendering: auto; width: 64px; }
+.souls-confirm-address { background: #f4f3ff; border-radius: 12px; color: #101828; font-family: ui-monospace, Menlo, monospace; font-size: 13px; margin: 0 0 12px; padding: 10px 12px; word-break: break-all; }

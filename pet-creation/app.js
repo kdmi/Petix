@@ -673,6 +673,7 @@ const dashboardTabArena = document.getElementById("dashboardTabArena");
 const dashboardTabShop = document.getElementById("dashboardTabShop");
 const screenShop = document.getElementById("screenShop");
 const cabinetHistoryBtn = document.getElementById("cabinetHistoryBtn");
+const walletMenuProfile = document.getElementById("walletMenuProfile");
 const dashboardTabExpeditions = document.getElementById("dashboardTabExpeditions");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
 const dashboardEnergy = document.getElementById("dashboardEnergy");
@@ -1105,6 +1106,8 @@ const state = {
   items: [],
   shopItems: [],
   tryOn: null,
+  solana: null,
+  soulsSolanaReward: 0,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3364,6 +3367,8 @@ function syncStateWithPayload(payload = {}) {
   if (Array.isArray(payload.items)) state.items = payload.items;
   if (Array.isArray(payload.shop)) state.shopItems = payload.shop;
   if ("tryOn" in payload) state.tryOn = payload.tryOn || null;
+  if ("solana" in payload) state.solana = payload.solana || null;
+  if (typeof payload.soulsSolanaReward === "number") state.soulsSolanaReward = payload.soulsSolanaReward;
   if (window.PetixSouls) window.PetixSouls.refresh();
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
@@ -11385,6 +11390,7 @@ function renderAdminEconomy() {
           ecoNumberRow("Exchange: energy", "SOULS_EXCHANGE_ENERGY", cfg.SOULS_EXCHANGE_ENERGY),
           ecoNumberRow("Exchange: souls it gives", "SOULS_EXCHANGE_SOULS", cfg.SOULS_EXCHANGE_SOULS),
           ecoNumberRow("Redistribute points: souls per pet level", "SOULS_RESPEC_PER_LEVEL", cfg.SOULS_RESPEC_PER_LEVEL),
+          ecoNumberRow("Solana wallet link reward", "SOULS_SOLANA_LINK_REWARD", cfg.SOULS_SOLANA_LINK_REWARD),
         ])}
         ${saveFooter}
       </section>`;
@@ -12628,6 +12634,13 @@ function init() {
     });
   }
 
+  if (walletMenuProfile) {
+    walletMenuProfile.addEventListener("click", () => {
+      hideWalletMenu();
+      if (window.PetixSouls) window.PetixSouls.openProfile();
+    });
+  }
+
   if (cabinetHistoryBtn) {
     cabinetHistoryBtn.addEventListener("click", () => {
       clearArenaAnimation();
@@ -13135,7 +13148,7 @@ if (document.readyState === "loading") {
   init();
 }
 
-// Souls shop (031): the bridge pet-creation/souls.js talks through (shop, try-on).
+// Souls (031): the bridge pet-creation/souls.js talks through (shop, try-on, profile).
 window.PetixApp = {
   apiRequest,
   getState: () => state,
@@ -13162,5 +13175,8 @@ window.PetixApp = {
   },
   setTryOn(tryOn) {
     state.tryOn = tryOn || null;
+  },
+  setSolana(solana) {
+    state.solana = solana || null;
   },
 };
