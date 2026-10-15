@@ -5,6 +5,7 @@ const HANDLERS = {
   "buy-energy": require("../../server-routes/character/buy-energy"),
   "buy-slot": require("../../server-routes/character/buy-slot"),
   create: require("../../server-routes/character/create"),
+  "exchange-energy": require("../../server-routes/character/exchange-energy"),
   "farm-claim": require("../../server-routes/character/farm-claim"),
   "farm-start": require("../../server-routes/character/farm-start"),
   image: require("../../server-routes/character/image"),
