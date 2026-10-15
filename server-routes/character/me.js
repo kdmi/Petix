@@ -1,4 +1,5 @@
-const { exchangeOffer } = require("../../api/_lib/souls");
+const { exchangeOffer, inventoryView } = require("../../api/_lib/souls");
+const { currentTryOn, shopView } = require("../../api/_lib/shop");
 const { getSessionFromRequest, handleCors, json } = require("../../api/_lib/auth");
 const {
   serializeBattleState,
@@ -90,6 +91,10 @@ module.exports = async (req, res) => {
     soulsPerBurnLevel: cfg.SOULS_PER_BURN_LEVEL,
     soulsExchange: exchangeOffer(cfg),
     soulsRespecPerLevel: cfg.SOULS_RESPEC_PER_LEVEL,
+    // Souls shop (031): inventory, the catalog with stock, the fitting in progress.
+    items: inventoryView(profile),
+    shop: await shopView(session.wallet),
+    tryOn: currentTryOn(profile),
     profileUpdatedAt: profile.profileUpdatedAt || null,
   });
 };

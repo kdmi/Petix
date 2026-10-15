@@ -669,6 +669,10 @@ const dashboardTabs = document.getElementById("dashboardTabs");
 const topbarSignIn = document.getElementById("topbarSignIn");
 const dashboardTabMyPets = document.getElementById("dashboardTabMyPets");
 const dashboardTabArena = document.getElementById("dashboardTabArena");
+// Souls shop (031): the Shop tab replaces Arena; battle history opens from My Pets.
+const dashboardTabShop = document.getElementById("dashboardTabShop");
+const screenShop = document.getElementById("screenShop");
+const cabinetHistoryBtn = document.getElementById("cabinetHistoryBtn");
 const dashboardTabExpeditions = document.getElementById("dashboardTabExpeditions");
 const arenaStartFightBtn = document.getElementById("arenaStartFightBtn");
 const dashboardEnergy = document.getElementById("dashboardEnergy");
@@ -1098,6 +1102,9 @@ const state = {
   soulsPerBurnLevel: 1000,
   soulsExchange: { energy: 50, souls: 5000 },
   soulsRespecPerLevel: 3000,
+  items: [],
+  shopItems: [],
+  tryOn: null,
   energyShop: null, // магазин энергии (020): пакеты и кулдауны из /api/character/me
   openCardMenuId: "",
   burningCharacterId: "",
@@ -3354,6 +3361,10 @@ function syncStateWithPayload(payload = {}) {
   if (typeof payload.soulsPerBurnLevel === "number") state.soulsPerBurnLevel = payload.soulsPerBurnLevel;
   if (payload.soulsExchange && typeof payload.soulsExchange === "object") state.soulsExchange = { ...payload.soulsExchange };
   if (typeof payload.soulsRespecPerLevel === "number") state.soulsRespecPerLevel = payload.soulsRespecPerLevel;
+  if (Array.isArray(payload.items)) state.items = payload.items;
+  if (Array.isArray(payload.shop)) state.shopItems = payload.shop;
+  if ("tryOn" in payload) state.tryOn = payload.tryOn || null;
+  if (window.PetixSouls) window.PetixSouls.refresh();
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
     updateEnergyUi();
@@ -3470,14 +3481,22 @@ function openDashboardFromMenu() {
 }
 
 function syncDashboardTabs(step = state.step) {
-  if (!dashboardTabMyPets || !dashboardTabArena) return;
+  if (!dashboardTabMyPets) return;
 
   const isArena = step === "arena";
   const isExpeditions = step === "expeditions";
-  dashboardTabMyPets.classList.toggle("active", !isArena && !isExpeditions);
-  dashboardTabArena.classList.toggle("active", isArena);
-  dashboardTabMyPets.setAttribute("aria-selected", isArena || isExpeditions ? "false" : "true");
-  dashboardTabArena.setAttribute("aria-selected", isArena ? "true" : "false");
+  const isShop = step === "shop";
+  // Battle history now lives under My Pets, so the arena keeps My Pets highlighted.
+  dashboardTabMyPets.classList.toggle("active", !isShop && !isExpeditions);
+  if (dashboardTabShop) {
+    dashboardTabShop.classList.toggle("active", isShop);
+    dashboardTabShop.setAttribute("aria-selected", isShop ? "true" : "false");
+  }
+  if (dashboardTabArena) {
+    dashboardTabArena.classList.toggle("active", isArena);
+    dashboardTabArena.setAttribute("aria-selected", isArena ? "true" : "false");
+  }
+  dashboardTabMyPets.setAttribute("aria-selected", isShop || isExpeditions ? "false" : "true");
   if (dashboardTabExpeditions) {
     dashboardTabExpeditions.classList.toggle("active", isExpeditions);
     dashboardTabExpeditions.setAttribute("aria-selected", isExpeditions ? "true" : "false");
@@ -3546,7 +3565,7 @@ function getRequestedScreen() {
     return "";
   }
 
-  return ["type", "cabinet", "admin", "arena", "upgrade", "expeditions"].includes(screen) ? screen : "";
+  return ["type", "cabinet", "admin", "arena", "upgrade", "expeditions", "shop"].includes(screen) ? screen : "";
 }
 
 function getArenaPreviewMode() {
@@ -3578,6 +3597,8 @@ function syncDashboardRouteState(step, { battleId = "", petId = "", replace = tr
     url.searchParams.set("screen", "admin");
   } else if (step === "expeditions") {
     url.searchParams.set("screen", "expeditions");
+  } else if (step === "shop") {
+    url.searchParams.set("screen", "shop");
   } else {
     url.searchParams.delete("screen");
   }
@@ -3619,6 +3640,7 @@ function getPageMode() {
   if (requestedScreen === "arena") return "dashboard";
   if (requestedScreen === "upgrade") return "dashboard";
   if (requestedScreen === "expeditions") return "dashboard";
+  if (requestedScreen === "shop") return "dashboard";
   if (requestedScreen === "admin") return "admin";
   return "creation";
 }
@@ -3679,6 +3701,8 @@ async function restoreCharacterState() {
               ? "upgrade"
               : requestedScreen === "expeditions"
                 ? "expeditions"
+                : requestedScreen === "shop"
+                  ? "shop"
             : "cabinet"
       );
       return true;
@@ -3714,6 +3738,8 @@ async function restoreCharacterState() {
             ? "upgrade"
             : requestedScreen === "expeditions"
               ? "expeditions"
+              : requestedScreen === "shop"
+                ? "shop"
             : "cabinet"
       );
       return true;
@@ -3918,7 +3944,7 @@ function resetStepScroll() {
 }
 
 function showScreen(targetId) {
-  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenArena, screenAdmin, screenExpeditions].forEach(
+  [screenType, screenProcess, screenPowers, screenAttrs, screenSuccess, screenCabinet, screenArena, screenAdmin, screenExpeditions, screenShop].forEach(
     (screen) => {
       if (!screen) return;
       screen.classList.toggle("hidden", screen.id !== targetId);
@@ -3937,7 +3963,8 @@ function setProgress(step) {
         step === "arena" ||
         step === "admin" ||
         step === "upgrade" ||
-        step === "expeditions"
+        step === "expeditions" ||
+        step === "shop"
     );
   }
 
@@ -8796,6 +8823,18 @@ ${
                 class="cabinet-card-menu-item"
                 type="button"
                 role="menuitem"
+                data-action="put-on-item"
+                data-character-id="${record.id}"
+              >
+                <span class="cabinet-card-menu-item__label">
+                  <img src="/assets/souls/hanger.svg" alt="" width="20" height="20" />
+                  Put on item
+                </span>
+              </button>
+              <button
+                class="cabinet-card-menu-item"
+                type="button"
+                role="menuitem"
                 data-action="respec"
                 data-character-id="${record.id}"
               >
@@ -12033,6 +12072,11 @@ function moveTo(step, { replace = true } = {}) {
     syncDashboardTabs(step);
     void mountExpeditions();
   }
+  if (step === "shop") {
+    showScreen("screenShop");
+    if (dashboardTabs) dashboardTabs.classList.remove("hidden");
+    if (window.PetixSouls) window.PetixSouls.renderShop(screenShop);
+  }
   if (step === "admin") {
     showScreen("screenAdmin");
     renderAdminTable();
@@ -12576,6 +12620,24 @@ function init() {
     });
   }
 
+  if (dashboardTabShop) {
+    dashboardTabShop.addEventListener("click", () => {
+      clearArenaAnimation();
+      state.activeBattle = null;
+      moveTo("shop");
+    });
+  }
+
+  if (cabinetHistoryBtn) {
+    cabinetHistoryBtn.addEventListener("click", () => {
+      clearArenaAnimation();
+      state.activeBattle = null;
+      clearArenaReplayRequest();
+      state.arenaSelectedHistoryBattleId = "";
+      moveTo("arena");
+    });
+  }
+
   if (dashboardTabExpeditions) {
     dashboardTabExpeditions.addEventListener("click", () => {
       clearArenaAnimation();
@@ -12642,6 +12704,15 @@ function init() {
         event.preventDefault();
         event.stopPropagation();
         toggleCabinetCardMenu(cardMenuButton.dataset.characterId);
+        return;
+      }
+
+      const putOnButton = event.target.closest('[data-action="put-on-item"]');
+      if (putOnButton) {
+        event.preventDefault();
+        closeCabinetCardMenu();
+        const record = findCharacterById(putOnButton.dataset.characterId);
+        if (record && window.PetixSouls) window.PetixSouls.openPutOn(record);
         return;
       }
 
@@ -13043,6 +13114,8 @@ function init() {
           ? "upgrade"
           : requestedScreen === "expeditions"
             ? "expeditions"
+            : requestedScreen === "shop"
+              ? "shop"
           : "cabinet"
     );
     return;
@@ -13061,3 +13134,33 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+
+// Souls shop (031): the bridge pet-creation/souls.js talks through (shop, try-on).
+window.PetixApp = {
+  apiRequest,
+  getState: () => state,
+  showToast,
+  formatPoints,
+  escapeHtml,
+  moveTo,
+  async reloadProfile() {
+    const data = await apiRequest("/api/character/me", {}, "GET");
+    syncStateWithPayload(data);
+    if (isCabinetScreenActive()) renderCabinet();
+    return data;
+  },
+  setSouls(souls) {
+    if (!souls) return;
+    state.souls = { ...souls };
+    updateDashboardSoulsUi();
+  },
+  setItems(items) {
+    if (Array.isArray(items)) state.items = items;
+  },
+  setShop(shop) {
+    if (Array.isArray(shop)) state.shopItems = shop;
+  },
+  setTryOn(tryOn) {
+    state.tryOn = tryOn || null;
+  },
+};

@@ -650,9 +650,48 @@ async function pinToPinata(buffer, fileName, mimeType, jwt) {
   };
 }
 
-async function snapshotCharacterImage(tokenId, character) {
+/**
+ * Souls (031): the pet's picture changed (an item was put on it) — take a new
+ * snapshot for its capsule, point the binding at it and ask the marketplace to
+ * re-read the token (new image + Top Item trait). No debounce: this is a
+ * one-off change the owner paid for, not a level-up stream.
+ * Returns the new image URI, or null when the pet is not in a capsule.
+ */
+async function resnapshotBoundCharacterImage(character, depOverrides) {
+  if (!isNftEnabled() || !character?.id) return null;
+  const deps = resolveDeps(depOverrides);
+  const binding = await deps.store.getBindingByCharacterId(character.id);
+  if (!binding) return null;
+
+  const version = String(deps.now()).slice(-10);
+  const snapshot = deps.snapshotImage
+    ? await deps.snapshotImage(binding.tokenId, character, { version })
+    : await snapshotCharacterImage(binding.tokenId, character, { version });
+
+  const now = deps.now();
+  await deps.store.withNftState((state) => {
+    const stored = state.bindings[String(binding.tokenId)];
+    // The capsule may have been emptied or moved on meanwhile — only touch our pet's binding.
+    if (stored && stored.characterId === character.id) {
+      stored.imageUri = snapshot.imageUri;
+      stored.imageGatewayUrl = snapshot.imageGatewayUrl || null;
+      stored.imageUpdatedAt = new Date(now).toISOString();
+      stored.refreshedAt = new Date(now).toISOString();
+    }
+    return state;
+  });
+
+  const delivered = await requestMarketplaceRefresh(binding.tokenId);
+  await markForVerification(binding.tokenId, deps);
+  if (!delivered) await markRefreshPending(binding.tokenId, now, deps);
+  return snapshot.imageUri;
+}
+
+async function snapshotCharacterImage(tokenId, character, { version = "" } = {}) {
   const { extension, mimeType } = getImageMeta(character);
-  const fileName = `${tokenId}-${character.id}.${extension}`;
+  // A re-snapshot (031: the pet put on an item) gets its own write-once file;
+  // the bind-time name would hit the existing blob and keep the old picture.
+  const fileName = `${tokenId}-${character.id}${version ? `-${version}` : ""}.${extension}`;
   const buffer = await readCharacterImageBytes(character);
 
   const pinataJwt = process.env.NFT_PINATA_JWT;
@@ -1659,6 +1698,7 @@ module.exports = {
   normalizeTokenId,
   processPendingUnbinds,
   refreshBoundCharacterMetadata,
+  resnapshotBoundCharacterImage,
   drainRefreshQueue,
   scheduleFullRefresh,
   isMarketplaceInSync,

@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="/pet-creation/styles.css?v=20260925a" />
     <link rel="stylesheet" href="/pet-creation/expeditions.css?v=20261015a" />
     <link rel="stylesheet" href="/ui-kit/petix-ui.css?v=20261015a" />
-    <link rel="stylesheet" href="/pet-creation/souls.css?v=20261015b" />
+    <link rel="stylesheet" href="/pet-creation/souls.css?v=20261015c" />
   </head>
   <body class="app-booting" data-page="dashboard">
     <main class="creation-page">
@@ -41,7 +41,7 @@
         </div>
         <nav class="dashboard-tabs" id="dashboardTabs" aria-label="Dashboard pages">
           <button class="dashboard-tab active" id="dashboardTabMyPets" type="button">My Pets</button>
-          <button class="dashboard-tab" id="dashboardTabArena" type="button">Arena</button>
+          <button class="dashboard-tab" id="dashboardTabShop" type="button">Souls shop</button>
           <button class="dashboard-tab hidden" id="dashboardTabExpeditions" type="button">Expeditions</button>
         </nav>
         <div class="topbar-actions">
@@ -337,12 +337,17 @@
             <h1>My Pets</h1>
             <p id="cabinetCount">Loading...</p>
           </div>
-          <button class="primary-btn cabinet-create-btn enabled" id="createAnotherBtn" type="button">
-            Create pet
-          </button>
+          <div class="cabinet-header-actions">
+            <button class="secondary-btn cabinet-history-btn" id="cabinetHistoryBtn" type="button" aria-label="Battle history" title="Battle history"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 4.5v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Battle history</span></button>
+            <button class="primary-btn cabinet-create-btn enabled" id="createAnotherBtn" type="button">
+              Create pet
+            </button>
+          </div>
         </div>
         <div class="cabinet-grid" id="cabinetCard"></div>
       </section>
+
+      <section class="screen hidden" id="screenShop" aria-label="Souls shop"></section>
 
       <section class="screen hidden" id="screenArena">
         <div class="arena-layout" id="arenaLayout">
@@ -632,6 +637,7 @@
     <script src="/pet-creation/expedition-tutorial.js?v=20261015a"></script>
     <script src="/pet-creation/expedition-battle.js?v=20261015a"></script>
     <script src="/pet-creation/expeditions.js?v=20261015a"></script>
-    <script src="/pet-creation/app.js?v=20261015b"></script>
+    <script src="/pet-creation/souls.js?v=20261015a"></script>
+    <script src="/pet-creation/app.js?v=20261015c"></script>
   </body>
 </html>

@@ -57,3 +57,201 @@
 /* Card menu: labels and prices stay on one line ("Redistribute points" wrapped in a narrow menu) */
 .cabinet-card-menu-item__label,
 .cabinet-card-menu-item__price { white-space: nowrap; }
+
+/* ---- Souls shop (031): shop screen, item fitting, in-app modals, Battle history link ---- */
+/* My Pets: Battle history — a quiet icon link next to Create pet, centred on it */
+.cabinet-header-actions { align-items: center; display: flex; flex: 0 0 auto; gap: 24px; }
+.cabinet-header-actions .cabinet-create-btn { margin-top: 0; } /* primary-btn carries margin-top: 24px, which pushed it below the link */
+.cabinet-history-btn {
+  align-items: center; background: none; border: 0; border-radius: 8px; box-shadow: none; color: #475467; cursor: pointer; display: inline-flex;
+  font-family: "Figtree", Arial, sans-serif; font-size: 16px; font-weight: 600; gap: 6px; line-height: 24px; padding: 4px 2px;
+}
+.cabinet-history-btn svg { flex: 0 0 auto; height: 20px; width: 20px; }
+.cabinet-history-btn span { text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: text-decoration-color 120ms ease; }
+.cabinet-history-btn:hover { color: #101828; }
+.cabinet-history-btn:hover span { text-decoration-color: currentColor; }
+.cabinet-history-btn:focus-visible { outline: 2px solid #101828; outline-offset: 2px; }
+@media (max-width: 767px) {
+  /* Phones: icon only, same 48px row as the round "+" so both sit on one line. */
+  .cabinet-header { grid-template-columns: minmax(0, 1fr) auto; }
+  .cabinet-header-actions { align-self: start; gap: 4px; grid-area: action; height: 48px; }
+  .cabinet-history-btn { color: #344054; height: 48px; justify-content: center; padding: 0; width: 40px; }
+  .cabinet-history-btn svg { height: 24px; width: 24px; }
+  .cabinet-history-btn span { display: none; }
+}
+
+/* Shop */
+#screenShop { align-items: stretch; margin-top: 96px; max-width: 1148px; text-align: left; width: 100%; }
+@media (max-width: 767px) { #screenShop { margin-top: 0; max-width: 100%; padding: 123px 16px 112px; } }
+.shop { display: flex; flex-direction: column; gap: 24px; }
+/* Same frame as My Pets: title left, the switch right on the same row */
+.shop-head { align-items: flex-end; display: flex; gap: 24px; justify-content: space-between; }
+.shop-head-copy { min-width: 0; }
+.shop-head h1 { margin: 0; }
+.shop-head p { color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 16px; line-height: 24px; margin: 8px 0 0; }
+.soul-price { align-items: center; color: #101828; display: inline-flex; font-family: "Figtree", Arial, sans-serif; font-size: 16px; font-weight: 700; gap: 4px; line-height: 20px; }
+.shop-tabs { background: #eaecf0; border-radius: 99px; display: inline-flex; flex: 0 0 auto; gap: 4px; padding: 4px; width: max-content; }
+.shop-tab { background: transparent; border: 0; border-radius: 99px; color: #475467; cursor: pointer; font-family: "Figtree", Arial, sans-serif; font-size: 14px; font-weight: 700; padding: 8px 16px; }
+.shop-tab.is-active { background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1); color: #101828; }
+.shop-count { background: #101828; border-radius: 99px; color: #fff; font-size: 11px; margin-left: 4px; padding: 1px 6px; }
+/* Same columns as the My Pets grid (264px cards, 24px gap, centred tracks) so cards line up page to page */
+.shop-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, 264px); justify-content: center; }
+.shop-card { background: #fff; border: 1px solid #eaecf0; border-radius: 20px; box-shadow: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08); display: flex; flex-direction: column; overflow: hidden; }
+/* Item art fills the whole top of the card, edge to edge (the art carries its own background) */
+.shop-card-art { aspect-ratio: 1 / 1; display: block; overflow: hidden; }
+.shop-card-art img { display: block; height: 100%; object-fit: cover; width: 100%; }
+.shop-card-body { display: flex; flex-direction: column; gap: 6px; padding: 16px; }
+.shop-card-body h3 { color: #101828; font-family: "Fraunces", Georgia, serif; font-size: 20px; line-height: 26px; margin: 0; }
+.shop-card-effect { color: #027a48; font-family: "Figtree", Arial, sans-serif; font-size: 14px; font-weight: 600; line-height: 20px; margin: 0; }
+.shop-card-foot { align-items: center; display: flex; gap: 12px; justify-content: space-between; margin-top: 10px; }
+.shop-owned { color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 14px; }
+/* My items, empty: kit px-empty + a picture of three item slots */
+.shop-empty { grid-column: 1 / -1; padding: 48px 24px; }
+.shop-empty .px-body-sm { max-width: 360px; }
+.shop-empty-art { align-items: center; display: flex; gap: 12px; justify-content: center; margin-bottom: 16px; }
+.shop-empty-slot { border-radius: var(--px-radius-xl); box-sizing: border-box; display: block; }
+.shop-empty-slot--side { background: rgba(255, 255, 255, 0.6); border: 2px dashed var(--px-gray-300); height: 56px; width: 56px; }
+.shop-empty-slot--side:first-child { transform: rotate(-8deg) translateY(6px); }
+.shop-empty-slot--side:last-child { transform: rotate(8deg) translateY(6px); }
+.shop-empty-slot--main { align-items: center; animation: shop-empty-float 3.2s ease-in-out infinite; background: var(--px-surface); border: 1px solid var(--px-border); box-shadow: var(--px-shadow-card); display: flex; height: 80px; justify-content: center; width: 80px; }
+.px-empty .shop-empty-slot--main img { height: 32px; margin: 0; width: 32px; }
+@keyframes shop-empty-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .shop-empty-slot--main { animation: none; } }
+@media (max-width: 767px) {
+  .shop-head { align-items: stretch; flex-direction: column; gap: 16px; }
+  .shop-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .shop-grid { grid-template-columns: 1fr 1fr; gap: 12px; justify-content: stretch; }
+  .shop-card-body { padding: 12px; }
+  .shop-card-body h3 { font-size: 16px; line-height: 22px; }
+  .shop-card-foot { align-items: stretch; flex-direction: column; gap: 8px; }
+}
+
+/* Buttons */
+.souls-btn { align-items: center; border: 0; border-radius: 42px; cursor: pointer; display: inline-flex; font-family: "Figtree", Arial, sans-serif; font-size: 14px; font-weight: 700; gap: 8px; justify-content: center; line-height: 20px; padding: 10px 16px; }
+.souls-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.souls-btn--dark { background: #101828; color: #fff; }
+.souls-btn--dark:not(:disabled):hover { background: #344054; }
+.souls-btn--ghost { background: #fff; border: 1px solid #d0d5dd; color: #101828; }
+
+/* Modals */
+body.souls-modal-open { overflow: hidden; }
+.souls-backdrop { align-items: center; animation: souls-fade-in 220ms ease; background: rgba(0, 0, 0, 0.7); display: flex; inset: 0; justify-content: center; padding: 16px; position: fixed; z-index: 1300; }
+.souls-modal { animation: souls-pop 280ms cubic-bezier(0.16, 1, 0.3, 1); background: #fff; border-radius: 24px; box-shadow: 0 32px 64px -12px rgba(16, 24, 40, 0.24); box-sizing: border-box; font-family: "Figtree", Arial, sans-serif; max-height: calc(100vh - 32px); max-width: 400px; overflow: auto; padding: 24px; position: relative; width: 100%; }
+.souls-close { align-items: center; background: #eaecf0; border: 0; border-radius: 999px; color: #101828; cursor: pointer; display: inline-flex; height: 32px; justify-content: center; padding: 0; position: absolute; right: 16px; top: 16px; transition: background-color 160ms ease; width: 32px; z-index: 1; }
+.souls-close:hover { background: #d0d5dd; }
+.souls-close svg { height: 16px; width: 16px; }
+@keyframes souls-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes souls-pop { from { opacity: 0; transform: translateY(6px) scale(0.95); } to { opacity: 1; transform: none; } }
+@media (max-width: 767px) { .souls-modal { padding: 20px 16px 16px; } .souls-close { right: 12px; top: 12px; } }
+.souls-title { color: #101828; font-family: "Fraunces", Georgia, serif; font-size: 24px; font-weight: 600; line-height: 32px; margin: 0 0 8px; padding-right: 40px; }
+.souls-text { color: #475467; font-family: "Figtree", Arial, sans-serif; font-size: 14px; line-height: 20px; margin: 0 0 16px; }
+.souls-note { color: #475467; font-family: "Figtree", Arial, sans-serif; font-size: 13px; line-height: 18px; margin: 8px 0 0; }
+.souls-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+.souls-actions .souls-btn { flex: 1 1 0; }
+
+.souls-item-list, .souls-pet-list { display: flex; flex-direction: column; gap: 8px; }
+.souls-item, .souls-pet { align-items: center; background: #f9fafb; border: 1px solid #eaecf0; border-radius: 14px; cursor: pointer; display: flex; font-family: "Figtree", Arial, sans-serif; gap: 12px; padding: 8px; text-align: left; }
+.souls-item:hover, .souls-pet:hover { border-color: #101828; }
+.souls-item img, .souls-pet img { background: #fff; border-radius: 10px; height: 56px; image-rendering: pixelated; object-fit: contain; width: 56px; }
+.souls-item span { display: flex; flex-direction: column; }
+.souls-item b, .souls-pet span { color: #101828; font-size: 16px; }
+.souls-item em, .souls-pet em { color: #027a48; font-size: 13px; font-style: normal; font-weight: 600; }
+.souls-pet em { color: #667085; margin-left: auto; }
+
+/* Fitting */
+.souls-modal--fitting { max-width: 480px; }
+.fit-stage { aspect-ratio: 1 / 1; background: #f9fafb; border-radius: 18px; overflow: hidden; position: relative; }
+.fit-stage img { height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.fit-stage.is-rendering img { filter: blur(3px) grayscale(0.4); opacity: 0.6; }
+.fit-loader { align-items: center; display: flex; flex-direction: column; gap: 12px; inset: 0; justify-content: center; position: absolute; }
+.fit-loader i { animation: fit-spin 0.9s linear infinite; border: 4px solid rgba(16, 24, 40, 0.15); border-radius: 50%; border-top-color: #101828; height: 40px; width: 40px; }
+.fit-loader span { background: rgba(255, 255, 255, 0.92); border-radius: 99px; color: #101828; font-family: "Figtree", Arial, sans-serif; font-size: 14px; font-weight: 700; padding: 6px 12px; }
+@keyframes fit-spin { to { transform: rotate(360deg); } }
+.fit-thumbs { display: grid; gap: 8px; grid-template-columns: repeat(4, 1fr); margin-top: 12px; }
+.fit-thumb { aspect-ratio: 1 / 1; background: #f9fafb; border: 2px solid transparent; border-radius: 12px; cursor: pointer; margin: 0; overflow: hidden; padding: 0; position: relative; }
+.fit-thumb img { height: 100%; image-rendering: pixelated; object-fit: cover; width: 100%; }
+.fit-thumb figcaption { background: rgba(16, 24, 40, 0.7); border-radius: 99px; bottom: 4px; color: #fff; font-family: "Figtree", Arial, sans-serif; font-size: 11px; font-weight: 700; left: 50%; padding: 1px 6px; position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.fit-thumb.is-selected { border-color: #101828; }
+.fit-thumb.is-before { cursor: default; opacity: 0.75; }
+.fit-thumb.is-empty { align-items: center; border: 2px dashed #d0d5dd; color: #98a2b3; cursor: default; display: flex; font-family: "Figtree", Arial, sans-serif; font-weight: 700; justify-content: center; }
+
+/* In-app confirm (buy) */
+.souls-modal--confirm { max-width: 400px; text-align: center; }
+.souls-modal--confirm .souls-title { margin: 0 0 8px; }
+.souls-modal--confirm .souls-text p { margin: 0 0 10px; }
+.souls-confirm-art { align-items: center; background: #fff; border: 1px solid #eaecf0; border-radius: 20px; display: flex; height: 112px; justify-content: center; margin: 4px auto 16px; width: 112px; }
+.souls-confirm-art img { height: 84px; image-rendering: pixelated; object-fit: contain; width: 84px; }
+.souls-confirm-sum { align-items: center; border-top: 1px solid #eaecf0; display: flex; justify-content: space-between; padding: 10px 0; text-align: left; }
+.souls-confirm-sum span:first-child { color: #667085; }
+.souls-confirm-hint { color: #667085; font-size: 13px; }
+.fit-loader--inline { margin: 12px 0 8px; position: static; }
+
+/* Limited run: units left badge, one per player */
+.shop-card { position: relative; }
+.shop-stock { background: #101828; border-radius: 99px; color: #fff; font-family: "Figtree", Arial, sans-serif; font-size: 12px; font-weight: 700; left: 12px; line-height: 16px; padding: 4px 10px; position: absolute; top: 12px; z-index: 1; }
+.shop-stock.is-out { background: #f04438; }
+.shop-card.is-soldout .shop-card-art img { filter: grayscale(1); opacity: 0.5; }
+.shop-card-limit { color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 12px; line-height: 16px; margin: 0; }
+
+/* "New" badge on the Shop tab — same pill as the landing's "Beta" (index.html #beta-badge-style), sized for a tab */
+.dashboard-tabs { overflow: visible; }
+#dashboardTabShop { overflow: visible; position: relative; }
+#dashboardTabShop::after {
+  align-items: center; background: #0ba5ec; border: 2px solid #ffffff; border-radius: 99px;
+  box-shadow: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+  color: #ffffff; content: "New"; display: flex; font-family: "Figtree", Arial, sans-serif; font-size: 11px; font-weight: 600;
+  justify-content: center; line-height: 14px; padding: 2px 6px; pointer-events: none; position: absolute; right: -10px; top: -12px; white-space: nowrap; z-index: 10;
+}
+@media (max-width: 767px) {
+  #dashboardTabShop::after { right: 6px; top: -10px; }
+}
+
+/* Teams (owner 2026-10-13): Halo = Good team, Devil Horns = Bad team — affiliation, no bonus */
+.shop-card-team { border-radius: 99px; display: inline-block; font-family: "Figtree", Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 18px; margin: 0; padding: 2px 10px; width: max-content; }
+.shop-card-team.is-good, .souls-item em.is-good { background: #fef6e7; color: #b54708; }
+.shop-card-team.is-bad, .souls-item em.is-bad { background: #fef3f2; color: #b42318; }
+.souls-item em.is-good, .souls-item em.is-bad { border-radius: 99px; margin-top: 2px; padding: 0 8px; width: max-content; }
+
+/* Fitting: generation animation (same Lottielab file as pet creation), then one picture */
+.souls-modal--rendering { text-align: center; }
+.fit-process { display: flex; justify-content: center; margin: 4px 0 8px; }
+.fit-lottie { border: 0; display: block; height: 220px; width: 220px; }
+.fit-process-title { margin: 0 0 6px; }
+.fit-process-text { margin: 0; }
+.fit-thumbs { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.fit-thumbs .fit-thumb { flex: 0 0 72px; height: 72px; width: 72px; }
+
+/* Shop card text (owner 2026-10-13): a plain description under the name, no tags;
+   price with "One per account" under it, centred on the Buy button */
+.shop-card-desc { color: #475467; font-family: "Figtree", Arial, sans-serif; font-size: 14px; line-height: 20px; margin: 0; }
+.shop-card-foot { align-items: center; }
+.shop-card-price { display: flex; flex-direction: column; gap: 2px; }
+.shop-card-limit { color: #667085; font-family: "Figtree", Arial, sans-serif; font-size: 12px; line-height: 16px; }
+.souls-item em { color: #475467; font-weight: 500; }
+@media (max-width: 767px) {
+  .shop-card-foot { align-items: stretch; }
+}
+
+/* Item art is full-bleed (owner's pictures have their own background) */
+.souls-confirm-art { background: none; border: 0; overflow: hidden; padding: 0; }
+.souls-confirm-art img { border-radius: 20px; height: 112px; image-rendering: auto; object-fit: cover; width: 112px; }
+.souls-item img { image-rendering: auto; object-fit: cover; }
+
+/* Rendering window: compact and square-ish around the animation (it inherited the 480px fitting width) */
+.souls-modal.souls-modal--rendering { align-items: center; display: flex; flex-direction: column; max-width: 340px; min-height: 340px; justify-content: center; padding: 28px 24px; }
+.souls-modal--rendering .souls-close { right: 12px; top: 8px; }
+.souls-modal--rendering .fit-process { margin: 0 0 12px; }
+.souls-modal--rendering .fit-lottie { height: 200px; width: 200px; }
+.souls-modal--rendering .fit-process-title { font-size: 20px; line-height: 26px; margin: 0 0 4px; padding: 0; text-align: center; }
+.souls-modal--rendering .fit-process-text { font-size: 13px; line-height: 18px; }
+
+/* My items: the action is the whole footer, no caption */
+.shop-card-foot--full .souls-btn { width: 100%; }
+
+/* The pet that just put an item on: a short glow when we land back on My Pets */
+@keyframes just-dressed { 0% { box-shadow: 0 0 0 0 rgba(11, 165, 236, 0.55); } 100% { box-shadow: 0 0 0 18px rgba(11, 165, 236, 0); } }
+.cabinet-character.is-just-dressed { animation: just-dressed 0.8s ease-out 2; border-radius: 24px; }
+
+/* A swapped modal (next step of the same flow) appears without fade or pop */
+.souls-modal.is-swap { animation: none; }
+
