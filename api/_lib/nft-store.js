@@ -100,6 +100,7 @@ function normalizeBinding(tokenId, raw) {
     wallet: String(raw.wallet || "").toLowerCase(),
     imageUri: raw.imageUri ? String(raw.imageUri) : null,
     imageGatewayUrl: raw.imageGatewayUrl ? String(raw.imageGatewayUrl) : null,
+    imageUpdatedAt: raw.imageUpdatedAt ? String(raw.imageUpdatedAt) : null,
     boundAt: raw.boundAt || null,
     // Feature 027: когда капсула приехала к нынешнему владельцу. До конца
     // этого батл-дня её бонусы не считаются — иначе ротация просто возила бы

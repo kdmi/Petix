@@ -31,7 +31,7 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "includeFiles": "assets/character/shape-reference.png"
+      "includeFiles": "{assets/character/shape-reference.png,assets/souls/items/*.png}"
     }
   }
 }

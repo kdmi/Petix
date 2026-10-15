@@ -1,4 +1,4 @@
-const { normalizeSouls } = require("./souls");
+const { normalizeItems, normalizeSouls, normalizeTryOn } = require("./souls");
 const { normalizeRolls } = require("./roll-ledger");
 const crypto = require("crypto");
 const fs = require("fs/promises");
@@ -68,6 +68,9 @@ const EMPTY_WALLET_PROFILE = {
   expeditions: { active: null, progress: {}, energyClaims: {}, daily: {}, grants: {}, tutorialSeen: false },
   // Souls (031): earned by burning pets.
   souls: { balance: 0, totalEarned: 0 },
+  // Souls shop (031): bought items and the try-on in progress.
+  items: [],
+  tryOn: null,
   // Журнал бросков рарности (035): сколько черновиков кошелёк разыграл.
   rolls: normalizeRolls(null),
   profileUpdatedAt: null,
@@ -231,6 +234,8 @@ function cloneWalletProfile(profile) {
       : [],
     expeditions: normalizeExpeditions(profile?.expeditions),
     souls: normalizeSouls(profile?.souls),
+    items: normalizeItems(profile?.items),
+    tryOn: normalizeTryOn(profile?.tryOn),
     rolls: normalizeRolls(profile?.rolls),
     profileUpdatedAt: profile?.profileUpdatedAt ? String(profile.profileUpdatedAt) : null,
   };

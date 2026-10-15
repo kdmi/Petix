@@ -814,16 +814,10 @@ async function requestGeminiImage(prompt, referenceImage) {
           {
             role: "user",
             parts: [
-              ...(referenceImage
-                ? [
-                    {
-                      inlineData: {
-                        mimeType: referenceImage.mimeType,
-                        data: referenceImage.base64,
-                      },
-                    },
-                  ]
-                : []),
+              // One reference image, or several (031: the pet plus the item to put on it).
+              ...(Array.isArray(referenceImage) ? referenceImage : referenceImage ? [referenceImage] : [])
+                .filter((image) => image && image.base64)
+                .map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.base64 } })),
               { text: prompt },
             ],
           },
@@ -1198,6 +1192,8 @@ function serializeCharacterRecord(record, options = {}) {
     selectedPowerId: record.selectedPowerId || "",
     selectedPower,
     attributes: normalizeAttributes(record.attributes),
+    // Souls shop (031): the item the pet wears (team badge, no stats).
+    accessory: require("./souls").accessoryOf(record),
     nft: record.nft?.tokenId
       ? {
           tokenId: record.nft.tokenId,
@@ -1223,6 +1219,7 @@ function serializeBattleState(record, { wallet = "", bonusEnergy = 0 } = {}) {
 }
 
 module.exports = {
+  shouldUseLiveCharacterGeneration,
   ATTRIBUTE_KEYS,
   DRAFT_TTL_MS,
   TOTAL_ATTRIBUTE_POINTS,

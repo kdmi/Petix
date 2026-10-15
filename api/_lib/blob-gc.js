@@ -143,6 +143,8 @@ function getTargets() {
     docTarget("token", TOKEN_VERSION_PREFIX, TOKEN_STATE_PATH),
     docTarget("economy-config", ECONOMY_CONFIG_VERSION_PREFIX, ECONOMY_CONFIG_PATH),
     docTarget("economy-config-audit", ECONOMY_AUDIT_VERSION_PREFIX, ECONOMY_AUDIT_PATH),
+    // Souls shop (031): the item stock is a blob-doc document with version copies.
+    docTarget("shop-stock", require("./shop").stockDoc.versionPrefix, require("./shop").stockDoc.path),
     groupedTarget("wallet-profiles", WALLET_PROFILE_VERSION_PREFIX, `${WALLET_PROFILE_BLOB_PREFIX}/`),
     // Feature 025: one document per battle, plus the per-wallet and per-hour
     // indexes. Each is its own little document with its own copies.

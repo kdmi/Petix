@@ -1,12 +1,55 @@
+const crypto = require("crypto");
+
 // Souls (031): a third in-game currency next to Points and energy.
 // Souls never leave the game: no withdrawal, no conversion back. They come in by
 // burning a pet (SOULS_PER_BURN_LEVEL per level, none at Lvl. 1) and by
 // exchanging energy (SOULS_EXCHANGE_ENERGY → SOULS_EXCHANGE_SOULS). They go out on
-// redistributing a pet's points (SOULS_RESPEC_PER_LEVEL per level).
+// redistributing a pet's points (SOULS_RESPEC_PER_LEVEL per level) and in the
+// Souls shop: items a pet wears on its head (see SHOP_ITEMS below).
 
 const SOULS_PER_BURN_LEVEL_DEFAULT = 1000;
 const SOULS_RESPEC_PER_LEVEL_DEFAULT = 3000;
 const STATS = ["stamina", "agility", "strength", "intelligence"];
+
+// ---- Souls shop (031) ----------------------------------------------------------
+// Buying puts the item in the inventory; putting it on a pet redraws the pet with
+// the item (Gemini, the pet image and the item image as references), the player
+// keeps one of up to three renders, the item is consumed and stays on the pet as
+// `character.accessory` — the single headwear slot. It also becomes TOP_ITEM, the
+// "Top Item" trait on OpenSea. Items carry no stats: they show the pet's team.
+const TRY_ON_VARIANTS = 3; // the first render plus two re-rolls
+
+const SHOP_ITEMS = Object.freeze([
+  Object.freeze({
+    id: "halo",
+    name: "Halo",
+    price: 50000,
+    supply: 25, // limited run across all players (owner 2026-10-15: 25, was 50)
+    perWallet: 1, // one per player, ever
+    // Owner 2026-10-13: items give no stat bonus — they show which side the pet is on.
+    team: "good",
+    teamLabel: "Good team",
+    description: "I'm playing for the good team.",
+    img: "/assets/souls/items/halo.jpg?v=2",
+    file: "assets/souls/items/halo.png",
+    prompt: "a glowing golden halo with two small white wings and amber gems, floating level just above its head, centred and not touching it",
+  }),
+  Object.freeze({
+    id: "devil-horns",
+    name: "Devil Horns",
+    price: 50000,
+    supply: 25,
+    perWallet: 1,
+    team: "bad",
+    teamLabel: "Bad team",
+    description: "I'm playing for the bad team.",
+    img: "/assets/souls/items/devil-horns.jpg?v=3",
+    file: "assets/souls/items/devil-horns.png",
+    prompt: "exactly two curved glowing red devil horns in total, one at the upper left corner and one at the upper right corner of its head, symmetric, pointing up and slightly outward, growing out of its body as if they were always part of it (no headband, no hat, no extra horns)",
+  }),
+]);
+
+
 
 function fail(status, code, message, extra) {
   const error = new Error(message);
@@ -116,7 +159,117 @@ function applyRespec(profile, petId, attributes, cfg, now = new Date()) {
   return { pet, price };
 }
 
+function getItem(itemId) {
+  return SHOP_ITEMS.find((item) => item.id === String(itemId || "")) || null;
+}
+
+function publicItem(item) {
+  return { id: item.id, name: item.name, price: item.price, supply: item.supply || null, perWallet: item.perWallet || null, team: item.team, teamLabel: item.teamLabel, description: item.description, img: item.img };
+}
+
+function listShopItems() {
+  return SHOP_ITEMS.map(publicItem);
+}
+
+function normalizeItems(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry) => entry && typeof entry === "object" && entry.uid && getItem(entry.itemId))
+    .map((entry) => ({ uid: String(entry.uid), itemId: String(entry.itemId), boughtAt: entry.boughtAt ? String(entry.boughtAt) : null, price: toInt(entry.price) }));
+}
+
+function normalizeTryOn(raw) {
+  if (!raw || typeof raw !== "object" || !raw.petId || !raw.itemUid) return null;
+  const variants = Array.isArray(raw.variants)
+    ? raw.variants.filter((v) => v && v.id && v.image && typeof v.image === "object").map((v) => ({ id: String(v.id), image: { ...v.image }, createdAt: v.createdAt ? String(v.createdAt) : null }))
+    : [];
+  return { petId: String(raw.petId), itemUid: String(raw.itemUid), itemId: String(raw.itemId || ""), variants, startedAt: raw.startedAt ? String(raw.startedAt) : null };
+}
+
+// ---- shop ---------------------------------------------------------------------
+
+/** Buy one item into the inventory. Mutates the profile; returns the new inventory entry. */
+function buyItem(profile, itemId, { now = new Date() } = {}) {
+  const item = getItem(itemId);
+  if (!item) throw fail(404, "ITEM_UNKNOWN", "This item is not sold.");
+  debitSouls(profile, item.price);
+  const entry = { uid: `itm_${crypto.randomUUID()}`, itemId: item.id, boughtAt: now.toISOString(), price: item.price };
+  profile.items = [...normalizeItems(profile.items), entry];
+  return entry;
+}
+
+function inventoryView(profile) {
+  return normalizeItems(profile.items).map((entry) => ({ ...entry, item: publicItem(getItem(entry.itemId)) }));
+}
+
+// ---- accessories --------------------------------------------------------------
+
+function accessoryOf(character) {
+  const acc = character && character.accessory;
+  if (!acc || typeof acc !== "object") return null;
+  const item = getItem(acc.itemId);
+  return item ? { itemId: item.id, name: item.name, appliedAt: acc.appliedAt || null, team: item.team, teamLabel: item.teamLabel, img: item.img } : null;
+}
+
+/**
+ * The pet's own headwear from its creation (variables.TOP_ITEM at generation time).
+ * Putting an item on overwrites TOP_ITEM with the item's name, so the original is kept in
+ * accessory.replacedTopItem; older pets fall back to their stored image prompt
+ * ("On its top, it has X.").
+ */
+function originalTopItem(character) {
+  const acc = character && character.accessory;
+  if (acc && acc.replacedTopItem) return String(acc.replacedTopItem).trim();
+  const fromPrompt = String((character && character.prompts && character.prompts.image) || "").match(/On its top, it has ([^.\n]+)\./);
+  if (fromPrompt) return fromPrompt[1].trim();
+  if (!acc) return String((character && character.variables && character.variables.TOP_ITEM) || "").trim();
+  return "";
+}
+
+/** Everything on top of the pet's head that the new item has to replace, by name. */
+function topItemsToRemove(character, item) {
+  const list = [originalTopItem(character)];
+  const current = accessoryOf(character);
+  if (current && current.itemId !== item.id) list.push(current.name);
+  return [...new Set(list.map((v) => String(v || "").trim()).filter(Boolean))];
+}
+
+function buildAccessoryPrompt(item, character) {
+  const name = character?.name || character?.displayName || "the pet";
+  const remove = topItemsToRemove(character, item);
+  const what = remove.join(" and ");
+  return [
+    "You are given two images.",
+    `Image 1 is a pixel-art pet character named ${name}. Image 2 is an accessory: ${item.name}.`,
+    remove.length
+      ? `On top of its head the character currently has: ${what}. Remove ${what} completely, so that no part of ${remove.length > 1 ? "them" : "it"} remains, and put the accessory from image 2 in its place: ${item.prompt}.`
+      : `Put the accessory from image 2 on the character: ${item.prompt}.`,
+    "Nothing else may stay on top of its head: if there is any other hat, cap, crown, helmet, hood, headband, bandana, horns, halo, bow or flower up there, remove it too.",
+    // Organic fit (owner 2026-10-14): horns used to sit on the top face like a hat.
+    "Make the accessory look like a natural part of this character, not a sticker on top: fit it to the character's own head shape and size, place it where such an item naturally belongs on this body, and match the character's perspective, lighting, outline and shading.",
+    "For a cube- or box-shaped body the head is the upper part of the cube, seen in the same 3/4 view as the body.",
+    "Draw the accessory exactly once, in the same count of parts as in image 2 (for example two horns means two horns in total, never four).",
+    "Keep everything else exactly as it is: the same character, body, face, pose, colors, pixel-art style, outline thickness, background, framing and size.",
+    "Take only the accessory from image 2: ignore its background, glow circle and shadow.",
+    "Draw the accessory in the same pixel-art style as the character, sized to fit its head. Return one square image.",
+  ].join(" ");
+}
+
 module.exports = {
+  SHOP_ITEMS,
+  fail,
+  TRY_ON_VARIANTS,
+  accessoryOf,
+  buildAccessoryPrompt,
+  buyItem,
+  getItem,
+  inventoryView,
+  listShopItems,
+  normalizeItems,
+  normalizeTryOn,
+  originalTopItem,
+  publicItem,
+  topItemsToRemove,
   SOULS_PER_BURN_LEVEL_DEFAULT,
   SOULS_RESPEC_PER_LEVEL_DEFAULT,
   applyRespec,
