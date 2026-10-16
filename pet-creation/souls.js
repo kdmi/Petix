@@ -384,7 +384,12 @@
         var p = window.phantom.solana;
         var r = await p.connect();
         var address = (r && r.publicKey ? r.publicKey : p.publicKey).toString();
-        return { address: address, sign: async function (bytes) { var s = await p.signMessage(bytes, 'utf8'); return s && s.signature ? s.signature : s; } };
+        return {
+          address: address,
+          sign: async function (bytes) { var s = await p.signMessage(bytes, 'utf8'); return s && s.signature ? s.signature : s; },
+          // Legacy provider: base58 of the transaction message (the bytes after the signature slot).
+          send: async function (txBytes) { var r = await p.request({ method: 'signAndSendTransaction', params: { message: b58encode(txBytes.slice(65)) } }); return r.signature; },
+        };
       },
     },
     metamask: {
@@ -417,6 +422,18 @@
         var first = Array.isArray(out) ? out[0] : out;
         return first.signature;
       },
+      // Sign and send a ready transaction (the $PETIX burn); returns the base58 signature.
+      send: async function (txBytes) {
+        var feature = wallet.features['solana:signAndSendTransaction'];
+        if (!feature) throw new Error(wallet.name + ' can\u2019t send Solana transactions from here.');
+        // Wallet Standard names the network 'solana:mainnet' (the genesis-hash id is WalletConnect's);
+        // take it from the account so Phantom and MetaMask accept it.
+        var chains = (account.chains || []).map(String);
+        var chain = chains.indexOf('solana:mainnet') !== -1 ? 'solana:mainnet' : (chains.find(function (c) { return c.indexOf('solana:') === 0 && !/devnet|testnet/.test(c); }) || 'solana:mainnet');
+        var out = await feature.signAndSendTransaction({ account: account, transaction: txBytes, chain: chain });
+        var first = Array.isArray(out) ? out[0] : out;
+        return b58encode(first.signature);
+      },
     };
   }
 
@@ -441,7 +458,7 @@
     try {
       // Closing the QR window cancels the wait; the pending pairing just expires on the relay.
       session = await Promise.race([
-        signer.connect({ optionalNamespaces: { solana: { methods: ['solana_signMessage'], chains: [SOLANA_MAINNET], events: [] } } }),
+        signer.connect({ optionalNamespaces: { solana: { methods: ['solana_signMessage', 'solana_signAndSendTransaction'], chains: [SOLANA_MAINNET], events: [] } } }),
         cancelled,
       ]);
     } finally {
@@ -455,6 +472,10 @@
       sign: async function (bytes) {
         var r = await signer.request({ method: 'solana_signMessage', params: { message: b58encode(bytes), pubkey: address } }, SOLANA_MAINNET);
         return b58decode(r && r.signature ? r.signature : r);
+      },
+      send: async function (txBytes) {
+        var r = await signer.request({ method: 'solana_signAndSendTransaction', params: { transaction: toBase64(txBytes) } }, SOLANA_MAINNET);
+        return r && r.signature ? r.signature : r;
       },
     };
   }
@@ -576,10 +597,284 @@
     }
   }
 
+  // ---------- souls popup (header counter): Get more souls ----------
+  // Each option is a cell: what you give → what you get on top, the action button under it
+  // on the full width (owner 2026-10-16). Errors stay in the popup, in plain words.
+  var ENERGY_ICON = '/assets/dashboard/energy-bolt.svg';
+  var SOLANA_ICON = '/assets/chains/solana.png'; // the landing's Solana mark, on a white chip
+  var PENDING_BURN_KEY = 'petix:pendingSoulBurn';
+
+  function shortCoins(n) { n = Number(n) || 0; return n >= 1e6 && n % 1e6 === 0 ? n / 1e6 + 'M' : n >= 1e3 && n % 1e3 === 0 ? n / 1e3 + 'K' : fmt(n); }
+  function burnInfo() { return st().solanaBurn || { packs: [], url: '#', mint: '' }; }
+  function readPending() { try { return JSON.parse(localStorage.getItem(PENDING_BURN_KEY) || 'null'); } catch (e) { return null; } }
+  function writePending(v) { try { if (v) localStorage.setItem(PENDING_BURN_KEY, JSON.stringify(v)); else localStorage.removeItem(PENDING_BURN_KEY); } catch (e) {} }
+  function fromBase64(b64) { var s2 = atob(b64); var out = new Uint8Array(s2.length); for (var i = 0; i < s2.length; i++) out[i] = s2.charCodeAt(i); return out; }
+  /** A wallet's raw error as a sentence: capital first letter, a full stop at the end. */
+  function sentence(text) {
+    var t = String(text || '').trim();
+    if (!t) return t;
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+    return /[.!?]$/.test(t) ? t : t + '.';
+  }
+  function soulsAmount(n) { return '<img src="' + SOUL_ICON + '" alt="souls" width="20" height="20">' + fmt(n); }
+  var FIRE = '<img class="souls-trade-fire" src="/assets/dashboard/burn-fire.svg" alt="" width="18" height="18">';
+
+  // One side of an offer: a big icon, the amount, the unit under it (owner 2026-10-16: paywall-like).
+  function tradeSide(icon, amount, unit) {
+    return '<span class="souls-trade__side">' + icon +
+      '<b class="souls-trade__amount">' + amount + '</b>' +
+      '<span class="souls-trade__unit">' + unit + '</span></span>';
+  }
+
+  function tradeCell(give, get, button, badge) {
+    return '<div class="souls-trade' + (badge ? ' is-best' : '') + '">' +
+      (badge ? '<span class="souls-trade__badge">' + badge + '</span>' : '') +
+      '<div class="souls-trade__line">' + give +
+        '<span class="souls-trade__arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' +
+        get +
+      '</div>' + button +
+    '</div>';
+  }
+
+  function openSoulsMenu() {
+    // A burn sent earlier and not counted yet (closed tab, slow chain): finish it first.
+    if (readPending() && !busy) { confirmPendingBurn(); return; }
+    var s = st();
+    var offer = s.soulsExchange || { energy: 50, souls: 5000 };
+    // Any energy counts (today's free + gifted + bought); the server checks the real amount.
+    var can = (s.energyCurrent || 0) >= offer.energy && !busy;
+    var info = burnInfo();
+    var soulsSide = function (n) { return tradeSide('<img class="souls-trade__icon" src="' + SOUL_ICON + '" alt="" width="40" height="40">', fmt(n), 'souls'); };
+    var packs = info.packs || [];
+    // The pack with the most souls per coin gets the "Best value" badge, with its bonus over the smallest one.
+    var rate = function (p) { return p.souls / p.coins; };
+    var base = packs.length ? packs.reduce(function (a, b) { return rate(a) <= rate(b) ? a : b; }) : null;
+    var best = packs.length > 1 ? packs.reduce(function (a, b) { return rate(a) >= rate(b) ? a : b; }) : null;
+    var bonus = best && base ? Math.round((rate(best) / rate(base) - 1) * 100) : 0;
+    var cells = tradeCell(
+      tradeSide('<img class="souls-trade__icon" src="' + ENERGY_ICON + '" alt="" width="40" height="40">', fmt(offer.energy), 'energy'),
+      soulsSide(offer.souls),
+      '<button class="px-btn px-btn--primary px-btn--md px-btn--block" type="button" data-souls-exchange' + (can ? '' : ' disabled') + '>Exchange</button>'
+    ) + packs.map(function (pack) {
+      return tradeCell(
+        tradeSide('<img class="souls-trade__icon souls-solana" src="' + SOLANA_ICON + '" alt="" width="40" height="40">', shortCoins(pack.coins),
+          '<a class="souls-coin-link" href="' + esc(info.url) + '" target="_blank" rel="noopener">$PETIX</a>'),
+        soulsSide(pack.souls),
+        '<button class="px-btn px-btn--primary px-btn--md px-btn--block souls-burn-btn" type="button" data-burn-pack="' + esc(pack.id) + '"' + (busy ? ' disabled' : '') + '>' + FIRE + 'Burn</button>',
+        best && pack === best && bonus > 0 ? 'Best value · +' + bonus + '% souls' : ''
+      );
+    }).join('');
+    // Owner 2026-10-16: no balance line (the header shows it); three cards in a row on desktop.
+    var body = openModal(
+      '<h2 class="souls-title">Get more souls</h2>' +
+      '<div class="souls-menu-options souls-offers">' + cells + '</div>', 'souls-modal--menu souls-modal--offers');
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-burn-pack]');
+      if (b && !b.disabled) burnPack(b.getAttribute('data-burn-pack'));
+    });
+    var btn = body.querySelector('[data-souls-exchange]');
+    btn.addEventListener('click', async function () {
+      if (btn.disabled) return;
+      busy = true; btn.classList.add('is-loading'); btn.disabled = true;
+      try {
+        var r = await app().apiRequest('/api/character/exchange-energy', {});
+        app().setSouls(r.souls);
+        try { await app().reloadProfile(); } catch (e) {}
+        busy = false;
+        toast('+' + fmt(r.soulsGained) + ' souls.');
+        openSoulsMenu();
+      } catch (err) {
+        busy = false;
+        showSoulsError('Exchange didn’t go through', err.message || 'Could not exchange the energy.');
+      }
+    });
+  }
+
+  // ---------- errors, in the popup ----------
+  function showSoulsError(title, text, extraHtml) {
+    var body = openModal(
+      '<h2 class="souls-title">' + esc(title) + '</h2>' +
+      '<p class="px-modal__text">' + text + '</p>' + (extraHtml || '') +
+      '<div class="px-modal__actions"><button class="px-btn px-btn--secondary px-btn--block" type="button" data-souls-back>Back</button></div>', 'souls-modal--menu');
+    body.querySelector('[data-souls-back]').addEventListener('click', function () { openSoulsMenu(); });
+    return body;
+  }
+
+  /** No (or not enough) $PETIX in the linked wallet: how to get it, with the contract to copy. */
+  function showNoCoins(pack, balance) {
+    var info = burnInfo();
+    var has = Number(balance) || 0;
+    var body = showSoulsError(
+      has > 0 ? 'Not enough $PETIX' : 'No $PETIX in your wallet',
+      (has > 0
+        ? 'Your linked Solana wallet has <b>' + fmt(has) + ' $PETIX</b>. This pack burns <b>' + fmt(pack.coins) + '</b>.'
+        : 'Your linked Solana wallet has no $PETIX yet. This pack burns <b>' + fmt(pack.coins) + ' $PETIX</b>.') +
+        ' Buy $PETIX first, then come back.',
+      '<a class="px-btn px-btn--primary px-btn--block souls-buy-link" href="' + esc(info.url) + '" target="_blank" rel="noopener">Buy $PETIX on DexScreener</a>' +
+      '<div class="souls-contract">' +
+        '<span class="souls-contract__label">Contract</span>' +
+        '<code class="souls-contract__value">' + esc(info.mint) + '</code>' +
+        '<button class="px-btn px-btn--secondary px-btn--sm" type="button" data-copy-mint>Copy</button>' +
+      '</div>'
+    );
+    body.querySelector('[data-copy-mint]').addEventListener('click', function (e) {
+      try { navigator.clipboard.writeText(info.mint); e.currentTarget.textContent = 'Copied'; } catch (err) {}
+    });
+  }
+
+  // ---------- burn $PETIX on Solana for souls ----------
+  // Owner 2026-10-16: 100K → 5,000 and 1M → 75,000. The linked Solana wallet signs and
+  // sends a burn we build on the server; the server reads it back from the chain and
+  // only then pays souls. A sent burn is remembered here until it is counted.
+  function burnPickWallet() {
+    return new Promise(function (resolve) {
+      var body = openModal(
+        '<h2 class="souls-title">Burn with</h2>' +
+        '<p class="px-modal__text">Use the Solana wallet linked to your profile: <b>' + esc(short(st().solana.address)) + '</b>.</p>' +
+        '<div class="sol-options souls-menu-options">' + Object.keys(METHODS).map(function (key) {
+          var m = METHODS[key];
+          return '<button type="button" class="sol-option" data-burn-method="' + key + '"><img src="' + m.icon + '" alt="" width="28" height="28"><span class="sol-option-text"><b>' + m.name + '</b>' + (m.note ? '<em>' + m.note + '</em>' : '') + '</span></button>';
+        }).join('') + '</div>', 'souls-modal--menu');
+      modal.__onClose = function () { resolve(null); };
+      body.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-burn-method]');
+        if (!b) return;
+        modal.__onClose = null;
+        resolve(METHODS[b.getAttribute('data-burn-method')]);
+      });
+    });
+  }
+
+  async function burnPack(packId) {
+    var s = st();
+    var pack = (burnInfo().packs || []).find(function (p) { return p.id === packId; });
+    if (!pack || busy) return;
+    if (!s.solana) {
+      var body = showSoulsError('Link a Solana wallet first', 'Burning $PETIX needs the Solana wallet linked to your profile.',
+        '<button class="px-btn px-btn--primary px-btn--block souls-buy-link" type="button" data-open-profile>Open profile</button>');
+      body.querySelector('[data-open-profile]').addEventListener('click', function () { openProfile(); });
+      return;
+    }
+    var yes = await askConfirm({
+      art: '<img src="' + SOLANA_ICON + '" alt="">',
+      title: 'Burn ' + fmt(pack.coins) + ' $PETIX?',
+      html: '<p>The coins are destroyed forever.</p><p class="souls-confirm-reward">You get ' + soulPrice(pack.souls) + ' souls.</p>',
+      confirm: 'Burn',
+      noCancel: true,
+    });
+    if (!yes) { openSoulsMenu(); return; }
+    // Check the coins before asking for a wallet: no point connecting one that has none.
+    var prep;
+    busy = true;
+    try {
+      openModal('<h2 class="souls-title">Checking your wallet…</h2><div class="fit-loader fit-loader--inline"><i></i></div>', 'souls-modal--confirm');
+      prep = await app().apiRequest('/api/shop/burn-prepare', { packId: pack.id });
+      prep.at = Date.now();
+    } catch (err) {
+      busy = false;
+      if (err && err.code === 'NOT_ENOUGH_COINS') { showNoCoins(pack, err.balance); return; }
+      showSoulsError('Couldn’t start the burn', esc(err.message || 'Could not burn the coins.') + ' No coins were burned.');
+      return;
+    }
+    busy = false;
+    var method = await burnPickWallet();
+    if (!method) return;
+    if (!method.available()) { showSoulsError(method.name + ' not found', method.name + ' isn’t available in this browser. Pick another way to connect.'); return; }
+    var signer;
+    try {
+      if (method !== METHODS.walletconnect) signingModal(method, 'Connect ' + method.name);
+      signer = await method.connect();
+    } catch (err) {
+      if (err && err.code === 4001) { openSoulsMenu(); return; }
+      showSoulsError('Couldn’t connect the wallet', esc(err.message || 'Could not connect the wallet.'));
+      return;
+    }
+    if (signer.address !== s.solana.address) {
+      showSoulsError('This isn’t your linked wallet', 'You connected <b>' + esc(short(signer.address)) + '</b>. Connect the Solana wallet linked to your profile: <b>' + esc(short(s.solana.address)) + '</b>.');
+      return;
+    }
+    busy = true;
+    var stage = 'prepare';
+    try {
+      // The transaction carries a recent blockhash (~1 min): rebuild it if connecting took a while.
+      if (Date.now() - prep.at > 45000) prep = await app().apiRequest('/api/shop/burn-prepare', { packId: pack.id });
+      stage = 'send';
+      signingModal(method, 'Confirm the burn in ' + method.name);
+      var signature = await signer.send(fromBase64(prep.transaction));
+      writePending({ signature: signature, coins: pack.coins, souls: pack.souls, at: Date.now() });
+      busy = false;
+      await confirmPendingBurn();
+    } catch (err) {
+      busy = false;
+      if (err && err.code === 4001) { openSoulsMenu(); return; }
+      if (err && err.code === 'NOT_ENOUGH_COINS') { showNoCoins(pack, err.balance); return; }
+      showSoulsError(stage === 'send' ? 'The wallet didn’t send the burn' : 'Couldn’t start the burn', esc(sentence(err.message || 'Could not burn the coins.')) + ' No coins were burned.');
+    }
+  }
+
+  function showBurnSuccess(r, p) {
+    var body = openModal(
+      '<div class="burn-success__art"><img src="' + SOUL_ICON + '" alt="" width="72" height="72"></div>' +
+      '<p class="burn-success__gain">+' + fmt(r.soulsGained) + '<span>souls</span></p>' +
+      '<h2 class="souls-title">You burned ' + fmt(r.coins) + ' $PETIX</h2>' +
+      '<p class="px-modal__text">The coins are gone for good. You now have <b>' + fmt(souls()) + '</b> souls.</p>' +
+      '<p class="burn-success__tx"><a href="https://solscan.io/tx/' + esc(p.signature) + '" target="_blank" rel="noopener">View transaction</a></p>' +
+      '<div class="px-modal__actions">' +
+        '<button class="px-btn px-btn--primary px-btn--block" type="button" data-success-shop>Spend souls</button>' +
+        '<button class="px-btn px-btn--secondary px-btn--block" type="button" data-success-done>Done</button>' +
+      '</div>', 'souls-modal--confirm burn-success');
+    // A new window, not a step: let it pop in after the burn.
+    body.classList.remove('is-swap');
+    if (window.confetti) window.confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, zIndex: 1400 });
+    body.querySelector('[data-success-shop]').addEventListener('click', function () { closeModal(); app().moveTo('shop'); });
+    body.querySelector('[data-success-done]').addEventListener('click', function () { closeModal(); });
+  }
+
+  function burningModal(p) {
+    openModal(
+      '<div class="souls-confirm-art"><img src="' + SOLANA_ICON + '" alt=""></div>' +
+      '<h2 class="souls-title">Burning ' + fmt(p.coins) + ' $PETIX…</h2>' +
+      '<p class="souls-text">Confirming on Solana. <a href="https://solscan.io/tx/' + esc(p.signature) + '" target="_blank" rel="noopener">View transaction</a></p>' +
+      '<div class="fit-loader fit-loader--inline"><i></i></div>', 'souls-modal--confirm');
+  }
+
+  // Ask the server until Solana has the burn (about a minute), then pay souls once.
+  async function confirmPendingBurn() {
+    var p = readPending();
+    if (!p || busy) return false;
+    busy = true;
+    burningModal(p);
+    try {
+      for (var i = 0; i < 30; i++) {
+        var r = await app().apiRequest('/api/shop/burn-confirm', { signature: p.signature });
+        if (r.status === 'credited') {
+          writePending(null);
+          app().setSouls(r.souls);
+          // The popup burns like a pet card (owner 2026-10-16), then the success window takes its place.
+          var section = modal && modal.querySelector('.souls-modal');
+          if (section && app().burnElement) { try { await app().burnElement(section); } catch (e) {} }
+          busy = false;
+          showBurnSuccess(r, p);
+          return true;
+        }
+        await new Promise(function (res) { setTimeout(res, 2000); });
+      }
+      busy = false;
+      showSoulsError('Still confirming', 'Solana hasn’t confirmed the burn yet. We’ll check again next time you open this window. <a href="https://solscan.io/tx/' + esc(p.signature) + '" target="_blank" rel="noopener">View transaction</a>');
+    } catch (err) {
+      busy = false;
+      var code = err && err.code;
+      if (['ALREADY_COUNTED', 'TX_FAILED', 'NOT_A_BURN', 'NOT_A_PACK', 'BAD_SIGNATURE'].indexOf(code) !== -1) writePending(null);
+      showSoulsError(code === 'ALREADY_COUNTED' ? 'Already counted' : 'The burn wasn’t counted', esc(err.message || 'Could not check the burn.'));
+    }
+    return false;
+  }
+
   window.PetixSouls = {
     renderShop: renderShop,
     refresh: function () { if (shopHost && !shopHost.classList.contains('hidden')) renderShop(); },
     openPutOn: openPutOn,
     openProfile: openProfile,
+    openSoulsMenu: openSoulsMenu,
   };
 })();

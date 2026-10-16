@@ -111,6 +111,7 @@
 
   /* Overlay */
   --px-backdrop: rgba(0, 0, 0, 0.7);
+  --px-backdrop-blur: 8px; /* owner 2026-10-16: popups darken and blur the page */
 
   /* Motion */
   --px-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -1077,6 +1078,8 @@ button.px-amount:hover { background: rgba(16, 24, 40, 0.06); }
 .px-overlay {
   align-items: center;
   animation: px-fade-in var(--px-dur-base) ease;
+  -webkit-backdrop-filter: blur(var(--px-backdrop-blur));
+  backdrop-filter: blur(var(--px-backdrop-blur));
   background: var(--px-backdrop);
   box-sizing: border-box;
   display: flex;

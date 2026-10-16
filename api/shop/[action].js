@@ -4,6 +4,8 @@ const path = require("path");
 const HANDLERS = {
   apply: require("../../server-routes/shop/apply"),
   buy: require("../../server-routes/shop/buy"),
+  "burn-prepare": require("../../server-routes/shop/burn-prepare"),
+  "burn-confirm": require("../../server-routes/shop/burn-confirm"),
   "try-on": require("../../server-routes/shop/try-on"),
   variant: require("../../server-routes/shop/variant"),
 };

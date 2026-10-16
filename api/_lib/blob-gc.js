@@ -147,6 +147,8 @@ function getTargets() {
     docTarget("shop-stock", require("./shop").stockDoc.versionPrefix, require("./shop").stockDoc.path),
     // Linked Solana addresses (031): address → profile, a blob-doc document too.
     docTarget("solana-links", require("./solana-link").linksDoc.versionPrefix, require("./solana-link").linksDoc.path),
+    // $PETIX burns counted for souls (031): signature → wallet, coins, souls.
+    docTarget("soul-burns", require("./solana-burn").burnsDoc.versionPrefix, require("./solana-burn").burnsDoc.path),
     groupedTarget("wallet-profiles", WALLET_PROFILE_VERSION_PREFIX, `${WALLET_PROFILE_BLOB_PREFIX}/`),
     // Feature 025: one document per battle, plus the per-wallet and per-hour
     // indexes. Each is its own little document with its own copies.

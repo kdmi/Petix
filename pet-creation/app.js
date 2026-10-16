@@ -1438,6 +1438,9 @@ async function apiRequest(path, body, method = "POST") {
     if (typeof data.required === "number") {
       error.required = data.required;
     }
+    if (typeof data.balance === "number") {
+      error.balance = data.balance;
+    }
     throw error;
   }
   return data;
@@ -3369,6 +3372,7 @@ function syncStateWithPayload(payload = {}) {
   if ("tryOn" in payload) state.tryOn = payload.tryOn || null;
   if ("solana" in payload) state.solana = payload.solana || null;
   if (typeof payload.soulsSolanaReward === "number") state.soulsSolanaReward = payload.soulsSolanaReward;
+  if (payload.solanaBurn && typeof payload.solanaBurn === "object") state.solanaBurn = payload.solanaBurn;
   if (window.PetixSouls) window.PetixSouls.refresh();
   if (payload.energyShop && typeof payload.energyShop === "object") {
     state.energyShop = payload.energyShop;
@@ -9232,75 +9236,6 @@ function openRespecModal(record) {
   paint();
 }
 
-// "Get more souls" popup (031), opened from the header souls counter. One option for
-// now — exchange energy for souls; more options go in the same list. Built on the UI
-// kit (ui-kit/petix-ui.css): px-overlay, px-modal, px-row, px-btn.
-const SOULS_POPUP_CLOSE = '<svg viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
-
-function openSoulsPopup() {
-  document.querySelector(".souls-popup")?.remove();
-  let busy = false;
-  const overlay = document.createElement("div");
-  overlay.className = "px-overlay souls-popup";
-  const render = () => {
-    const offer = state.soulsExchange || { energy: 50, souls: 5000 };
-    // Any energy counts (today's free + gifted + bought); the server checks the real amount.
-    const canExchange = !busy && (state.energyCurrent || 0) >= offer.energy;
-    overlay.innerHTML = `
-      <section class="px-modal" role="dialog" aria-modal="true" aria-labelledby="soulsPopupTitle">
-        <button class="px-close px-modal__close" type="button" aria-label="Close" data-souls-popup-close>${SOULS_POPUP_CLOSE}</button>
-        <h2 class="px-modal__title" id="soulsPopupTitle">Get more souls</h2>
-        <p class="px-modal__text">You have <b class="souls-popup__balance"><img src="/assets/souls/soul.svg" alt="" width="20" height="20" />${formatPoints(state.souls?.balance || 0)}</b></p>
-        <div class="souls-popup__options">
-          <div class="px-row">
-            <div class="px-row__main">
-              <span class="px-title souls-popup__offer">
-                <img src="/assets/dashboard/energy-bolt.svg" alt="energy" width="20" height="20" />${formatPoints(offer.energy)}
-                <span class="souls-popup__arrow" aria-hidden="true">→</span>
-                <img src="/assets/souls/soul.svg" alt="souls" width="20" height="20" />${formatPoints(offer.souls)}
-              </span>
-            </div>
-            <button class="px-btn px-btn--primary px-btn--md${busy ? " is-loading" : ""}" type="button" data-souls-exchange ${canExchange ? "" : "disabled"}><span>Exchange</span></button>
-          </div>
-        </div>
-      </section>`;
-  };
-  const close = () => {
-    if (busy) return;
-    document.removeEventListener("keydown", onKey);
-    overlay.classList.add("is-closing");
-    setTimeout(() => overlay.remove(), 220);
-  };
-  const onKey = (event) => { if (event.key === "Escape") close(); };
-
-  overlay.addEventListener("click", async (event) => {
-    if (event.target === overlay || event.target.closest("[data-souls-popup-close]")) {
-      close();
-      return;
-    }
-    const button = event.target.closest("[data-souls-exchange]");
-    if (!button || button.disabled) return;
-    busy = true;
-    render();
-    try {
-      const result = await apiRequest("/api/character/exchange-energy", {});
-      state.souls = { ...result.souls };
-      updateDashboardSoulsUi();
-      try {
-        syncStateWithPayload(await apiRequest("/api/character/me", {}, "GET"));
-      } catch (error) {}
-      showToast(`+${formatPoints(result.soulsGained)} souls.`);
-    } catch (error) {
-      showToast(error.message || "Could not exchange the energy.");
-    }
-    busy = false;
-    render();
-  });
-  document.addEventListener("keydown", onKey);
-  render();
-  document.body.appendChild(overlay);
-}
-
 function closeCabinetCardMenu() {
   if (!state.openCardMenuId) return;
   state.openCardMenuId = "";
@@ -9417,11 +9352,17 @@ function getBurnFireShape() {
 // options.preview: play the animation only — restore the card afterwards
 // (used by the Burn FX Lab; no API call, nothing deleted).
 function playBurnAnimation(characterId, { preview = false } = {}) {
+  const card = cabinetCard
+    ? cabinetCard.querySelector(`.cabinet-character[data-character-id="${characterId}"]`)
+    : null;
+  const surface = card ? card.querySelector(".success-card") : null;
+  return playBurnOn(card, surface, { preview });
+}
+
+// The burn itself, for any element (031: the souls popup burns too after a $PETIX burn).
+// `card` fades out at the end (its .is-burning class), `surface` carries the fire overlay.
+function playBurnOn(card, surface, { preview = false } = {}) {
   return new Promise((resolve) => {
-    const card = cabinetCard
-      ? cabinetCard.querySelector(`.cabinet-character[data-character-id="${characterId}"]`)
-      : null;
-    const surface = card ? card.querySelector(".success-card") : null;
     const reducedMotion =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!card || !surface || reducedMotion) {
@@ -9544,7 +9485,7 @@ function playBurnAnimation(characterId, { preview = false } = {}) {
             y: clampNumber(y / viewportHeight, 0, 1),
           },
           disableForReducedMotion: true,
-          zIndex: 1100,
+          zIndex: 1350, // above popups (backdrop 1300): a souls popup can burn too
         });
       }
     }
@@ -11365,7 +11306,49 @@ function renderAdminEconomy() {
           ${label}
           <input id="${id}" ${attrs} style="padding:8px 10px;border:1px solid #d4d7e0;border-radius:8px;font-size:14px;" />
         </label>`;
+    // Souls stats (031): what players hold, and the $PETIX burned on Solana for souls.
+    const soulsStats = stats.souls || {};
+    const burns = soulsStats.burns || null;
+    const recentBurns = burns && Array.isArray(burns.recent) ? burns.recent : [];
+    const shortAddr = (a) => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "");
+    const burnRows = recentBurns.length
+      ? recentBurns
+          .map(
+            (b) => `<li style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #eef0f4;font-size:13px;">
+              <span><b>${formatPoints(b.coins)} $PETIX</b> → ${formatPoints(b.souls)} souls</span>
+              <span style="color:#667085;font-family:monospace;">${escapeHtml(shortAddr(b.wallet))}</span>
+              <span style="color:#667085;">${escapeHtml(new Date(b.at).toLocaleString())}</span>
+              <a href="https://solscan.io/tx/${escapeHtml(b.signature)}" target="_blank" rel="noopener">Solscan</a>
+            </li>`
+          )
+          .join("")
+      : '<li style="font-size:13px;color:#6b7280;">No burns yet.</li>';
     body = `
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">Souls</h3>
+        <div class="admin-stats-grid">
+          ${statCard("Souls held now", formatPoints(soulsStats.balance || 0))}
+          ${statCard("Souls credited all time", formatPoints(soulsStats.totalEarned || 0))}
+          ${statCard("Players holding souls", soulsStats.holders || 0)}
+        </div>
+      </section>
+      <section>
+        <h3 style="margin:0 0 10px;font-size:15px;">$PETIX burned for souls (Solana)</h3>
+        ${
+          burns
+            ? `<div class="admin-stats-grid">
+          ${statCard("$PETIX burned", formatPoints(burns.totalCoins || 0))}
+          ${statCard("Souls paid for burns", formatPoints(burns.totalSouls || 0))}
+          ${statCard("Burns", burns.burns || 0)}
+          ${statCard("Wallets", burns.wallets || 0)}
+        </div>
+        <ul style="list-style:none;margin:12px 0 0;padding:0;">
+          <li style="font-weight:700;font-size:13px;margin-bottom:4px;">Latest burns</li>
+          ${burnRows}
+        </ul>`
+            : '<p class="admin-empty">Burn stats are not available right now.</p>'
+        }
+      </section>
       <section>
         <h3 style="margin:0 0 4px;font-size:15px;">Give souls</h3>
         <p style="margin:0 0 10px;font-size:12px;color:#667085;">
@@ -11391,6 +11374,10 @@ function renderAdminEconomy() {
           ecoNumberRow("Exchange: souls it gives", "SOULS_EXCHANGE_SOULS", cfg.SOULS_EXCHANGE_SOULS),
           ecoNumberRow("Redistribute points: souls per pet level", "SOULS_RESPEC_PER_LEVEL", cfg.SOULS_RESPEC_PER_LEVEL),
           ecoNumberRow("Solana wallet link reward", "SOULS_SOLANA_LINK_REWARD", cfg.SOULS_SOLANA_LINK_REWARD),
+          ecoNumberRow("Burn pack 1: $PETIX", "SOLANA_BURN_SMALL_COINS", cfg.SOLANA_BURN_SMALL_COINS),
+          ecoNumberRow("Burn pack 1: souls", "SOLANA_BURN_SMALL_SOULS", cfg.SOLANA_BURN_SMALL_SOULS),
+          ecoNumberRow("Burn pack 2: $PETIX", "SOLANA_BURN_BIG_COINS", cfg.SOLANA_BURN_BIG_COINS),
+          ecoNumberRow("Burn pack 2: souls", "SOLANA_BURN_BIG_SOULS", cfg.SOLANA_BURN_BIG_SOULS),
         ])}
         ${saveFooter}
       </section>`;
@@ -12892,13 +12879,13 @@ function init() {
     });
   }
 
-  // Souls counter opens the "Get more souls" popup (031).
+  // Souls counter opens the "Get more souls" popup (031, pet-creation/souls.js): energy exchange, $PETIX burns.
   if (dashboardSouls) {
-    dashboardSouls.addEventListener("click", () => openSoulsPopup());
+    dashboardSouls.addEventListener("click", () => (window.PetixSouls && window.PetixSouls.openSoulsMenu()));
     dashboardSouls.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        openSoulsPopup();
+        (window.PetixSouls && window.PetixSouls.openSoulsMenu());
       }
     });
   }
@@ -13178,5 +13165,9 @@ window.PetixApp = {
   },
   setSolana(solana) {
     state.solana = solana || null;
+  },
+  // Burn any element with the pet-card fire (resolves when it has burned out).
+  burnElement(element) {
+    return playBurnOn(element, element);
   },
 };

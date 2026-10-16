@@ -9,7 +9,7 @@ function requireSession(req, res) {
 function sendShopError(res, error, fallback) {
   if (error && error.httpStatus) {
     const payload = { error: error.message, code: error.httpCode };
-    for (const key of ["required", "balance", "tryOn"]) if (error[key] != null) payload[key] = error[key];
+    for (const key of ["required", "balance", "tryOn", "burn"]) if (error[key] != null) payload[key] = error[key];
     json(res, error.httpStatus, payload);
     return;
   }

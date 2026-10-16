@@ -38,14 +38,6 @@
 .burn-modal__souls strong { align-items: center; color: #101828; display: inline-flex; gap: 4px; vertical-align: -3px; }
 .burn-modal__souls span { color: #98a2b3; display: block; font-size: 12px; line-height: 16px; margin-top: 2px; }
 
-/* "Get more souls" popup — UI kit components (ui-kit/petix-ui.css), only layout here */
-.souls-popup__balance { align-items: center; color: var(--px-text); display: inline-flex; font-weight: 700; gap: 4px; vertical-align: -4px; }
-.souls-popup__balance img { height: 20px; width: 20px; }
-.souls-popup__options { display: grid; gap: 8px; margin-top: 24px; }
-.souls-popup__offer { align-items: center; display: inline-flex; gap: 4px; white-space: nowrap; }
-.souls-popup__offer img { height: 20px; width: 20px; }
-.souls-popup__arrow { color: var(--px-text-subtle); margin: 0 4px; }
-
 /* Redistribute points window — UI kit components (ui-kit/petix-ui.css), only layout here */
 .respec-rows { display: grid; gap: 8px; margin-top: 24px; }
 .respec-icon { flex: none; height: 24px; width: 24px; }
@@ -302,3 +294,74 @@ body.souls-modal-open { overflow: hidden; }
 .souls-confirm-reward { align-items: center; color: #101828; display: flex; font-weight: 600; gap: 4px; justify-content: center; }
 .souls-confirm-art--phantom img, .souls-modal--confirm .souls-confirm-art img[src*="phantom"] { border-radius: 16px; height: 64px; image-rendering: auto; width: 64px; }
 .souls-confirm-address { background: #f4f3ff; border-radius: 12px; color: #101828; font-family: ui-monospace, Menlo, monospace; font-size: 13px; margin: 0 0 12px; padding: 10px 12px; word-break: break-all; }
+
+/* ---- Get more souls: offers, $PETIX burns, errors, success (031) ---- */
+/* Get more souls: list of offers */
+.souls-menu-options { display: grid; gap: 8px; margin-top: 24px; }
+
+/* Get more souls: small paywall — offer cards with big icons and amounts (owner 2026-10-16).
+   Give → get on top (icon, amount, unit), the action on the full width under it. */
+.souls-modal--menu .souls-menu-options { gap: 12px; }
+.souls-trade { background: var(--px-surface); border: 1px solid var(--px-border); border-radius: var(--px-radius-xl); box-shadow: var(--px-shadow-xs); display: grid; gap: 16px; padding: 16px; position: relative; }
+.souls-trade.is-best { border: 2px solid #fdb022; box-shadow: 0 12px 24px -12px rgba(247, 144, 9, 0.45); padding: 15px; }
+.souls-trade__badge { background: #fdb022; border-radius: var(--px-radius-sm); color: var(--px-text); font-family: var(--px-font-body); font-size: 12px; font-weight: 700; left: 50%; line-height: 18px; padding: 2px 10px; position: absolute; top: -11px; transform: translateX(-50%); white-space: nowrap; }
+.souls-trade__line { align-items: center; display: grid; gap: 8px; grid-template-columns: 1fr auto 1fr; }
+.souls-trade__side { align-items: center; display: flex; flex-direction: column; gap: 4px; min-width: 0; text-align: center; }
+.souls-trade__icon { display: block; height: 40px; margin-bottom: 4px; width: 40px; }
+.souls-trade__amount { color: var(--px-text); font-family: var(--px-font-display); font-size: 26px; font-weight: 600; line-height: 32px; white-space: nowrap; }
+.souls-trade__unit { color: var(--px-text-muted); font-family: var(--px-font-body); font-size: 14px; font-weight: 600; line-height: 20px; }
+.souls-trade__arrow { align-items: center; background: var(--px-surface-muted); border-radius: 50%; color: var(--px-text-muted); display: inline-flex; height: 32px; justify-content: center; width: 32px; }
+.souls-solana { background: #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--px-border); box-sizing: border-box; object-fit: contain; padding: 6px; }
+.souls-trade .px-btn img.souls-trade-fire { filter: brightness(0) invert(1); height: 18px; width: 18px; }
+.souls-trade .px-btn:disabled img.souls-trade-fire { filter: none; opacity: 0.5; }
+.souls-coin-link { color: inherit; text-decoration: underline; text-decoration-color: var(--px-gray-300); text-underline-offset: 3px; }
+.souls-coin-link:hover { color: var(--px-text); text-decoration-color: currentColor; }
+@media (max-width: 767px) {
+  .souls-trade__amount { font-size: 22px; line-height: 28px; }
+  .souls-trade__icon { height: 36px; width: 36px; }
+}
+
+/* Errors in the popup: buy link + copyable contract */
+.souls-buy-link { margin-top: 20px; text-decoration: none; }
+.souls-contract { align-items: center; background: var(--px-surface-muted); border-radius: var(--px-radius-lg); display: flex; gap: 8px; margin-top: 12px; padding: 8px 8px 8px 12px; }
+.souls-contract__label { color: var(--px-text-muted); flex: none; font-family: var(--px-font-body); font-size: 12px; font-weight: 600; }
+.souls-contract__value { color: var(--px-text); flex: 1 1 auto; font-family: var(--px-font-mono); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.souls-contract .px-btn { flex: none; }
+
+/* Toasts sit above every popup (they hid behind the souls backdrop, z-index 1300) */
+.app-toast { z-index: 1400; }
+
+/* Every popup backdrop darkens and blurs the page (owner 2026-10-16; the kit's --px-backdrop-blur).
+   Expeditions already blur their own overlays (.xp .fade/.howto/.result). */
+.withdraw-overlay,
+.share-modal-overlay,
+.burn-modal-backdrop,
+.admin-lightbox,
+.wallet-overlay,
+.petbuy-overlay,
+.souls-backdrop,
+.px-overlay {
+  -webkit-backdrop-filter: blur(var(--px-backdrop-blur, 8px));
+  backdrop-filter: blur(var(--px-backdrop-blur, 8px));
+}
+
+/* Centred popups (confirm, QR, rendering): the title's room for the close button must be on
+   both sides, or the title sits left of centre (owner 2026-10-16). Under a picture the close
+   button is out of the way, so no room at all. */
+.souls-modal--confirm .souls-title,
+.souls-modal--qr .souls-title { padding-left: 40px; padding-right: 40px; text-align: center; }
+.souls-modal--confirm .souls-confirm-art + .souls-title,
+.souls-modal--qr .sol-qr-head .souls-title { padding-left: 0; padding-right: 0; }
+
+/* $PETIX burn: the popup burns like a pet card, then the success window pops in */
+.souls-modal.is-burning { animation: cabinet-burn-fade 0.5s ease-in 2.4s forwards; overflow: visible; pointer-events: none; }
+.burn-success__art { display: flex; justify-content: center; margin: 4px 0 8px; }
+.burn-success__art img { filter: drop-shadow(0 12px 24px rgba(11, 165, 236, 0.45)); height: 72px; width: 72px; }
+.burn-success__gain { align-items: baseline; color: var(--px-text); display: flex; font-family: var(--px-font-display); font-size: 40px; font-weight: 600; gap: 8px; justify-content: center; line-height: 48px; margin: 0 0 4px; }
+.burn-success__gain span { color: var(--px-text-muted); font-family: var(--px-font-body); font-size: 18px; font-weight: 600; }
+.burn-success .px-modal__text { text-align: center; }
+.burn-success__tx { font-family: var(--px-font-body); font-size: 14px; margin: 8px 0 0; text-align: center; }
+.burn-success__tx a { color: var(--px-text-muted); }
+
+/* Get more souls: cards stacked on every screen (owner 2026-10-16: the three-in-a-row desktop layout was dropped) */
+.souls-modal--offers .souls-offers { margin-top: 20px; }
