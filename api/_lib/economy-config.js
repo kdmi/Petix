@@ -73,6 +73,11 @@ const DEFAULTS = Object.freeze({
   SOULS_EXCHANGE_SOULS: 5000, // ...and souls it gives
   SOULS_RESPEC_PER_LEVEL: 3000, // redistributing a pet's points, souls per pet level (owner 2026-10-15)
   SOULS_SOLANA_LINK_REWARD: 3000, // souls for linking a Solana wallet, once per profile (owner 2026-10-16)
+  // Burning $PETIX on Solana for souls (owner 2026-10-16): coins per pack → souls.
+  SOLANA_BURN_SMALL_COINS: 100000,
+  SOLANA_BURN_SMALL_SOULS: 5000,
+  SOLANA_BURN_BIG_COINS: 1000000,
+  SOLANA_BURN_BIG_SOULS: 75000,
   MIN_WITHDRAW: 1000, // порог вывода (решение владельца 2026-09-17; было 200)
   WITHDRAW_FEE_PCT: 0, // курс 1:1 без комиссии (решение 013/withdraw); остаётся тюнингуемым рычагом
   WITHDRAW_ENABLED: 0, // рубильник вывода (0=выкл, 1=вкл). По умолчанию выкл до запуска токена.
@@ -231,6 +236,10 @@ function validateConfigPatch(patch) {
     "SOULS_EXCHANGE_SOULS",
     "SOULS_RESPEC_PER_LEVEL",
     "SOULS_SOLANA_LINK_REWARD",
+    "SOLANA_BURN_SMALL_COINS",
+    "SOLANA_BURN_SMALL_SOULS",
+    "SOLANA_BURN_BIG_COINS",
+    "SOLANA_BURN_BIG_SOULS",
     "MIN_WITHDRAW",
     "WITHDRAW_FEE_PCT",
     "WITHDRAW_ENABLED",

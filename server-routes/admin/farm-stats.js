@@ -37,6 +37,8 @@ module.exports = async (req, res) => {
   const db = await readDb();
   const records = db && db.records ? db.records : {};
 
+  // Souls (031): what players hold now and what was ever credited.
+  const soulsTotals = { balance: 0, totalEarned: 0, holders: 0 };
   let totalEmitted = 0;
   let totalBalance = 0;
   let activeFarmers = 0;
@@ -52,6 +54,10 @@ module.exports = async (req, res) => {
       (record) => normalizeFarmState(record.farmState).active
     ).length;
     earners.push({ wallet, totalEarned: Number(currency.totalEarned) || 0, balance: Number(currency.balance) || 0 });
+    const souls = profile.souls || {};
+    soulsTotals.balance += Number(souls.balance) || 0;
+    soulsTotals.totalEarned += Number(souls.totalEarned) || 0;
+    if ((Number(souls.balance) || 0) > 0) soulsTotals.holders += 1;
   }
 
   let emittedLast24h = 0;
@@ -81,7 +87,11 @@ module.exports = async (req, res) => {
   // much it holds. Never fails the page — the index is a cache, not a source.
   const roster = await getRosterStatus().catch(() => null);
 
+  // $PETIX burned on Solana for souls: totals and the latest burns. Never fails the page.
+  const soulBurns = await require("../../api/_lib/solana-burn").burnStats().catch(() => null);
+
   json(res, 200, {
+    souls: { ...soulsTotals, burns: soulBurns },
     roster,
     totalEmitted,
     totalBalance,

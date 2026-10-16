@@ -1,5 +1,6 @@
 const { exchangeOffer, inventoryView } = require("../../api/_lib/souls");
 const { currentTryOn, shopView } = require("../../api/_lib/shop");
+const { burnView } = require("../../api/_lib/solana-burn");
 const { getSessionFromRequest, handleCors, json } = require("../../api/_lib/auth");
 const {
   serializeBattleState,
@@ -94,6 +95,8 @@ module.exports = async (req, res) => {
     // Linked Solana wallet (031) and the one-time reward for linking one.
     solana: profile.solana || null,
     soulsSolanaReward: cfg.SOULS_SOLANA_LINK_REWARD,
+    // Burning $PETIX on Solana for souls: packs, the coin link, the running total.
+    solanaBurn: await burnView(cfg),
     // Souls shop (031): inventory, the catalog with stock, the fitting in progress.
     items: inventoryView(profile),
     shop: await shopView(session.wallet),
