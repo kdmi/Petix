@@ -218,6 +218,11 @@ body[data-page="dashboard"] .dashboard-energy.has-empty-energy:focus-within .das
   border: 1px solid var(--gray-200);
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(16, 24, 40, 0.12);
+  /* Колонка, а не блок с инлайновыми кнопками: при `width: max-content` на
+     мобилке браузер мерил пункты в одну строку, меню выходило 584px на экране
+     375px и уезжало за левый край (жалоба игрока 2026-10-18). */
+  display: flex;
+  flex-direction: column;
   min-width: 180px;
   padding: 8px;
   position: absolute;
@@ -5752,6 +5757,7 @@ body.battle-mobile-result-preview-page--expanded-rounds .arena-live-round-main {
   }
 
   .wallet-menu {
+    max-width: calc(100vw - 32px);
     position: fixed;
     right: 16px;
     top: 56px;
