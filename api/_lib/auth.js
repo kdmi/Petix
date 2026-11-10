@@ -1,7 +1,14 @@
 const crypto = require("crypto");
-const bs58Package = require("bs58");
-const nacl = require("tweetnacl");
-const { verifyMessage: verifyEvmMessage, getAddress: toEvmChecksumAddress } = require("ethers");
+// Heavy crypto libs are loaded lazily: hot paths like /api/auth/evm/me only
+// verify our own HMAC session token and must not pay for ethers on cold start.
+let _ethers;
+const ethers = () => (_ethers ||= require("ethers"));
+const verifyEvmMessage = (...args) => ethers().verifyMessage(...args);
+const toEvmChecksumAddress = (...args) => ethers().getAddress(...args);
+let _bs58Package;
+let _nacl;
+const bs58Lib = () => (_bs58Package ||= require("bs58"));
+const naclLib = () => (_nacl ||= require("tweetnacl"));
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -320,11 +327,12 @@ function buildChallengeMessage(challenge) {
 }
 
 function verifySignedMessage(wallet, message, signatureBase64) {
+  const bs58Package = bs58Lib();
   const bs58 = bs58Package.default || bs58Package;
   const publicKey = bs58.decode(wallet);
   const signature = Buffer.from(signatureBase64, "base64");
   const messageBytes = Buffer.from(message, "utf8");
-  return nacl.sign.detached.verify(messageBytes, signature, publicKey);
+  return naclLib().sign.detached.verify(messageBytes, signature, publicKey);
 }
 
 function walletTypeToName(walletType) {
