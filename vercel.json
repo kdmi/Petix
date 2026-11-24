@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/nft/sync",
-      "schedule": "* * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/token/sync",
@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/roster/sync",
-      "schedule": "* * * * *"
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/storage/gc",
@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/expeditions/mint-sync",
-      "schedule": "* * * * *"
+      "schedule": "*/3 * * * *"
     }
   ],
   "functions": {
